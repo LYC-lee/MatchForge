@@ -1,0 +1,211 @@
+# ============================================================
+# MatchForge (智配) - 基础设施 Docker Compose
+# 电子元器件 AI 替代料寻源助手
+#
+# 服务清单:
+#   MySQL 8.0    - 业务数据库 (供应商/询价/用户/审核)
+#   Milvus 2.4   - 向量检索 (供应商匹配 + RAG 知识库)
+#   etcd         - Milvus 元数据协调
+#   MinIO        - 对象存储 (Datasheet/证照) + Milvus 内部存储
+#   Neo4j        - 知识图谱 (替代料交叉引用图)
+#   Redis 7      - 会话/限流/热点缓存
+#
+# 启动: docker compose up -d
+# 停止: docker compose down
+# 重置: docker compose down -v  (删除所有数据卷)
+# ============================================================
+
+version: "3.8"
+
+services:
+  # ============================================================
+  # MySQL 8.0 — 业务主库
+  # 端口: 3306
+  # ============================================================
+  mysql:
+    image: mysql:8.0
+    container_name: matchforge-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: matchforge123
+      MYSQL_DATABASE: matchforge
+      MYSQL_USER: matchforge
+      MYSQL_PASSWORD: matchforge123
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d  # 初始化 SQL 脚本
+    command: --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pmatchforge123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - matchforge-net
+
+  # ============================================================
+  # etcd — Milvus 元数据协调 (必须)
+  # ============================================================
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: matchforge-etcd
+    restart: unless-stopped
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+      - TZ=Asia/Shanghai
+    volumes:
+      - etcd_data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - matchforge-net
+
+  # ============================================================
+  # MinIO — 对象存储 (Datasheet PDF / 证照 / Milvus 内部存储)
+  # 端口: 9000 (API) / 9001 (Console)
+  # ============================================================
+  minio:
+    image: minio/minio:latest
+    container_name: matchforge-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+      TZ: Asia/Shanghai
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    volumes:
+      - minio_data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - matchforge-net
+
+  # ============================================================
+  # Milvus 2.4 — 向量数据库 (Standalone 模式)
+  # 端口: 19530 (gRPC) / 9091 (健康检查)
+  # ============================================================
+  milvus:
+    image: milvusdb/milvus:v2.4.0
+    container_name: matchforge-milvus
+    restart: unless-stopped
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MINIO_ACCESS_KEY_ID: minioadmin
+      MINIO_SECRET_ACCESS_KEY: minioadmin123
+      TZ: Asia/Shanghai
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    command: ["milvus", "run", "standalone"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - matchforge-net
+
+  # ============================================================
+  # Neo4j — 知识图谱 (替代料交叉引用)
+  # 端口: 7474 (HTTP) / 7687 (Bolt)
+  # ============================================================
+  neo4j:
+    image: neo4j:5.20.0
+    container_name: matchforge-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/matchforge123
+      NEO4J_dbms_memory_heap_initial__size: 512m
+      NEO4J_dbms_memory_heap_max__size: 1g
+      NEO4J_dbms_memory_pagecache_size: 256m
+      TZ: Asia/Shanghai
+    ports:
+      - "7474:7474"   # HTTP
+      - "7687:7687"   # Bolt
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_import:/var/lib/neo4j/import
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "matchforge123", "RETURN 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - matchforge-net
+
+  # ============================================================
+  # Redis 7 — 缓存 / 会话 / 限流
+  # 端口: 6379
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: matchforge-redis
+    restart: unless-stopped
+    command: redis-server --requirepass matchforge123 --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "matchforge123", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - matchforge-net
+
+# ============================================================
+# 数据卷
+# ============================================================
+volumes:
+  mysql_data:
+    name: matchforge-mysql-data
+  etcd_data:
+    name: matchforge-etcd-data
+  minio_data:
+    name: matchforge-minio-data
+  milvus_data:
+    name: matchforge-milvus-data
+  neo4j_data:
+    name: matchforge-neo4j-data
+  neo4j_logs:
+    name: matchforge-neo4j-logs
+  neo4j_import:
+    name: matchforge-neo4j-import
+  redis_data:
+    name: matchforge-redis-data
+
+# ============================================================
+# 网络
+# ============================================================
+networks:
+  matchforge-net:
+    name: matchforge-net
+    driver: bridge
