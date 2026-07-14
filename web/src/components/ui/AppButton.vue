@@ -4,16 +4,19 @@ withDefaults(defineProps<{
   size?: 'sm' | 'md' | 'lg'
   disabled?: boolean
   loading?: boolean
+  type?: 'button' | 'submit' | 'reset'
 }>(), {
   variant: 'primary',
   size: 'md',
   disabled: false,
   loading: false,
+  type: 'button',
 })
 </script>
 
 <template>
   <button
+    :type="type"
     class="btn"
     :class="[`btn--${variant}`, `btn--${size}`, { 'is-disabled': disabled, 'is-loading': loading }]"
     :disabled="disabled || loading"

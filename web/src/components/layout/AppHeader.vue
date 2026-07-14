@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const router = useRouter()
+const auth = useAuthStore()
+
+function logout() {
+  auth.logout()
+  router.push('/login')
+}
 </script>
 
 <template>
@@ -15,7 +24,11 @@ import { RouterLink } from 'vue-router'
         <RouterLink to="/history" class="nav__link">历史记录</RouterLink>
       </nav>
       <div class="header__right">
-        <span class="badge-mock">Spike · Mock</span>
+        <span v-if="auth.user" class="user">
+          <span class="user__avatar">{{ auth.user.name.slice(0, 1).toUpperCase() }}</span>
+          <span class="user__name">{{ auth.user.name }}</span>
+        </span>
+        <button class="logout" @click="logout">退出</button>
       </div>
     </div>
   </header>
@@ -63,12 +76,37 @@ import { RouterLink } from 'vue-router'
 }
 .nav__link:hover { color: var(--text-primary); background: var(--bg-3); }
 .nav__link.router-link-exact-active { color: var(--text-primary); background: var(--bg-3); }
-.header__right { margin-left: auto; }
-.badge-mock {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  padding: 3px 8px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-full);
+
+.header__right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
+.user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.user__avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--gradient-accent);
+  color: #fff;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.user__name { font-size: var(--font-size-sm); color: var(--text-secondary); }
+.logout {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+.logout:hover { color: var(--danger); background: var(--danger-soft); }
 </style>
