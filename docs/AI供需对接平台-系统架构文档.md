@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | v1.1 |
+| 文档版本 | v1.2 |
 | 编写日期 | 2026-07-14 |
 | 适用范围 | 2 天 Spike（Phase 0）+ 8-12 周 MVP（Phase 1-4） |
 | 关联文档 | [产品需求文档](AI供需对接平台-产品需求文档.md)、[项目开发文档](AI供需对接平台-项目开发文档.md) |
@@ -116,12 +116,14 @@
 from typing import TypedDict
 
 class ProcureState(TypedDict):
+    thread_id: str                      # 会话标识，支撑多轮上下文（PRD §22.3）
     raw_query: str                      # 原始自然语言需求
     parsed_spec: dict | None            # 抽取的规格
     normalized_spec: dict | None        # 标准化规格（映射标准字典）
     alternatives: list[dict]            # 替代料 [{part, confidence, source, verified}]
     matched_suppliers: list[dict]       # 匹配供应商
     rfq_doc: str | None                 # 结构化询价单
+    rfq_id: str | None                  # 持久化的询价单 ID（submit 后回填）
     lead_grade: dict | None             # 线索分级 {grade, score, reasons}
     errors: list[str]                   # 各智能体错误收集
 ```
@@ -130,12 +132,14 @@ class ProcureState(TypedDict):
 
 | 子智能体 | 输入 | 处理 | 输出 | 工具/数据 | LLM | 兜底 |
 |---|---|---|---|---|---|---|
-| 需求解析 Agent | raw_query | 槽位抽取 + 型号正则校验 | parsed_spec | LangChain + 正则 | qwen-max | 正则命中即信任；未命中走人工确认提示 |
-| 标准化 Agent | parsed_spec | 映射标准品类/参数字典 | normalized_spec | MySQL material_dictionary | qwen-plus（兜底） | 未命中字典保留原值并标 `unmapped` |
-| 替代料推荐 Agent | normalized_spec | 图遍历查等效料 + LLM 推理 | alternatives（带 confidence+source） | **Neo4j** + LLM | qwen-max | 置信度 <0.7 进人工核验队列 |
-| 供应商匹配 Agent | spec + alternatives | 向量召回 + 规则过滤 + 排序 | matched_suppliers | **Milvus** + MySQL | qwen-plus（生成解释） | 召回为空时放宽约束并标注"低置信匹配" |
-| 询价生成 Agent | spec + alternatives + suppliers | 生成结构化询价单 | rfq_doc | LangChain + LLM | qwen-plus | LLM 失败用固定模板填字段 |
-| 线索分级 Agent | 商务字段（用量/交期/品牌偏好） | 规则评分 + LLM 复核理由 | lead_grade | 规则 + LLM | qwen-plus | 规则评分为主，LLM 仅生成可读理由 |
+| 需求解析 Agent（F1） | raw_query | 槽位抽取 + 型号正则校验 | parsed_spec | LangChain + 正则 | qwen-max | 正则命中即信任；未命中走 F-CONFIRM 引导 |
+| 标准化 Agent（F2） | parsed_spec | 映射标准品类/参数字典 | normalized_spec | MySQL material_dictionary | qwen-plus（兜底） | 未命中字典保留原值并标 `unmapped` |
+| 替代料推荐 Agent（F3） | normalized_spec | 图遍历查等效料 + LLM 推理 | alternatives（带 confidence+source） | **Neo4j** + LLM | qwen-max | 置信度 <0.7 进人工核验队列 |
+| 供应商匹配 Agent（F4） | spec + alternatives | 向量召回 + 规则过滤 + 排序 | matched_suppliers | **Milvus** + MySQL | qwen-plus（生成解释） | 召回为空时放宽约束并标注"低置信匹配" |
+| 询价生成 Agent（F5） | spec + alternatives + suppliers | 生成结构化询价单 | rfq_doc | LangChain + LLM | qwen-plus | LLM 失败用固定模板填字段 |
+| 线索分级 Agent（F6） | 商务字段（用量/交期/品牌偏好） | 规则评分 + LLM 复核理由 | lead_grade | 规则 + LLM | qwen-plus | 规则评分为主，LLM 仅生成可读理由 |
+
+> 智能体编号 F1-F6 对应[产品需求文档 §7.3.2](AI供需对接平台-产品需求文档.md)；单步接口 `/parse` `/alternatives` `/match` `/rfq/generate` 可独立调用单个智能体（见 §6）。
 
 ### 4.4 编排图
 ```
@@ -201,22 +205,117 @@ lead_grade = {grade:"A", score:88, reasons:["月用量高","交期明确","品�
 
 ---
 
-## 6. API 设计（关键接口）
+## 6. API 设计
 
-| 方法 | 路径 | 说明 | 阶段 |
-|---|---|---|---|
-| POST | `/api/v1/procure` | 一站式：Supervisor 跑完整链，SSE 流式返回各智能体结果 | Spike |
-| POST | `/api/v1/parse` | 仅解析需求 | Spike |
-| POST | `/api/v1/alternatives` | 仅替代料推荐 | Spike |
-| POST | `/api/v1/match` | 仅供应商匹配 | Spike |
-| POST | `/api/v1/rfq/generate` | 生成询价单 | Spike |
-| POST | `/api/v1/rfq/submit` | 提交询价 + 触发线索分级与推送 | MVP |
-| GET | `/api/v1/suppliers/{id}` | 供应商详情 | Spike |
-| POST | `/api/v1/suppliers/onboard` | 供应商入驻（资质上传） | MVP |
-| POST | `/api/v1/admin/suppliers/{id}/audit` | 资质审核 | MVP |
-| GET | `/api/v1/admin/metrics` | 运营指标 | MVP |
+> 所有业务接口前缀 `/api/v1`；接口契约由 FastAPI 自动生成 OpenAPI，前后端先定 Schema 再并行开发（见[项目开发文档 §7](AI供需对接平台-项目开发文档.md)）。功能 ID 对应[产品需求文档 §7.3](AI供需对接平台-产品需求文档.md)。
 
-> 接口契约由 FastAPI 自动生成 OpenAPI，前后端先定 Schema 再并行开发。
+### 6.1 接口总览
+
+| 方法 | 路径 | 功能 ID | 说明 | 阶段 |
+|---|---|---|---|---|
+| GET | `/api/health` | - | 健康检查（Liveness） | Spike |
+| POST | `/api/v1/auth/register` | F-AUTH-001 | 用户注册 | MVP |
+| POST | `/api/v1/auth/login` | F-AUTH-002 | 用户登录，返回 Access/Refresh Token | MVP |
+| POST | `/api/v1/auth/refresh` | F-AUTH-003 | Token 刷新 | MVP |
+| GET | `/api/v1/auth/me` | F-AUTH-004 | 当前用户信息 | MVP |
+| POST | `/api/v1/procure` | F1-F6 | 一站式寻源，SSE 流式返回各智能体结果 | Spike |
+| POST | `/api/v1/parse` | F1 | 仅需求解析 | Spike |
+| POST | `/api/v1/alternatives` | F3 | 仅替代料推荐 | Spike |
+| POST | `/api/v1/match` | F4 | 仅供应商匹配 | Spike |
+| POST | `/api/v1/rfq/generate` | F5 | 生成询价单 | Spike |
+| POST | `/api/v1/rfq/submit` | F9-001 | 提交询价 + 触发线索分级与推送 | MVP |
+| GET | `/api/v1/rfq/{rfq_id}` | F9-002 | 查询询价状态 | MVP |
+| GET | `/api/v1/rfqs` | F9-002 | 当前采购的询价列表 | MVP |
+| GET | `/api/v1/suppliers` | F4 | 供应商搜索/列表 | Spike |
+| GET | `/api/v1/suppliers/{id}` | F4/F8 | 供应商详情 | Spike |
+| POST | `/api/v1/suppliers/onboard` | F7 | 供应商入驻（资质上传） | MVP |
+| GET | `/api/v1/leads` | F6 | 上游线索列表（按分级过滤） | MVP |
+| POST | `/api/v1/admin/suppliers/{id}/audit` | F10 | 资质审核 | MVP |
+| GET | `/api/v1/admin/metrics` | F10 | 运营指标 | MVP |
+
+### 6.2 SSE 事件流（`/api/v1/procure`）
+
+`procure` 为 SSE 流式接口，`Content-Type: text/event-stream`，事件按智能体执行顺序推送：
+
+| 事件 `event` | `data` 字段 | 时机 |
+|---|---|---|
+| `start` | `{thread_id, rfq_id}` | 链路启动 |
+| `progress` | `{agent, status, result?}` | 每个智能体开始/完成；`agent` ∈ `parse/normalize/alternatives/match/gen_rfq/grade`，`status` ∈ `running/done` |
+| `token` | `{text}` | 询价单生成阶段的增量 token（可选） |
+| `error` | `{agent, message}` | 某智能体失败（不中断链路，写入 `errors`） |
+| `result` | 完整 `ProcureState`（见 §4.2） | 全部完成 |
+| `end` | `{}` | 流结束 |
+
+示例：
+```
+event: start
+data: {"thread_id":"T123","rfq_id":"Q20260714-001"}
+
+event: progress
+data: {"agent":"parse","status":"done","result":{"category":"MLCC","package":"0805",...}}
+
+event: progress
+data: {"agent":"match","status":"done","result":[{"id":"S012","score":0.92,...}]}
+
+event: result
+data: {"parsed_spec":{...},"alternatives":[...],"matched_suppliers":[...],"rfq_doc":"...","lead_grade":{"grade":"A","score":88}}
+
+event: end
+data: {}
+```
+
+### 6.3 关键接口 Schema
+
+**POST `/api/v1/procure`**（F1-F6，SSE）
+```json
+// 请求
+{"query": "0805 10uF X7R 50V MLCC，要国巨或华新科替代，月用量50万，交期2周", "thread_id": "可选，多轮时传入"}
+// 响应：SSE 事件流（见 §6.2），最终 result 为 ProcureState
+```
+
+**POST `/api/v1/parse`**（单步，F1）
+```json
+// 请求
+{"query": "..."}
+// 响应
+{"parsed_spec": {"category":"MLCC","package":"0805","capacitance":"10uF","temp_coeff":"X7R","rated_voltage":"50V","brand_pref":["YAGEO","Walsin"],"monthly_qty":500000,"lead_time_weeks":2}, "missing_fields": ["tolerance"]}
+```
+
+**POST `/api/v1/match`**（单步，F4）
+```json
+// 请求
+{"spec": {...}, "alternatives": [...], "filters": {"in_stock": true, "max_lead_time_weeks": 3}}
+// 响应
+{"matched_suppliers": [{"id":"S012","name":"深圳XX电子","score":0.92,"in_stock":true,"moq":100000,"lead_time_weeks":1,"qualifications":["ISO9001"]}]}
+```
+
+**POST `/api/v1/rfq/generate`**（单步，F5）
+```json
+// 请求
+{"spec": {...}, "alternatives": [...], "suppliers": [...]}
+// 响应
+{"rfq_doc": "询价单 #Q...\n品名: ...\n月用量: ...\n交期: ...\n请报: 含税单价/交期/起订量/库存..."}
+```
+
+**POST `/api/v1/rfq/submit`**（F9-001，需鉴权）
+```json
+// 请求
+{"rfq_doc": "...", "parsed_spec": {...}, "target_supplier_ids": ["S012","S047"]}
+// 响应
+{"rfq_id": "Q20260714-001", "status": "sent", "leads": [{"supplier_id":"S012","grade":"A","score":88}]}
+```
+
+### 6.4 统一错误响应
+```json
+{"code": "PARSE_FAILED", "message": "需求解析失败：未识别到有效型号", "agent": "parse", "trace_id": "..."}
+```
+常用 `code`：`UNAUTHORIZED` / `RATE_LIMITED` / `VALIDATION_ERROR` / `PARSE_FAILED` / `NO_MATCH` / `LLM_TIMEOUT`。
+
+### 6.5 鉴权与限流
+- Spike 期：`/api/v1/procure` 等寻源接口可匿名调用；`/api/v1/rfq/submit` 及上游/运营接口需 JWT
+- MVP：全部业务接口需 JWT（Access 24h / Refresh 7d），仅 `/api/health` 放行
+- 限流：Redis 滑动窗口，默认 30 次/分钟/IP（PRD §21.3）
+- 所有 LLM 调用经 LangFuse 记录 trace，`trace_id` 透传到响应头便于排障
 
 ---
 
@@ -224,22 +323,81 @@ lead_grade = {grade:"A", score:88, reasons:["月用量高","交期明确","品�
 
 ### 7.1 MySQL 8.0（业务数据）
 ```sql
--- 供应商
-CREATE TABLE suppliers (
+-- 企业（采购方与供应方共用）
+CREATE TABLE enterprises (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(200) NOT NULL,
+  type VARCHAR(20) NOT NULL,               -- buyer/supplier
+  credit_code VARCHAR(50),                 -- 统一社会信用代码
+  contact VARCHAR(100),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 用户（采购/供应端账号；MVP 引入，Spike 期寻源可匿名）
+CREATE TABLE users (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  password_hash VARCHAR(128) NOT NULL,     -- bcrypt
+  enterprise_id BIGINT,
+  role VARCHAR(20) NOT NULL,               -- buyer/supplier/admin
+  email VARCHAR(100),
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_enterprise (enterprise_id),
+  CONSTRAINT fk_user_ent FOREIGN KEY (enterprise_id) REFERENCES enterprises(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 采购档案（下游，关联企业）
+CREATE TABLE buyers (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  enterprise_id BIGINT NOT NULL,
+  industry VARCHAR(50),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_buyer_ent FOREIGN KEY (enterprise_id) REFERENCES enterprises(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 供应商（上游）
+CREATE TABLE suppliers (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  enterprise_id BIGINT,
+  name VARCHAR(200) NOT NULL,
   location VARCHAR(100),
-  qualifications JSON,
   rating DECIMAL(3,2) DEFAULT 0,
-  status VARCHAR(20) DEFAULT 'pending',   -- pending/approved/rejected
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  status VARCHAR(20) DEFAULT 'pending',    -- pending/approved/rejected
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_status (status),
+  CONSTRAINT fk_supplier_ent FOREIGN KEY (enterprise_id) REFERENCES enterprises(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 资质证照（F7 核验，原 suppliers.qualifications 拆为独立表）
+CREATE TABLE qualifications (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  supplier_id BIGINT NOT NULL,
+  type VARCHAR(50) NOT NULL,               -- ISO9001/IATF16949/营业执照...
+  cert_no VARCHAR(100),
+  file_url TEXT,                           -- 对象存储地址
+  status VARCHAR(20) DEFAULT 'pending',    -- pending/verified/rejected
+  verified_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_supplier (supplier_id),
+  CONSTRAINT fk_qual_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 品类字典
+CREATE TABLE categories (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50) NOT NULL UNIQUE,        -- MLCC/电阻/连接器...
+  parent_id BIGINT,                        -- 支持层级
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_parent (parent_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 供应商产品（向量在 Milvus，替代关系在 Neo4j）
 CREATE TABLE products (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   supplier_id BIGINT,
-  category VARCHAR(50) NOT NULL,
+  category VARCHAR(50) NOT NULL,           -- 对应 categories.name
   part_number VARCHAR(100),
   specs JSON,                              -- 标准化规格
   datasheet_url TEXT,
@@ -250,10 +408,10 @@ CREATE TABLE products (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_part (part_number),
   INDEX idx_category (category),
-  CONSTRAINT fk_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+  CONSTRAINT fk_product_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 标准字典
+-- 标准字典（F2 标准化用）
 CREATE TABLE material_dictionary (
   std_code VARCHAR(100) PRIMARY KEY,       -- MLCC-0805-X7R-50V-103
   category VARCHAR(50),
@@ -261,17 +419,23 @@ CREATE TABLE material_dictionary (
   standard VARCHAR(50)                     -- GB/IEC/EIA
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 询价单
+-- 询价单（F9）
 CREATE TABLE rfqs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   buyer_id BIGINT,
+  thread_id VARCHAR(64),                   -- 多轮会话标识
   raw_query TEXT,
   parsed_spec JSON,
+  normalized_spec JSON,
+  alternatives JSON,
+  rfq_doc TEXT,
   status VARCHAR(20) DEFAULT 'draft',      -- draft/sent/quoted/closed
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_buyer (buyer_id),
+  CONSTRAINT fk_rfq_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 线索（上游视角）
+-- 线索（上游视角，F6 分级）
 CREATE TABLE leads (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   rfq_id BIGINT,
@@ -282,7 +446,8 @@ CREATE TABLE leads (
   status VARCHAR(20) DEFAULT 'new',        -- new/contacted/won/lost
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_supplier (supplier_id),
-  CONSTRAINT fk_rfq FOREIGN KEY (rfq_id) REFERENCES rfqs(id)
+  CONSTRAINT fk_lead_rfq FOREIGN KEY (rfq_id) REFERENCES rfqs(id),
+  CONSTRAINT fk_lead_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
