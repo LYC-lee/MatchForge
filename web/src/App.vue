@@ -1,19 +1,24 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterView } from 'vue-router'
+import AppHeader from '@/components/layout/AppHeader.vue'
 </script>
 
 <template>
-  <div class="app">
-    <header class="navbar">
-      <RouterLink to="/" class="brand">MatchForge · 智配</RouterLink>
-      <nav class="nav-links">
-        <RouterLink to="/">首页</RouterLink>
-        <RouterLink to="/rfq">智能寻源</RouterLink>
-        <RouterLink to="/suppliers">供应商</RouterLink>
-      </nav>
-    </header>
-    <main class="content">
+  <div class="app-shell">
+    <AppHeader />
+    <main class="app-main">
       <RouterView />
     </main>
   </div>
 </template>
+
+<style scoped>
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.app-main {
+  flex: 1;
+}
+</style>

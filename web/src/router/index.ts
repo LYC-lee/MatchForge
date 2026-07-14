@@ -5,17 +5,18 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'home',
-    component: () => import('@/views/Home.vue'),
+    component: () => import('@/views/HomeView.vue'),
   },
   {
-    path: '/rfq',
-    name: 'rfq',
-    component: () => import('@/views/Rfq.vue'),
+    path: '/procure/:id',
+    name: 'procure',
+    component: () => import('@/views/ProcureView.vue'),
+    props: true,
   },
   {
-    path: '/suppliers',
-    name: 'suppliers',
-    component: () => import('@/views/Suppliers.vue'),
+    path: '/history',
+    name: 'history',
+    component: () => import('@/views/HistoryView.vue'),
   },
 ]
 
