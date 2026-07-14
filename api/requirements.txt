@@ -1,0 +1,33 @@
+# ============================================================
+# MatchForge (智配) - API 后端依赖
+# Python 3.11+
+# 安装: pip install -r requirements.txt
+# ============================================================
+
+# --- Web 框架 ---
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.0
+pydantic-settings>=2.0
+python-multipart>=0.0.9
+
+# --- AI 编排 ---
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+
+# --- 数据层 ---
+sqlalchemy>=2.0
+pymysql>=1.1.0
+cryptography>=42.0.0
+redis>=5.0.0
+pymilvus>=2.4.0
+neo4j>=5.18.0
+
+# --- 工具 ---
+httpx>=0.27.0
+python-dotenv>=1.0.0
+sse-starlette>=2.0.0
+
+# --- 可观测 (可选) ---
+langfuse>=2.40.0
