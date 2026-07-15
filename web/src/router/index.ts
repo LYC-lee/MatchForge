@@ -1,57 +1,102 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
+import type { RouteRecordRaw } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    name: 'home',
+    name: 'landing',
+    component: () => import('@/views/LandingView.vue'),
+    meta: { layout: 'blank', public: true, title: '产品介绍' },
+  },
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { layout: 'blank', public: true, title: '登录' },
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: () => import('@/views/RegisterView.vue'),
+    meta: { layout: 'blank', public: true, title: '注册' },
+  },
+  {
+    path: '/app',
+    name: 'app',
+    component: () => import('@/views/HomeView.vue'),
+    meta: { requiresAuth: true, title: '产品功能' },
+  },
+  {
+    path: '/procure/:id',
+    name: 'procure',
+    component: () => import('@/views/ProcureView.vue'),
+    props: true,
+    meta: { requiresAuth: true, title: '寻源工作流' },
+  },
+  {
+    path: '/flow',
+    name: 'flow-home',
     component: () => import('@/views/P1Home.vue'),
-    meta: { title: 'AI 寻源' },
+    meta: { requiresAuth: true, title: 'AI 寻源' },
   },
   {
     path: '/spec-confirm',
     name: 'spec-confirm',
     component: () => import('@/views/P2SpecConfirm.vue'),
-    meta: { title: '规格确认' },
+    meta: { requiresAuth: true, title: '规格确认' },
   },
   {
     path: '/alternatives',
     name: 'alternatives',
     component: () => import('@/views/P3Alternatives.vue'),
-    meta: { title: '替代料结果' },
+    meta: { requiresAuth: true, title: '替代料结果' },
   },
   {
     path: '/supplier-match',
     name: 'supplier-match',
     component: () => import('@/views/P4SupplierMatch.vue'),
-    meta: { title: '供应商匹配' },
+    meta: { requiresAuth: true, title: '供应商匹配' },
   },
   {
     path: '/rfq-edit',
     name: 'rfq-edit',
     component: () => import('@/views/P5RfqEdit.vue'),
-    meta: { title: '询价单编辑' },
+    meta: { requiresAuth: true, title: '询价单编辑' },
   },
   {
     path: '/history',
     name: 'history',
+    component: () => import('@/views/HistoryView.vue'),
+    meta: { requiresAuth: true, title: '历史记录' },
+  },
+  {
+    path: '/flow/history',
+    name: 'flow-history',
     component: () => import('@/views/P6History.vue'),
-    meta: { title: '历史记录' },
+    meta: { requiresAuth: true, title: '流程历史记录' },
   },
   {
     path: '/admin/audit',
     name: 'admin-audit',
     component: () => import('@/views/P7AdminAudit.vue'),
-    meta: { title: '运营审核' },
+    meta: { requiresAuth: true, title: '运营审核' },
   },
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 })
 
+// 路由守卫:只保护产品功能区。登录/注册页始终可访问,由页面自己展示当前登录状态。
 router.beforeEach((to) => {
-  document.title = `${to.meta.title} - MatchForge 智配`
+  document.title = `${String(to.meta.title || 'MatchForge')} - MatchForge 智配`
+
+  const auth = useAuthStore()
+  if (to.meta.requiresAuth && !auth.validateSession()) {
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
 })
 
 export default router

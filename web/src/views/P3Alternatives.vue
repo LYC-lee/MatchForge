@@ -164,7 +164,7 @@ const hasUnverified = computed(() =>
 
 // 排序: L1 优先, 高置信在前
 const sortedAlternatives = computed(() => {
-  const levelOrder = { L1: 0, L2: 1, L3: 2, L4: 3, L5: 4 }
+  const levelOrder: Record<string, number> = { L1: 0, L2: 1, L3: 2, L4: 3, L5: 4 }
   return [...store.alternatives].sort((a, b) => {
     const la = levelOrder[a.level || 'L5'] ?? 5
     const lb = levelOrder[b.level || 'L5'] ?? 5

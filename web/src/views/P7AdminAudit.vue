@@ -36,7 +36,7 @@
               <span class="part">{{ item.originalPart }}</span>
               <span class="arrow">→</span>
               <span class="part">{{ item.altPart }}</span>
-              <span class="tag tag-yellow">置信度 {{ (item.confidence * 100).toFixed(0) }}%</span>
+              <span class="tag tag-yellow">置信度 {{ ((item.confidence ?? 0) * 100).toFixed(0) }}%</span>
             </div>
             <span class="audit-time">{{ item.submittedAt }}</span>
           </div>

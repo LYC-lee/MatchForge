@@ -101,7 +101,7 @@ const activeTab = ref<'procure' | 'rfq'>('procure')
 const loading = ref(false)
 const loadError = ref('')
 
-interface Record {
+interface HistoryItem {
   id: string
   time: string
   rawQuery: string
@@ -111,7 +111,7 @@ interface Record {
   status?: string
 }
 
-const records = ref<Record[]>([])
+const records = ref<HistoryItem[]>([])
 
 function statusTagClass(status?: string) {
   const map: Record<string, string> = {
@@ -123,17 +123,17 @@ function statusTagClass(status?: string) {
   return map[status || 'draft'] || 'tag-gray'
 }
 
-function viewDetail(rec: Record) {
+function viewDetail(rec: HistoryItem) {
   // TODO: 跳转到详情页复用 store 状态
   alert(`查看详情: ${rec.id}`)
 }
 
-function reuse(rec: Record) {
+function reuse(_rec: HistoryItem) {
   // 复用寻源：跳回首页填充 query
   router.push('/')
 }
 
-function deleteRecord(rec: Record) {
+function deleteRecord(rec: HistoryItem) {
   if (confirm(`确定删除记录 ${rec.id}?`)) {
     records.value = records.value.filter((r) => r.id !== rec.id)
   }
