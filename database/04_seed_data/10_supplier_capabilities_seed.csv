@@ -1,0 +1,25 @@
+﻿id,supplier_id,category_id,category_name,brand_names,moq,lead_time_days,region,audit_status,audit_note,source_name,updated_at
+1,1,1,MLCC,"Murata,Samsung SEMCO,YAGEO,TDK,Walsin,风华高科,Taiyo Yuden",1000,7,华南,approved,授权代理+现货,供应商自填+实地审核,2026-07-15 10:30:00
+2,1,2,贴片电阻,"YAGEO,UniOhm,风华高科,Uniohm",1000,7,华南,approved,授权代理,供应商自填+实地审核,2026-07-15 10:30:00
+3,1,3,连接器,"JST,Molex,TE,立讯精密",500,7,华南,approved,授权代理,供应商自填+实地审核,2026-07-15 10:30:00
+4,1,6,二极管,"Vishay,NXP,ON Semi",1000,7,华南,approved,授权代理,供应商自填+实地审核,2026-07-15 10:30:00
+5,2,1,MLCC,"Murata,Samsung SEMCO,YAGEO,TDK",1000,5,华东,approved,授权代理,供应商自填+实地审核,2026-07-15 10:30:00
+6,2,2,贴片电阻,"YAGEO,UniOhm",1000,5,华东,approved,授权代理,供应商自填+实地审核,2026-07-15 10:30:00
+7,3,1,MLCC,"Murata,Samsung SEMCO,YAGEO",4000,14,华南,approved,实地核实,供应商自填+实地审核,2026-07-15 10:30:00
+8,4,1,MLCC,"TDK,Walsin,风华高科",4000,14,华南,approved,实地核实,供应商自填+实地审核,2026-07-15 10:30:00
+9,5,2,贴片电阻,"YAGEO,UniOhm",4000,14,华南,approved,实地核实,供应商自填+实地审核,2026-07-15 10:30:00
+10,6,3,连接器,"JST,Molex",2000,14,华南,approved,实地核实,供应商自填+实地审核,2026-07-15 10:30:00
+11,7,6,二极管,"Vishay,NXP,ON Semi",3000,14,华南,approved,实地核实,供应商自填+实地审核,2026-07-15 10:30:00
+12,8,7,MOSFET,"AOS,ON Semi,IR",3000,14,华南,approved,实地核实,供应商自填+实地审核,2026-07-15 10:30:00
+13,9,1,MLCC,"Samsung SEMCO,YAGEO,风华高科",4000,14,华东,approved,实地核实,供应商自填+实地审核,2026-07-15 10:30:00
+14,10,2,贴片电阻,"YAGEO,Uniohm",4000,14,华东,approved,实地核实,供应商自填+实地审核,2026-07-15 10:30:00
+15,11,1,MLCC,"Murata,TDK",4000,14,华南,needs_review,资质待补,供应商自填,2026-07-15 10:30:00
+16,12,3,连接器,"JST,TE",2000,14,华南,approved,实地核实,供应商自填+实地审核,2026-07-15 10:30:00
+17,13,6,二极管,"Vishay,ON Semi",3000,14,华东,approved,实地核实,供应商自填+实地审核,2026-07-15 10:30:00
+18,14,1,MLCC,"风华高科,YAGEO",4000,21,华北,pending,待审核,供应商自填,2026-07-15 10:30:00
+19,15,1,MLCC,"Murata,TDK,YAGEO",1,21,全国,approved,授权代理,供应商自填,2026-07-15 10:30:00
+20,15,2,贴片电阻,"YAGEO,Panasonic",1,21,全国,approved,授权代理,供应商自填,2026-07-15 10:30:00
+21,17,1,MLCC,"Murata,TDK,YAGEO,Samsung SEMCO",1,28,海外,approved,授权代理,供应商自填,2026-07-15 10:30:00
+22,17,6,二极管,"Vishay,NXP,ON Semi",1,28,海外,approved,授权代理,供应商自填,2026-07-15 10:30:00
+23,19,1,MLCC,"风华高科,Walsin",100,3,华南,needs_review,现货档口，无授权,供应商自填,2026-07-15 10:30:00
+24,20,3,连接器,"JST,立讯精密",2000,14,华南,pending,待审核,供应商自填,2026-07-15 10:30:00

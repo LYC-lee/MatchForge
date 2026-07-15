@@ -1,0 +1,21 @@
+﻿id,company_id,name,location,rating,status,contact_phone,contact_email,source_name,source_url,updated_at
+1,27,立创商城(LCSC),深圳,4.8,approved,0755-83281900,sales@lcsc.com,供应商自填+实地审核,https://www.szlcsc.com,2026-07-15 10:30:00
+2,28,云汉芯城,上海,4.7,approved,021-12345678,sales@yunhanxin.com,供应商自填+实地审核,https://www.yunhanxin.com,2026-07-15 10:30:00
+3,,深圳市昂洋科技有限公司,深圳,4.8,approved,0755-83281900,sales@aychina.net,供应商自填,https://internal.example.com/supplier/3,2026-07-15 10:30:00
+4,,东莞市超翔电子有限公司,东莞,4.6,approved,0769-22667088,sales@cxgeo.com,供应商自填,https://internal.example.com/supplier/4,2026-07-15 10:30:00
+5,,深圳市南皇电子有限公司,深圳,4.5,approved,0755-82512999,sales@nanhuangic.com,供应商自填,https://internal.example.com/supplier/5,2026-07-15 10:30:00
+6,,深圳市科茂森电子科技有限公司,深圳,4.4,approved,0755-83981999,sales@kemaoosen.com,供应商自填,https://internal.example.com/supplier/6,2026-07-15 10:30:00
+7,,深圳市钦胜恒腾电子有限公司,深圳,4.3,approved,0755-83218888,sales@qsheng.com,供应商自填,https://internal.example.com/supplier/7,2026-07-15 10:30:00
+8,,安升电子(深圳)有限公司,深圳,4.7,approved,0755-83288000,sales@ansonsz.com,供应商自填,https://internal.example.com/supplier/8,2026-07-15 10:30:00
+9,,深圳市宏诺德电子科技有限公司,深圳,4.2,approved,0755-83668000,sales@homndtech.com,供应商自填,https://internal.example.com/supplier/9,2026-07-15 10:30:00
+10,,深圳市佳仕达科技有限公司,深圳,4.3,approved,0755-83980000,sales@jsddz.net,供应商自填,https://internal.example.com/supplier/10,2026-07-15 10:30:00
+11,,深圳市三守科技有限公司,深圳,4.4,approved,0755-83259000,sales@sskjsemi.com,供应商自填,https://internal.example.com/supplier/11,2026-07-15 10:30:00
+12,,深圳市平台科技有限公司,深圳,4.2,approved,0755-83280000,sales@ptmsz.com,供应商自填,https://internal.example.com/supplier/12,2026-07-15 10:30:00
+13,,深圳市凯新达电子有限公司,深圳,4.3,approved,0755-83981000,sales@pioneeric.com,供应商自填,https://internal.example.com/supplier/13,2026-07-15 10:30:00
+14,,深圳市通顺达科技有限公司,深圳,4.1,approved,0755-83660000,sales@tosuda.cn,供应商自填,https://internal.example.com/supplier/14,2026-07-15 10:30:00
+15,23,Arrow Electronics(中国),上海,4.6,approved,021-61061066,sales@arrow.cn,供应商自填,https://www.arrow.com,2026-07-15 10:30:00
+16,24,Avnet(中国),上海,4.5,approved,021-51102988,sales@avnet.cn,供应商自填,https://www.avnet.com,2026-07-15 10:30:00
+17,25,Digi-Key(代采),美国,4.7,approved,+1-218-681-6674,sales@digikey.com,供应商自填,https://www.digikey.com,2026-07-15 10:30:00
+18,26,Mouser(代采),美国,4.6,approved,+1-817-804-3888,sales@mouser.com,供应商自填,https://www.mouser.com,2026-07-15 10:30:00
+19,,深圳华强电子世界-现货档口A,深圳,4.0,needs_review,0755-83980000,huasheng@example.com,供应商自填,https://internal.example.com/supplier/19,2026-07-15 10:30:00
+20,,东莞元盛电子科技,东莞,4.2,pending,0769-22330000,yuansheng@example.com,供应商自填,https://internal.example.com/supplier/20,2026-07-15 10:30:00

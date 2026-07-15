@@ -1,0 +1,2 @@
+rfq_number,title,raw_query,part_number,quantity,unit,target_price,lead_time_weeks,accept_alternatives,scenario,status,created_by,updated_at
+RFQ-2026-001,急寻0.1uF 0603 X7R电容10万PCS,客户产线缺料急需Murata或同等替代0.1uF 0603 X7R 50V贴片电容10万PCS,GRM188R71H104KA93D,100000,pcs,0.0150,2,1,stockout,sent,li.si,2026-07-15 10:30:00

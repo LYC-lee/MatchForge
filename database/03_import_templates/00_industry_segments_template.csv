@@ -1,0 +1,2 @@
+segment_code,segment_name_cn,segment_name_en,chain_position,parent_code,level,description,typical_products,typical_companies,data_scope,source_name,source_url,confidence_level,sort_order,is_active,updated_at
+passive_components,被动元件,Passive Components,upstream,,1,"电容、电阻、电感、磁珠等基础电子元件","[""MLCC"",""chip_resistor"",""inductor""]","[""Murata"",""TDK"",""Yageo""]",sprint_16h,manual_research,,manual,40,true,2026-07-15

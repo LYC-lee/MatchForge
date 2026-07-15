@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted, onUnmounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, nextTick, watch, onUnmounted } from 'vue'
 import { useProcureStore } from '@/stores/procure'
 import { useHistory, type HistoryRecord } from '@/composables/useHistory'
 import type { SpecField, Alternative, Supplier } from '@/types/procure'
@@ -11,7 +10,6 @@ import SuppliersMatch from '@/components/procure/SuppliersMatch.vue'
 import RfqEditor from '@/components/procure/RfqEditor.vue'
 import Tag from '@/components/ui/Tag.vue'
 
-const router = useRouter()
 const store = useProcureStore()
 const { saveRecord } = useHistory()
 

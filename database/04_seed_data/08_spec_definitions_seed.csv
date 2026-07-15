@@ -1,0 +1,19 @@
+id,category_id,field_name,field_label,field_type,unit,is_required,enum_values,sort_order
+1,1,package,封装,enum,,1,0402,0603,0805,1206,1
+2,1,capacitance,容值,string,uF,1,,2
+3,1,tolerance,精度,enum,,0,±5%,±10%,±20%,3
+4,1,temperature_coefficient,温度系数,enum,,1,X5R,X7R,X7S,C0G,4
+5,1,rated_voltage,额定电压,string,V,1,,5
+6,2,package,封装,enum,,1,0201,0402,0603,0805,1206,1
+7,2,resistance,阻值,string,Ω,1,,2
+8,2,tolerance,精度,enum,,0,±1%,±5%,3
+9,2,power_rating,额定功率,string,W,0,,4
+10,3,series,系列,string,,0,,1
+11,3,pitch,间距,string,mm,0,,2
+12,3,circuit_type,电路类型,enum,,0,板对板,线对板,线对线,3
+13,4,capacity,容量,string,GB,1,,1
+14,4,ddr_generation,DDR代际,enum,,1,DDR4,DDR5,2
+15,4,speed,速率,string,MT/s,0,,3
+16,5,capacity,容量,string,GB,1,,1
+17,5,form_factor,规格,enum,,1,M.2,2.5,SATA,2
+18,5,interface,接口,enum,,1,PCIe NVMe,SATA,3
