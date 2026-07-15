@@ -88,6 +88,10 @@ KB_LLM_MAX_RETRIES = int(os.getenv("KB_LLM_MAX_RETRIES", "3"))
 # Demo 环境标记 -- 防止 AI 生成内容被误部署为生产事实源
 KB_DEMO_MODE = os.getenv("KB_DEMO_MODE", "true").lower() == "true"
 
+# 知识生成是否使用真实 LLM (推理模型较慢; 批量生成默认用模板, 单公司演示可开启)
+# auto: llm_available 时用 LLM; off: 强制模板; on: 强制 LLM
+KB_LLM_FOR_GENERATION = os.getenv("KB_LLM_FOR_GENERATION", "auto")
+
 # RAG 检索参数
 KB_RAG_TOP_K = int(os.getenv("KB_RAG_TOP_K", "6"))
 KB_RAG_MIN_SCORE = float(os.getenv("KB_RAG_MIN_SCORE", "0.15"))

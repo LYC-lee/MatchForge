@@ -124,6 +124,8 @@ async def chat_text(
 
 def _call_chat(model, system, user, temperature, max_tokens, timeout) -> str | None:
     client = _get_client()
+    # 推理模型 (如 glm-5.2) 将思考放在 reasoning_content, 最终答案在 content;
+    # 需要更大 max_tokens 让模型完成推理后输出 content。
     resp = client.chat.completions.create(
         model=model,
         messages=[
@@ -134,7 +136,36 @@ def _call_chat(model, system, user, temperature, max_tokens, timeout) -> str | N
         max_tokens=max_tokens,
         timeout=timeout,
     )
-    return resp.choices[0].message.content
+    msg = resp.choices[0].message
+    content = msg.content or ""
+    # 推理模型可能因 max_tokens 不足导致 content 为空 (finish_reason=length);
+    # 兜底: 若 content 为空但有 reasoning_content, 取 reasoning_content 末段作为答案
+    if not content.strip():
+        rc = getattr(msg, "reasoning_content", None)
+        if rc:
+            # reasoning_content 含思考过程, 取最后一段非步骤文本作为兜底
+            lines = [l.strip() for l in rc.split("\n") if l.strip()]
+            content = lines[-1] if lines else rc
+        # 若仍空且因 length 截断, 重新请求更大 max_tokens
+        if not content.strip() and resp.choices[0].finish_reason == "length":
+            bigger = min(max_tokens * 3, 16000)
+            resp2 = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                temperature=temperature,
+                max_tokens=bigger,
+                timeout=timeout,
+            )
+            content = resp2.choices[0].message.content or ""
+            if not content.strip():
+                rc2 = getattr(resp2.choices[0].message, "reasoning_content", None)
+                if rc2:
+                    lines = [l.strip() for l in rc2.split("\n") if l.strip()]
+                    content = lines[-1] if lines else rc2
+    return content or None
 
 
 def _parse_json(text: str) -> dict | None:
