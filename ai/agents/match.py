@@ -21,7 +21,6 @@ async def match_agent(state: ProcureState) -> ProcureState:
     log = AgentLogger("match", thread_id=state.get("thread_id", ""))
     normalized_spec = state.get("normalized_spec") or {}
     alternatives = state.get("alternatives", [])
-    errors = list(state.get("errors", []))
 
     if not normalized_spec:
         state["matched_suppliers"] = []
@@ -30,47 +29,35 @@ async def match_agent(state: ProcureState) -> ProcureState:
     log.start(state)
 
     try:
-        # ---- Step 1: 收集搜索条件 ----
         category = normalized_spec.get("category", "")
-        # 从替代料中提取品牌列表
         brands: list[str] = []
         for alt in alternatives:
             b = alt.get("brand", "")
             if b and b not in brands:
                 brands.append(b)
-        # 加上用户偏好品牌
         brand_pref = normalized_spec.get("brand_pref", [])
         if isinstance(brand_pref, list):
             for b in brand_pref:
                 if b not in brands:
                     brands.append(b)
 
-        # ---- Step 2: MySQL 查询 ----
-        # TODO: Milvus 向量召回（需要 embedding 模型）
-        # 当前直接走 MySQL 规则过滤
         suppliers = []
         if category:
             try:
                 suppliers = filter_suppliers(category=category, brands=brands if brands else None)
             except Exception as e:
-                errors.append(f"[match] MySQL 查询失败: {str(e)[:100]}")
+                state.setdefault("errors", []).append(f"[match] MySQL 查询失败: {str(e)[:100]}")
 
-        # ---- Step 3: 排序 ----
-        # 资质等级权重: IATF16949 > ISO9001 > 无
-        qual_rank = {
-            "IATF16949": 3, "ISO14001": 2, "ISO9001": 2, "原厂授权": 3,
-        }
+        qual_rank = {"IATF16949": 3, "ISO14001": 2, "ISO9001": 2, "原厂授权": 3}
 
         def _rank(sup: dict) -> float:
             score = 0.0
-            # 品牌覆盖匹配
             sup_brands = sup.get("brands", [])
             if isinstance(sup_brands, str):
                 sup_brands = [b.strip() for b in sup_brands.split(",")]
             if brands:
                 matched = sum(1 for b in brands if any(b.lower() in sb.lower() for sb in sup_brands))
                 score += (matched / max(len(brands), 1)) * 0.4
-            # 资质
             quals = sup.get("qualifications", [])
             if isinstance(quals, str):
                 quals = [q.strip() for q in quals.split(",")]
@@ -80,13 +67,11 @@ async def match_agent(state: ProcureState) -> ProcureState:
                     if k.lower() in q.lower():
                         max_qual = max(max_qual, v)
             score += (max_qual / 3) * 0.3
-            # 响应速度（越快越好，按天数反比）
             resp = sup.get("response_speed", "")
             if "24h" in resp or "12h" in resp:
                 score += 0.2
             elif "48h" in resp:
                 score += 0.1
-            # 数据新鲜度
             updated = sup.get("updated_at", "")
             if updated:
                 try:
@@ -100,7 +85,6 @@ async def match_agent(state: ProcureState) -> ProcureState:
                     pass
             return score
 
-        # ---- Step 4: 格式化输出 ----
         matched = []
         for s in suppliers:
             s_dict = dict(s) if hasattr(s, '_mapping') else s
@@ -128,10 +112,7 @@ async def match_agent(state: ProcureState) -> ProcureState:
                     "match_score": round(sup_score, 2),
                 })
 
-        # 按 match_score 降序
         matched.sort(key=lambda x: x["match_score"], reverse=True)
-
-        # 数据超过 90 天标注
         for m in matched:
             if m["updated_at"]:
                 try:
@@ -146,9 +127,8 @@ async def match_agent(state: ProcureState) -> ProcureState:
         log.end(state)
 
     except Exception as e:
-        errors.append(f"[match] {str(e)[:200]}")
+        state.setdefault("errors", []).append(f"[match] {str(e)[:200]}")
         state["matched_suppliers"] = []
-        state["errors"] = errors
         log.fail(str(e)[:200])
 
     return state

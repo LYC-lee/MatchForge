@@ -89,41 +89,29 @@ def _validate_spec(spec: dict) -> dict:
 async def parse_agent(state: ProcureState) -> ProcureState:
     log = AgentLogger("parse", thread_id=state.get("thread_id", ""))
     raw_query = state.get("raw_query", "")
-    errors = list(state.get("errors", []))
 
     if not raw_query.strip():
-        errors.append("[parse] 输入为空")
+        state.setdefault("errors", []).append("[parse] 输入为空")
         state["parsed_spec"] = None
-        state["errors"] = errors
         return state
 
     log.start(state)
 
     try:
-        # ---- Step 1: 正则前置识别 ----
         part_number, brand_hint = extract_part_number_with_brand(raw_query)
-
-        # ---- Step 2: LLM 槽位提取 ----
         llm = _get_llm()
         prompt = PARSE_USER_TEMPLATE.format(raw_query=raw_query)
-        messages = [
-            ("system", PARSE_SYSTEM_PROMPT),
-            ("human", prompt),
-        ]
+        messages = [("system", PARSE_SYSTEM_PROMPT), ("human", prompt)]
         response = await llm.ainvoke(messages)
         content = response.content.strip()
 
-        # 清理 markdown 代码块
         if content.startswith("```"):
             content = re.sub(r"^```(?:json)?\s*", "", content)
             content = re.sub(r"\s*```$", "", content)
 
         llm_spec = json.loads(content) if isinstance(content, str) else content
-
-        # ---- Step 3: 规则校验 ----
         llm_spec = _validate_spec(llm_spec)
 
-        # ---- Step 4: 合并正则 + LLM 结果 ----
         if part_number and "part_number" not in llm_spec:
             llm_spec["part_number"] = part_number
         if brand_hint and brand_hint != "Unknown" and "brand" not in llm_spec:
@@ -135,22 +123,19 @@ async def parse_agent(state: ProcureState) -> ProcureState:
         if len(missing) >= 3 and not part_number:
             state["parsed_spec"] = llm_spec if llm_spec else None
             if not llm_spec:
-                errors.append("[parse] 未识别到有效型号或规格参数")
+                state.setdefault("errors", []).append("[parse] 未识别到有效型号或规格参数")
         else:
             state["parsed_spec"] = llm_spec
 
-        state["errors"] = errors
         log.end(state)
 
     except json.JSONDecodeError as e:
-        errors.append(f"[parse] LLM 返回格式异常: {str(e)[:100]}")
+        state.setdefault("errors", []).append(f"[parse] LLM 返回格式异常: {str(e)[:100]}")
         state["parsed_spec"] = None
-        state["errors"] = errors
         log.fail(f"LLM JSON 解析失败: {str(e)[:100]}")
     except Exception as e:
-        errors.append(f"[parse] {str(e)[:200]}")
+        state.setdefault("errors", []).append(f"[parse] {str(e)[:200]}")
         state["parsed_spec"] = None
-        state["errors"] = errors
         log.fail(str(e)[:200])
 
     return state
