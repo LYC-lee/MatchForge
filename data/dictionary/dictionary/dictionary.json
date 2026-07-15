@@ -1,0 +1,1159 @@
+{
+  "version": "1.0",
+  "description": "MatchForge 电子元器件标准物料字典",
+  "updated_at": "2026-07-14",
+  "items": [
+    {
+      "std_code": "MLCC-0402-X5R-105K-10V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0402",
+        "介质类型": "X5R",
+        "容值": "1uF",
+        "精度": "±10%",
+        "额定电压": "10V",
+        "温度范围": "-55~85°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0402封装 1uF X5R 10V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0402-X7R-104K-50V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0402",
+        "介质类型": "X7R",
+        "容值": "100nF",
+        "精度": "±10%",
+        "额定电压": "50V",
+        "温度范围": "-55~125°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0402封装 100nF X7R 50V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0402-X5R-106M-10V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0402",
+        "介质类型": "X5R",
+        "容值": "10uF",
+        "精度": "±20%",
+        "额定电压": "10V",
+        "温度范围": "-55~85°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0402封装 10uF X5R 10V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0603-X5R-105K-25V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0603",
+        "介质类型": "X5R",
+        "容值": "1uF",
+        "精度": "±10%",
+        "额定电压": "25V",
+        "温度范围": "-55~85°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0603封装 1uF X5R 25V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0603-X7R-104K-50V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0603",
+        "介质类型": "X7R",
+        "容值": "100nF",
+        "精度": "±10%",
+        "额定电压": "50V",
+        "温度范围": "-55~125°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0603封装 100nF X7R 50V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0603-X5R-106M-10V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0603",
+        "介质类型": "X5R",
+        "容值": "10uF",
+        "精度": "±20%",
+        "额定电压": "10V",
+        "温度范围": "-55~85°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0603封装 10uF X5R 10V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0603-X7S-106K-25V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0603",
+        "介质类型": "X7S",
+        "容值": "10uF",
+        "精度": "±10%",
+        "额定电压": "25V",
+        "温度范围": "-55~125°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0603封装 10uF X7S 25V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0805-X7R-104K-50V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0805",
+        "介质类型": "X7R",
+        "容值": "100nF",
+        "精度": "±10%",
+        "额定电压": "50V",
+        "温度范围": "-55~125°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0805封装 100nF X7R 50V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0805-X7R-105K-50V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0805",
+        "介质类型": "X7R",
+        "容值": "1uF",
+        "精度": "±10%",
+        "额定电压": "50V",
+        "温度范围": "-55~125°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0805封装 1uF X7R 50V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0805-X5R-106M-16V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0805",
+        "介质类型": "X5R",
+        "容值": "10uF",
+        "精度": "±20%",
+        "额定电压": "16V",
+        "温度范围": "-55~85°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0805封装 10uF X5R 16V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0805-X7R-106K-50V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0805",
+        "介质类型": "X7R",
+        "容值": "10uF",
+        "精度": "±10%",
+        "额定电压": "50V",
+        "温度范围": "-55~125°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0805封装 10uF X7R 50V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0805-X7S-226M-25V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0805",
+        "介质类型": "X7S",
+        "容值": "22uF",
+        "精度": "±20%",
+        "额定电压": "25V",
+        "温度范围": "-55~125°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0805封装 22uF X7S 25V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-1206-X7R-106K-50V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "1206",
+        "介质类型": "X7R",
+        "容值": "10uF",
+        "精度": "±10%",
+        "额定电压": "50V",
+        "温度范围": "-55~125°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "1206封装 10uF X7R 50V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-1206-X5R-107M-6.3V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "1206",
+        "介质类型": "X5R",
+        "容值": "100uF",
+        "精度": "±20%",
+        "额定电压": "6.3V",
+        "温度范围": "-55~85°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "1206封装 100uF X5R 6.3V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-1206-X5R-476M-6.3V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "1206",
+        "介质类型": "X5R",
+        "容值": "47uF",
+        "精度": "±20%",
+        "额定电压": "6.3V",
+        "温度范围": "-55~85°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "1206封装 47uF X5R 6.3V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0603-C0G-102J-50V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0603",
+        "介质类型": "C0G/NP0",
+        "容值": "1nF",
+        "精度": "±5%",
+        "额定电压": "50V",
+        "温度范围": "-55~125°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0603封装 1nF C0G/NP0 50V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0805-C0G-221J-50V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0805",
+        "介质类型": "C0G/NP0",
+        "容值": "220pF",
+        "精度": "±5%",
+        "额定电压": "50V",
+        "温度范围": "-55~125°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0805封装 220pF C0G/NP0 50V 多层陶瓷电容"
+    },
+    {
+      "std_code": "MLCC-0805-C0G-471J-50V",
+      "category": "MLCC电容",
+      "params": {
+        "封装": "0805",
+        "介质类型": "C0G/NP0",
+        "容值": "470pF",
+        "精度": "±5%",
+        "额定电压": "50V",
+        "温度范围": "-55~125°C"
+      },
+      "standard": "EIA RS-198 / JIS C5101",
+      "description": "0805封装 470pF C0G/NP0 50V 多层陶瓷电容"
+    },
+    {
+      "std_code": "RES-0201-1%-1K-1/16W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0201",
+        "阻值": "1KΩ",
+        "精度": "±1%",
+        "额定功率": "1/16W",
+        "温度系数": "±100ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0201封装 1KΩ ±1% 1/16W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0201-5%-10K-1/16W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0201",
+        "阻值": "10KΩ",
+        "精度": "±5%",
+        "额定功率": "1/16W",
+        "温度系数": "±200ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0201封装 10KΩ ±5% 1/16W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0402-1%-4K7-1/16W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0402",
+        "阻值": "4.7KΩ",
+        "精度": "±1%",
+        "额定功率": "1/16W",
+        "温度系数": "±100ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0402封装 4.7KΩ ±1% 1/16W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0402-1%-10K-1/16W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0402",
+        "阻值": "10KΩ",
+        "精度": "±1%",
+        "额定功率": "1/16W",
+        "温度系数": "±100ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0402封装 10KΩ ±1% 1/16W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0402-5%-100-1/16W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0402",
+        "阻值": "100Ω",
+        "精度": "±5%",
+        "额定功率": "1/16W",
+        "温度系数": "±200ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0402封装 100Ω ±5% 1/16W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0402-1%-100-1/16W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0402",
+        "阻值": "100Ω",
+        "精度": "±1%",
+        "额定功率": "1/16W",
+        "温度系数": "±50ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0402封装 100Ω ±1% 1/16W 精密贴片电阻"
+    },
+    {
+      "std_code": "RES-0603-1%-10K-1/10W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0603",
+        "阻值": "10KΩ",
+        "精度": "±1%",
+        "额定功率": "1/10W",
+        "温度系数": "±100ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0603封装 10KΩ ±1% 1/10W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0603-1%-4K7-1/10W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0603",
+        "阻值": "4.7KΩ",
+        "精度": "±1%",
+        "额定功率": "1/10W",
+        "温度系数": "±100ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0603封装 4.7KΩ ±1% 1/10W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0603-5%-100-1/10W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0603",
+        "阻值": "100Ω",
+        "精度": "±5%",
+        "额定功率": "1/10W",
+        "温度系数": "±200ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0603封装 100Ω ±5% 1/10W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0603-1%-1K-1/10W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0603",
+        "阻值": "1KΩ",
+        "精度": "±1%",
+        "额定功率": "1/10W",
+        "温度系数": "±100ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0603封装 1KΩ ±1% 1/10W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0805-1%-10K-1/8W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0805",
+        "阻值": "10KΩ",
+        "精度": "±1%",
+        "额定功率": "1/8W",
+        "温度系数": "±100ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0805封装 10KΩ ±1% 1/8W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0805-5%-1K-1/8W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0805",
+        "阻值": "1KΩ",
+        "精度": "±5%",
+        "额定功率": "1/8W",
+        "温度系数": "±200ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0805封装 1KΩ ±5% 1/8W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0805-1%-470-1/8W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0805",
+        "阻值": "470Ω",
+        "精度": "±1%",
+        "额定功率": "1/8W",
+        "温度系数": "±50ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0805封装 470Ω ±1% 1/8W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0805-5%-4K7-1/8W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0805",
+        "阻值": "4.7KΩ",
+        "精度": "±5%",
+        "额定功率": "1/8W",
+        "温度系数": "±200ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0805封装 4.7KΩ ±5% 1/8W 贴片电阻"
+    },
+    {
+      "std_code": "RES-0805-1%-100K-1/8W",
+      "category": "贴片电阻",
+      "params": {
+        "封装": "0805",
+        "阻值": "100KΩ",
+        "精度": "±1%",
+        "额定功率": "1/8W",
+        "温度系数": "±100ppm/°C"
+      },
+      "standard": "GB/T 5729 / IEC 60115",
+      "description": "0805封装 100KΩ ±1% 1/8W 贴片电阻"
+    },
+    {
+      "std_code": "DIODE-SCHOTTKY-SS14-SMA",
+      "category": "二极管",
+      "params": {
+        "类型": "肖特基二极管",
+        "型号": "SS14",
+        "封装": "SMA",
+        "正向电流": "1A",
+        "反向电压": "40V",
+        "正向压降": "0.55V"
+      },
+      "standard": "GB/T 6589 / JEDEC JESD97",
+      "description": "肖特基二极管 SS14 SMA封装 1A 40V"
+    },
+    {
+      "std_code": "DIODE-SCHOTTKY-SS34-SMC",
+      "category": "二极管",
+      "params": {
+        "类型": "肖特基二极管",
+        "型号": "SS34",
+        "封装": "SMC",
+        "正向电流": "3A",
+        "反向电压": "40V",
+        "正向压降": "0.55V"
+      },
+      "standard": "GB/T 6589 / JEDEC JESD97",
+      "description": "肖特基二极管 SS34 SMC封装 3A 40V"
+    },
+    {
+      "std_code": "DIODE-SCHOTTKY-SS54-SMC",
+      "category": "二极管",
+      "params": {
+        "类型": "肖特基二极管",
+        "型号": "SS54",
+        "封装": "SMC",
+        "正向电流": "5A",
+        "反向电压": "40V",
+        "正向压降": "0.55V"
+      },
+      "standard": "GB/T 6589 / JEDEC JESD97",
+      "description": "肖特基二极管 SS54 SMC封装 5A 40V"
+    },
+    {
+      "std_code": "DIODE-ZENER-1N4733-SOD-123",
+      "category": "二极管",
+      "params": {
+        "类型": "稳压二极管",
+        "型号": "1N4733",
+        "封装": "DO-41",
+        "稳压值": "5.1V",
+        "功耗": "1W",
+        "稳压精度": "±5%"
+      },
+      "standard": "GB/T 6589 / JEDEC JESD97",
+      "description": "稳压二极管 1N4733 5.1V 1W ±5%"
+    },
+    {
+      "std_code": "DIODE-ZENER-1N4742-SOD-123",
+      "category": "二极管",
+      "params": {
+        "类型": "稳压二极管",
+        "型号": "1N4742",
+        "封装": "DO-41",
+        "稳压值": "12V",
+        "功耗": "1W",
+        "稳压精度": "±5%"
+      },
+      "standard": "GB/T 6589 / JEDEC JESD97",
+      "description": "稳压二极管 1N4742 12V 1W ±5%"
+    },
+    {
+      "std_code": "DIODE-ZENER-BZT52C5V1-SOD-523",
+      "category": "二极管",
+      "params": {
+        "类型": "稳压二极管",
+        "型号": "BZT52C5V1",
+        "封装": "SOD-523",
+        "稳压值": "5.1V",
+        "功耗": "0.5W",
+        "稳压精度": "±5%"
+      },
+      "standard": "GB/T 6589 / JEDEC JESD97",
+      "description": "稳压二极管 BZT52C5V1 SOD-523封装 5.1V 0.5W"
+    },
+    {
+      "std_code": "DIODE-RECT-1N4007-DO-41",
+      "category": "二极管",
+      "params": {
+        "类型": "整流二极管",
+        "型号": "1N4007",
+        "封装": "DO-41",
+        "正向电流": "1A",
+        "反向电压": "1000V",
+        "正向压降": "1.1V"
+      },
+      "standard": "GB/T 6589 / JEDEC JESD97",
+      "description": "整流二极管 1N4007 DO-41封装 1A 1000V"
+    },
+    {
+      "std_code": "DIODE-RECT-1N5408-DO-201",
+      "category": "二极管",
+      "params": {
+        "类型": "整流二极管",
+        "型号": "1N5408",
+        "封装": "DO-201",
+        "正向电流": "3A",
+        "反向电压": "1000V",
+        "正向压降": "1.2V"
+      },
+      "standard": "GB/T 6589 / JEDEC JESD97",
+      "description": "整流二极管 1N5408 DO-201封装 3A 1000V"
+    },
+    {
+      "std_code": "DIODE-RECT-1N5822-DO-201",
+      "category": "二极管",
+      "params": {
+        "类型": "肖特基二极管",
+        "型号": "1N5822",
+        "封装": "DO-201",
+        "正向电流": "3A",
+        "反向电压": "40V",
+        "正向压降": "0.475V"
+      },
+      "standard": "GB/T 6589 / JEDEC JESD97",
+      "description": "肖特基二极管 1N5822 DO-201封装 3A 40V"
+    },
+    {
+      "std_code": "DIODE-RECT-UF4007-DO-41",
+      "category": "二极管",
+      "params": {
+        "类型": "快恢复整流二极管",
+        "型号": "UF4007",
+        "封装": "DO-41",
+        "正向电流": "1A",
+        "反向电压": "1000V",
+        "正向压降": "1.7V"
+      },
+      "standard": "GB/T 6589 / JEDEC JESD97",
+      "description": "快恢复整流二极管 UF4007 DO-41封装 1A 1000V"
+    },
+    {
+      "std_code": "CONN-JST-XH-2.54-2P",
+      "category": "连接器",
+      "params": {
+        "类型": "JST XH系列",
+        "间距": "2.54mm",
+        "芯数": "2P",
+        "额定电流": "3A",
+        "额定电压": "250V",
+        "安装方式": "直插DIP"
+      },
+      "standard": "JST XH系列 / EIA-364",
+      "description": "JST XH连接器 2.54mm间距 2Pin 直插"
+    },
+    {
+      "std_code": "CONN-JST-XH-2.54-3P",
+      "category": "连接器",
+      "params": {
+        "类型": "JST XH系列",
+        "间距": "2.54mm",
+        "芯数": "3P",
+        "额定电流": "3A",
+        "额定电压": "250V",
+        "安装方式": "直插DIP"
+      },
+      "standard": "JST XH系列 / EIA-364",
+      "description": "JST XH连接器 2.54mm间距 3Pin 直插"
+    },
+    {
+      "std_code": "CONN-JST-XH-2.54-4P",
+      "category": "连接器",
+      "params": {
+        "类型": "JST XH系列",
+        "间距": "2.54mm",
+        "芯数": "4P",
+        "额定电流": "3A",
+        "额定电压": "250V",
+        "安装方式": "直插DIP"
+      },
+      "standard": "JST XH系列 / EIA-364",
+      "description": "JST XH连接器 2.54mm间距 4Pin 直插"
+    },
+    {
+      "std_code": "CONN-JST-PH-2.0-2P",
+      "category": "连接器",
+      "params": {
+        "类型": "JST PH系列",
+        "间距": "2.0mm",
+        "芯数": "2P",
+        "额定电流": "2A",
+        "额定电压": "100V",
+        "安装方式": "直插DIP"
+      },
+      "standard": "JST PH系列 / EIA-364",
+      "description": "JST PH连接器 2.0mm间距 2Pin 直插"
+    },
+    {
+      "std_code": "CONN-MOLEX-51021-2P",
+      "category": "连接器",
+      "params": {
+        "类型": "Molex 51021系列",
+        "间距": "1.25mm",
+        "芯数": "2P",
+        "额定电流": "1A",
+        "额定电压": "50V",
+        "安装方式": "贴片SMD"
+      },
+      "standard": "Molex 51021系列 / EIA-364",
+      "description": "Molex 51021连接器 1.25mm间距 2Pin 贴片"
+    },
+    {
+      "std_code": "CONN-MOLEX-51021-4P",
+      "category": "连接器",
+      "params": {
+        "类型": "Molex 51021系列",
+        "间距": "1.25mm",
+        "芯数": "4P",
+        "额定电流": "1A",
+        "额定电压": "50V",
+        "安装方式": "贴片SMD"
+      },
+      "standard": "Molex 51021系列 / EIA-364",
+      "description": "Molex 51021连接器 1.25mm间距 4Pin 贴片"
+    },
+    {
+      "std_code": "CONN-MOLEX-51005-6P",
+      "category": "连接器",
+      "params": {
+        "类型": "Molex 51005系列",
+        "间距": "1.25mm",
+        "芯数": "6P",
+        "额定电流": "0.5A",
+        "额定电压": "50V",
+        "安装方式": "贴片SMD"
+      },
+      "standard": "Molex 51005系列 / EIA-364",
+      "description": "Molex 51005连接器 1.25mm间距 6Pin 贴片"
+    },
+    {
+      "std_code": "CONN-MOLEX-43045-8P",
+      "category": "连接器",
+      "params": {
+        "类型": "Molex 43045系列",
+        "间距": "3.0mm",
+        "芯数": "8P",
+        "额定电流": "5A",
+        "额定电压": "250V",
+        "安装方式": "直插DIP"
+      },
+      "standard": "Molex 43045系列 / EIA-364",
+      "description": "Molex 43045连接器 3.0mm间距 8Pin 直插"
+    },
+    {
+      "std_code": "CONN-JST-XH-2.54-5P",
+      "category": "连接器",
+      "params": {
+        "类型": "JST XH系列",
+        "间距": "2.54mm",
+        "芯数": "5P",
+        "额定电流": "3A",
+        "额定电压": "250V",
+        "安装方式": "直插DIP"
+      },
+      "standard": "JST XH系列 / EIA-364",
+      "description": "JST XH连接器 2.54mm间距 5Pin 直插"
+    },
+    {
+      "std_code": "CONN-JST-ACH-2.0-3P",
+      "category": "连接器",
+      "params": {
+        "类型": "JST ACH系列",
+        "间距": "2.0mm",
+        "芯数": "3P",
+        "额定电流": "1A",
+        "额定电压": "50V",
+        "安装方式": "贴片SMD"
+      },
+      "standard": "JST ACH系列 / EIA-364",
+      "description": "JST ACH连接器 2.0mm间距 3Pin 贴片"
+    },
+    {
+      "std_code": "MOSFET-N-AO3400-SOT-23",
+      "category": "MOSFET",
+      "params": {
+        "类型": "N沟道MOSFET",
+        "型号": "AO3400",
+        "封装": "SOT-23",
+        "漏源电压": "30V",
+        "漏源电流": "5.8A",
+        "导通电阻": "33mΩ@4.5V",
+        "栅极阈值电压": "1.3V"
+      },
+      "standard": "JEDEC JESD97 / IEC 60747-8",
+      "description": "N沟道MOSFET AO3400 SOT-23封装 30V 5.8A"
+    },
+    {
+      "std_code": "MOSFET-N-AO3402-SOT-23",
+      "category": "MOSFET",
+      "params": {
+        "类型": "N沟道MOSFET",
+        "型号": "AO3402",
+        "封装": "SOT-23",
+        "漏源电压": "30V",
+        "漏源电流": "3.5A",
+        "导通电阻": "47mΩ@4.5V",
+        "栅极阈值电压": "1.3V"
+      },
+      "standard": "JEDEC JESD97 / IEC 60747-8",
+      "description": "N沟道MOSFET AO3402 SOT-23封装 30V 3.5A"
+    },
+    {
+      "std_code": "MOSFET-N-SI2302-SOT-23",
+      "category": "MOSFET",
+      "params": {
+        "类型": "N沟道MOSFET",
+        "型号": "SI2302",
+        "封装": "SOT-23",
+        "漏源电压": "20V",
+        "漏源电流": "2.2A",
+        "导通电阻": "85mΩ@4.5V",
+        "栅极阈值电压": "1.0V"
+      },
+      "standard": "JEDEC JESD97 / IEC 60747-8",
+      "description": "N沟道MOSFET SI2302 SOT-23封装 20V 2.2A"
+    },
+    {
+      "std_code": "MOSFET-N-IRF3205-TO-220",
+      "category": "MOSFET",
+      "params": {
+        "类型": "N沟道MOSFET",
+        "型号": "IRF3205",
+        "封装": "TO-220",
+        "漏源电压": "55V",
+        "漏源电流": "110A",
+        "导通电阻": "8mΩ@10V",
+        "栅极阈值电压": "2.0V"
+      },
+      "standard": "JEDEC JESD97 / IEC 60747-8",
+      "description": "N沟道MOSFET IRF3205 TO-220封装 55V 110A"
+    },
+    {
+      "std_code": "MOSFET-N-IRLZ44N-TO-220",
+      "category": "MOSFET",
+      "params": {
+        "类型": "N沟道MOSFET",
+        "型号": "IRLZ44N",
+        "封装": "TO-220",
+        "漏源电压": "55V",
+        "漏源电流": "47A",
+        "导通电阻": "22mΩ@5V",
+        "栅极阈值电压": "1.0V"
+      },
+      "standard": "JEDEC JESD97 / IEC 60747-8",
+      "description": "N沟道MOSFET IRLZ44N TO-220封装 55V 47A 逻辑电平"
+    },
+    {
+      "std_code": "MOSFET-N-AOD408-SOP-8",
+      "category": "MOSFET",
+      "params": {
+        "类型": "N沟道MOSFET",
+        "型号": "AOD408",
+        "封装": "SOP-8",
+        "漏源电压": "30V",
+        "漏源电流": "38A",
+        "导通电阻": "10mΩ@4.5V",
+        "栅极阈值电压": "1.5V"
+      },
+      "standard": "JEDEC JESD97 / IEC 60747-8",
+      "description": "N沟道MOSFET AOD408 SOP-8封装 30V 38A"
+    },
+    {
+      "std_code": "MOSFET-P-AO3401-SOT-23",
+      "category": "MOSFET",
+      "params": {
+        "类型": "P沟道MOSFET",
+        "型号": "AO3401",
+        "封装": "SOT-23",
+        "漏源电压": "-30V",
+        "漏源电流": "-4A",
+        "导通电阻": "50mΩ@4.5V",
+        "栅极阈值电压": "-1.3V"
+      },
+      "standard": "JEDEC JESD97 / IEC 60747-8",
+      "description": "P沟道MOSFET AO3401 SOT-23封装 -30V -4A"
+    },
+    {
+      "std_code": "MOSFET-P-SI2301-SOT-23",
+      "category": "MOSFET",
+      "params": {
+        "类型": "P沟道MOSFET",
+        "型号": "SI2301",
+        "封装": "SOT-23",
+        "漏源电压": "-20V",
+        "漏源电流": "-2.3A",
+        "导通电阻": "90mΩ@4.5V",
+        "栅极阈值电压": "-1.0V"
+      },
+      "standard": "JEDEC JESD97 / IEC 60747-8",
+      "description": "P沟道MOSFET SI2301 SOT-23封装 -20V -2.3A"
+    },
+    {
+      "std_code": "MOSFET-P-IRF9540-TO-220",
+      "category": "MOSFET",
+      "params": {
+        "类型": "P沟道MOSFET",
+        "型号": "IRF9540",
+        "封装": "TO-220",
+        "漏源电压": "-100V",
+        "漏源电流": "-23A",
+        "导通电阻": "200mΩ@10V",
+        "栅极阈值电压": "-2.0V"
+      },
+      "standard": "JEDEC JESD97 / IEC 60747-8",
+      "description": "P沟道MOSFET IRF9540 TO-220封装 -100V -23A"
+    },
+    {
+      "std_code": "IND-POWER-SMD8040-4R7-2A",
+      "category": "电感",
+      "params": {
+        "类型": "功率电感",
+        "封装": "SMD 8x8x4mm",
+        "感值": "4.7uH",
+        "额定电流": "2A",
+        "直流电阻": "45mΩ",
+        "工作温度": "-40~125°C"
+      },
+      "standard": "GB/T 20840 / IEC 62024",
+      "description": "功率电感 SMD8040封装 4.7uH 2A"
+    },
+    {
+      "std_code": "IND-POWER-SMD8040-100-3A",
+      "category": "电感",
+      "params": {
+        "类型": "功率电感",
+        "封装": "SMD 8x8x4mm",
+        "感值": "10uH",
+        "额定电流": "3A",
+        "直流电阻": "30mΩ",
+        "工作温度": "-40~125°C"
+      },
+      "standard": "GB/T 20840 / IEC 62024",
+      "description": "功率电感 SMD8040封装 10uH 3A"
+    },
+    {
+      "std_code": "IND-POWER-SMD8040-220-2A",
+      "category": "电感",
+      "params": {
+        "类型": "功率电感",
+        "封装": "SMD 8x8x4mm",
+        "感值": "22uH",
+        "额定电流": "2A",
+        "直流电阻": "50mΩ",
+        "工作温度": "-40~125°C"
+      },
+      "standard": "GB/T 20840 / IEC 62024",
+      "description": "功率电感 SMD8040封装 22uH 2A"
+    },
+    {
+      "std_code": "IND-POWER-SMD2520-1R0-5A",
+      "category": "电感",
+      "params": {
+        "类型": "功率电感",
+        "封装": "SMD 2.5x2.0mm",
+        "感值": "1uH",
+        "额定电流": "5A",
+        "直流电阻": "10mΩ",
+        "工作温度": "-40~125°C"
+      },
+      "standard": "GB/T 20840 / IEC 62024",
+      "description": "功率电感 SMD2520封装 1uH 5A"
+    },
+    {
+      "std_code": "IND-POWER-SMD2520-2R2-4A",
+      "category": "电感",
+      "params": {
+        "类型": "功率电感",
+        "封装": "SMD 2.5x2.0mm",
+        "感值": "2.2uH",
+        "额定电流": "4A",
+        "直流电阻": "15mΩ",
+        "工作温度": "-40~125°C"
+      },
+      "standard": "GB/T 20840 / IEC 62024",
+      "description": "功率电感 SMD2520封装 2.2uH 4A"
+    },
+    {
+      "std_code": "IND-POWER-SMD5040-100-4A",
+      "category": "电感",
+      "params": {
+        "类型": "功率电感",
+        "封装": "SMD 5x5x4mm",
+        "感值": "10uH",
+        "额定电流": "4A",
+        "直流电阻": "20mΩ",
+        "工作温度": "-40~125°C"
+      },
+      "standard": "GB/T 20840 / IEC 62024",
+      "description": "功率电感 SMD5040封装 10uH 4A"
+    },
+    {
+      "std_code": "IND-POWER-SMD5040-470-2A",
+      "category": "电感",
+      "params": {
+        "类型": "功率电感",
+        "封装": "SMD 5x5x4mm",
+        "感值": "47uH",
+        "额定电流": "2A",
+        "直流电阻": "60mΩ",
+        "工作温度": "-40~125°C"
+      },
+      "standard": "GB/T 20840 / IEC 62024",
+      "description": "功率电感 SMD5040封装 47uH 2A"
+    },
+    {
+      "std_code": "IND-RF-0402-10N-300mA",
+      "category": "电感",
+      "params": {
+        "类型": "高频电感",
+        "封装": "0402",
+        "感值": "10nH",
+        "额定电流": "300mA",
+        "自谐振频率": "3GHz",
+        "品质因数": "35"
+      },
+      "standard": "GB/T 20840 / IEC 62024",
+      "description": "高频电感 0402封装 10nH 300mA"
+    },
+    {
+      "std_code": "IND-RF-0402-22N-300mA",
+      "category": "电感",
+      "params": {
+        "类型": "高频电感",
+        "封装": "0402",
+        "感值": "22nH",
+        "额定电流": "300mA",
+        "自谐振频率": "2.5GHz",
+        "品质因数": "35"
+      },
+      "standard": "GB/T 20840 / IEC 62024",
+      "description": "高频电感 0402封装 22nH 300mA"
+    },
+    {
+      "std_code": "IND-RF-0603-100N-200mA",
+      "category": "电感",
+      "params": {
+        "类型": "高频电感",
+        "封装": "0603",
+        "感值": "100nH",
+        "额定电流": "200mA",
+        "自谐振频率": "1.2GHz",
+        "品质因数": "40"
+      },
+      "standard": "GB/T 20840 / IEC 62024",
+      "description": "高频电感 0603封装 100nH 200mA"
+    },
+    {
+      "std_code": "IND-RF-0805-1R5-100mA",
+      "category": "电感",
+      "params": {
+        "类型": "高频电感",
+        "封装": "0805",
+        "感值": "1.5uH",
+        "额定电流": "100mA",
+        "自谐振频率": "500MHz",
+        "品质因数": "45"
+      },
+      "standard": "GB/T 20840 / IEC 62024",
+      "description": "高频电感 0805封装 1.5uH 100mA"
+    },
+    {
+      "std_code": "MCU-STM32F103C8T6-LQFP48",
+      "category": "MCU",
+      "params": {
+        "系列": "STM32F1",
+        "型号": "STM32F103C8T6",
+        "内核": "ARM Cortex-M3",
+        "主频": "72MHz",
+        "Flash": "64KB",
+        "RAM": "20KB",
+        "封装": "LQFP48",
+        "工作电压": "2.0~3.6V",
+        "IO数量": "37"
+      },
+      "standard": "ARM Cortex-M3 / STMicroelectronics标准",
+      "description": "STM32F103C8T6 ARM Cortex-M3 72MHz 64KB Flash LQFP48"
+    },
+    {
+      "std_code": "MCU-STM32F103RCT6-LQFP64",
+      "category": "MCU",
+      "params": {
+        "系列": "STM32F1",
+        "型号": "STM32F103RCT6",
+        "内核": "ARM Cortex-M3",
+        "主频": "72MHz",
+        "Flash": "256KB",
+        "RAM": "48KB",
+        "封装": "LQFP64",
+        "工作电压": "2.0~3.6V",
+        "IO数量": "51"
+      },
+      "standard": "ARM Cortex-M3 / STMicroelectronics标准",
+      "description": "STM32F103RCT6 ARM Cortex-M3 72MHz 256KB Flash LQFP64"
+    },
+    {
+      "std_code": "MCU-STM32F407VET6-LQFP100",
+      "category": "MCU",
+      "params": {
+        "系列": "STM32F4",
+        "型号": "STM32F407VET6",
+        "内核": "ARM Cortex-M4F",
+        "主频": "168MHz",
+        "Flash": "512KB",
+        "RAM": "192KB",
+        "封装": "LQFP100",
+        "工作电压": "1.8~3.6V",
+        "IO数量": "82"
+      },
+      "standard": "ARM Cortex-M4 / STMicroelectronics标准",
+      "description": "STM32F407VET6 ARM Cortex-M4F 168MHz 512KB Flash LQFP100"
+    },
+    {
+      "std_code": "MCU-STM32G070CBT6-LQFP48",
+      "category": "MCU",
+      "params": {
+        "系列": "STM32G0",
+        "型号": "STM32G070CBT6",
+        "内核": "ARM Cortex-M0+",
+        "主频": "64MHz",
+        "Flash": "128KB",
+        "RAM": "36KB",
+        "封装": "LQFP48",
+        "工作电压": "2.0~3.6V",
+        "IO数量": "38"
+      },
+      "standard": "ARM Cortex-M0+ / STMicroelectronics标准",
+      "description": "STM32G070CBT6 ARM Cortex-M0+ 64MHz 128KB Flash LQFP48"
+    },
+    {
+      "std_code": "MCU-STM32L432KC-UFQFPN32",
+      "category": "MCU",
+      "params": {
+        "系列": "STM32L4",
+        "型号": "STM32L432KC",
+        "内核": "ARM Cortex-M4F",
+        "主频": "80MHz",
+        "Flash": "256KB",
+        "RAM": "64KB",
+        "封装": "UFQFPN32",
+        "工作电压": "1.7~3.6V",
+        "IO数量": "26"
+      },
+      "standard": "ARM Cortex-M4 / STMicroelectronics标准",
+      "description": "STM32L432KC ARM Cortex-M4F 80MHz 256KB Flash UFQFPN32 低功耗"
+    },
+    {
+      "std_code": "MCU-GD32F103C8T6-LQFP48",
+      "category": "MCU",
+      "params": {
+        "系列": "GD32F1",
+        "型号": "GD32F103C8T6",
+        "内核": "ARM Cortex-M3",
+        "主频": "108MHz",
+        "Flash": "64KB",
+        "RAM": "20KB",
+        "封装": "LQFP48",
+        "工作电压": "2.6~3.6V",
+        "IO数量": "37"
+      },
+      "standard": "ARM Cortex-M3 / GigaDevice标准",
+      "description": "GD32F103C8T6 ARM Cortex-M3 108MHz 64KB Flash LQFP48"
+    },
+    {
+      "std_code": "MCU-GD32F303RCT6-LQFP64",
+      "category": "MCU",
+      "params": {
+        "系列": "GD32F3",
+        "型号": "GD32F303RCT6",
+        "内核": "ARM Cortex-M4F",
+        "主频": "120MHz",
+        "Flash": "256KB",
+        "RAM": "48KB",
+        "封装": "LQFP64",
+        "工作电压": "2.6~3.6V",
+        "IO数量": "51"
+      },
+      "standard": "ARM Cortex-M4 / GigaDevice标准",
+      "description": "GD32F303RCT6 ARM Cortex-M4F 120MHz 256KB Flash LQFP64"
+    },
+    {
+      "std_code": "MCU-GD32E230K8T6-LQFP32",
+      "category": "MCU",
+      "params": {
+        "系列": "GD32E2",
+        "型号": "GD32E230K8T6",
+        "内核": "ARM Cortex-M23",
+        "主频": "72MHz",
+        "Flash": "64KB",
+        "RAM": "8KB",
+        "封装": "LQFP32",
+        "工作电压": "2.6~3.6V",
+        "IO数量": "25"
+      },
+      "standard": "ARM Cortex-M23 / GigaDevice标准",
+      "description": "GD32E230K8T6 ARM Cortex-M23 72MHz 64KB Flash LQFP32"
+    }
+  ]
+}
