@@ -12,13 +12,12 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ai.graph import init_state, run_procure_stream, get_graph
 from ai.supervisor import ROUTING_ORDER
-from api.deps import get_current_user
 
 logger = logging.getLogger("api.procure")
 
@@ -55,7 +54,6 @@ def _sse(event_type: str, data: dict) -> str:
 @router.post("/stream")
 async def procure_stream(
     req: ProcureRequest,
-    user: dict = Depends(get_current_user),
 ):
     """
     SSE 流式多 Agent 寻源。
@@ -67,7 +65,7 @@ async def procure_stream(
       - error:     错误信息
       - end:       流结束
     """
-    user_id = user.get("user_id", "anonymous")
+    user_id = "anonymous"
 
     async def event_generator():
         thread_id = req.thread_id or uuid.uuid4().hex[:12]
@@ -107,7 +105,6 @@ async def procure_stream(
 @router.post("/spec")
 async def procure_spec(
     req: SpecOnlyRequest,
-    user: dict = Depends(get_current_user),
 ):
     """
     仅执行 parse → normalize，直接调用 Agent（不走 Supervisor 全图）。
@@ -118,7 +115,7 @@ async def procure_spec(
     from ai.agents.normalize import normalize_agent
 
     thread_id = req.thread_id or uuid.uuid4().hex[:12]
-    state = init_state(req.raw_query, user.get("user_id", "anonymous"), thread_id)
+    state = init_state(req.raw_query, "anonymous", thread_id)
 
     try:
         # 直接调用 parse + normalize，不经过 Supervisor
@@ -142,7 +139,6 @@ async def procure_spec(
 @router.post("/match")
 async def procure_match(
     req: MatchOnlyRequest,
-    user: dict = Depends(get_current_user),
 ):
     """
     仅执行 alternatives → match，直接调用 Agent（不走 Supervisor 全图）。
@@ -153,7 +149,7 @@ async def procure_match(
     from ai.agents.match import match_agent
 
     thread_id = req.thread_id or uuid.uuid4().hex[:12]
-    state = init_state("", user.get("user_id", "anonymous"), thread_id)
+    state = init_state("", "anonymous", thread_id)
     state["normalized_spec"] = req.normalized_spec
 
     try:
