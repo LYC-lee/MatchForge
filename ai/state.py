@@ -97,6 +97,7 @@ class ProcureState(TypedDict):
     lead_grade: Optional[LeadGrade]
     errors: list[str]
     next_agent: str                     # supervisor 路由用
+    chat_response: Optional[str]        # 💬 聊天 Agent 回复
     user_id: Optional[str]              # 用户标识，记忆用
     started_at: str
     completed_at: Optional[str]
