@@ -21,21 +21,21 @@ load_dotenv(_PROJECT_ROOT / ".env")
 
 # ============================================================
 # LLM / Embedding -- 与 ai/config.py 同源 (同一 .env)
-# 复用现有 DashScope (Qwen) 配置, 不新增供应商
+# 火山方舟 Coding Plan (OpenAI 兼容) + SiliconFlow bge-m3
 # ============================================================
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
 LLM_API_KEY = DASHSCOPE_API_KEY
 LLM_BASE_URL = os.getenv(
-    "LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    "LLM_BASE_URL", "https://ark.cn-beijing.volces.com/api/coding/v3"
 )
-LLM_MODEL = os.getenv("LLM_MODEL", "qwen-max")
-LLM_MODEL_LIGHT = os.getenv("LLM_MODEL_LIGHT", "qwen-plus")
+LLM_MODEL = os.getenv("LLM_MODEL", "glm-5.2")
+LLM_MODEL_LIGHT = os.getenv("LLM_MODEL_LIGHT", "glm-5.2")
 
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-v3")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "") or LLM_API_KEY
 EMBEDDING_BASE_URL = os.getenv(
     "EMBEDDING_BASE_URL",
-    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "https://api.siliconflow.cn/v1",
 )
 EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "1024"))
 

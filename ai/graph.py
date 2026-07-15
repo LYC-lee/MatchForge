@@ -143,11 +143,23 @@ def build_graph(use_postgres: bool = False) -> StateGraph:
     """
     workflow = StateGraph(ProcureState)
 
+    # ── Agent 执行追踪包装器（防止 supervisor 路由循环）──
+    def _wrap_agent(name: str, fn):
+        async def _tracked(state: dict) -> dict:
+            result = await fn(state)
+            if isinstance(result, dict):
+                attempted = list(state.get("_attempted_agents", []))
+                if name not in attempted:
+                    attempted.append(name)
+                result["_attempted_agents"] = attempted
+            return result
+        return _tracked
+
     # ── 注册节点 ──
     workflow.add_node("memory_inject", memory_inject_node)
     workflow.add_node("supervisor", route)
     for name in _AGENT_MAP:
-        workflow.add_node(name, _AGENT_MAP[name])
+        workflow.add_node(name, _wrap_agent(name, _AGENT_MAP[name]))
     workflow.add_node("memory_save", memory_save_node)
 
     # ── 设置入口 ──
@@ -213,6 +225,7 @@ def init_state(raw_query: str, user_id: str = "", thread_id: str | None = None) 
         lead_grade=None,
         chat_response=None,
         errors=[],
+        _attempted_agents=[],
         next_agent="chat",
         route_reason=None,
         user_id=user_id or None,

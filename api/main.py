@@ -1,11 +1,12 @@
 """
-MatchForge 知识库 API 主入口 (FastAPI)。
+MatchForge API 主入口 (FastAPI)
+寻源 Agent 接口
 
 路由:
-  /api/v1/auth         - 登录 / 当前用户
-  /api/v1/companies    - 公司列表 / 详情 / 知识状态 / 产品
-  /api/v1/chat         - 单公司问答 / 多公司比较 / Trace
-  /api/v1/admin/kb     - 知识生成 / 增量 / 重建 / 任务 / 统计
+  /api/v1/procure/stream  — SSE 流式多 Agent 寻源
+  /api/v1/procure/spec    — 解析 + 标准化
+  /api/v1/procure/match   — 替代料 + 供应商匹配
+  /api/v1/procure/health  — Agent 状态检查
 """
 
 from __future__ import annotations
@@ -16,16 +17,14 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from kb.config import CORS_ORIGINS
-from kb.db import init_db
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("api")
 
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+
 
 def create_app() -> FastAPI:
-    init_db()
-    app = FastAPI(title="MatchForge Knowledge Base API", version="1.0.0")
+    app = FastAPI(title="MatchForge Procurement API", version="1.0.0")
 
     origins = [o.strip() for o in (CORS_ORIGINS or "").split(",") if o.strip()]
     if not origins:
@@ -38,13 +37,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    from api.routers import auth, chat, companies, kb_admin
+    from api.routers import procure
 
     api_prefix = "/api/v1"
-    app.include_router(auth.router, prefix=api_prefix)
-    app.include_router(companies.router, prefix=api_prefix)
-    app.include_router(chat.router, prefix=api_prefix)
-    app.include_router(kb_admin.router, prefix=api_prefix)
+    app.include_router(procure.router, prefix=api_prefix)
 
     @app.get("/api/v1/health")
     def health():
