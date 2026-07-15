@@ -26,6 +26,15 @@ Thumbs.db
 
 # Logs
 logs/
+server.log
+server_out.txt
+data/server_err.log
+
+# Database
+data/*.db
+
+# Backups
+*.bak
 
 # Docker 数据卷
 mysql_data/
