@@ -325,3 +325,120 @@ class CompanyRelationship(Base):
         Index("idx_rel_direction", "direction"),
         Index("idx_rel_target", "target_company_id"),
     )
+
+
+# ============================================================
+# 10. RfqRecord -- 询价单 (缺件后的采购动作闭环)
+#    轻量模型, 复用 KB 数据库 (与 Phase 1 一致, 不切 pc_industry 全 ORM)。
+#    Phase 2 Dashboard 的 shortage_id / product_id / recommended_action_id
+#    等尚未落地的字段统一存入 context_json, 不强依赖外部模型。
+# ============================================================
+class RfqRecord(Base):
+    __tablename__ = "kb_rfqs"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    rfq_number = Column(String(64), nullable=False, unique=True, index=True,
+                        comment="业务编号 RFQ-YYYY-NNNN")
+    buyer_company_id = Column(BigInteger, nullable=False, index=True, comment="买方公司ID")
+    title = Column(String(300), nullable=False)
+    raw_query = Column(Text, nullable=True, comment="原始用户询价文本")
+    part_number = Column(String(200), nullable=True, index=True)
+    part_name = Column(String(200), nullable=True)
+    quantity = Column(Integer, nullable=False, default=1)
+    unit = Column(String(20), nullable=False, default="个")
+    target_price = Column(Float, nullable=True, comment="目标单价")
+    lead_time_days = Column(Integer, nullable=True, comment="期望交期(天)")
+    accept_alternatives = Column(Boolean, nullable=False, default=False)
+    scenario = Column(String(40), nullable=True,
+                      comment="shortage|sourcing|cost_down|...")
+    status = Column(String(20), nullable=False, default="draft",
+                    comment="draft|sent|quoted|closed|cancelled")
+    created_by = Column(String(100), nullable=True, comment="创建人 user_id")
+
+    # Phase 2 兼容: shortage_id / product_id / recommended_action_id 等
+    # 未落地的外部引用统一存 JSON, 不建强外键。
+    context_json = Column(Text, nullable=True, comment="Phase2 兼容字段 JSON")
+
+    created_at = Column(DateTime, nullable=False, default=_now)
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("idx_rfq_buyer_status", "buyer_company_id", "status"),
+    )
+
+
+# ============================================================
+# 11. RfqSupplierLink -- RFQ × 候选供应商 (供应商线索)
+#    一条记录 = 一个供应商收到的一条 RFQ 线索。
+#    status: pending(已关联未发送) -> sent(RFQ已发送) -> viewed(供应商已查看)
+#            -> quoted(已报价) | declined(已拒绝) | expired
+# ============================================================
+class RfqSupplierLink(Base):
+    __tablename__ = "kb_rfq_suppliers"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    rfq_id = Column(BigInteger, nullable=False, index=True)
+    supplier_company_id = Column(BigInteger, nullable=False, index=True)
+    match_score = Column(Float, nullable=True, comment="匹配分 0-1")
+    match_reason = Column(Text, nullable=True, comment="匹配理由")
+    status = Column(String(20), nullable=False, default="pending",
+                    comment="pending|sent|viewed|quoted|declined|expired")
+    sent_at = Column(DateTime, nullable=True)
+    viewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        UniqueConstraint("rfq_id", "supplier_company_id", name="uq_rfq_supplier"),
+        Index("idx_rfq_supplier_status", "supplier_company_id", "status"),
+    )
+
+
+# ============================================================
+# 12. QuotationRecord -- 供应商报价
+# ============================================================
+class QuotationRecord(Base):
+    __tablename__ = "kb_quotations"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    rfq_id = Column(BigInteger, nullable=False, index=True)
+    supplier_company_id = Column(BigInteger, nullable=False, index=True)
+    part_number = Column(String(200), nullable=True)
+    unit_price = Column(Float, nullable=False, comment="报价单价")
+    currency = Column(String(10), nullable=False, default="CNY")
+    moq = Column(Integer, nullable=True, comment="最小起订量")
+    lead_time_days = Column(Integer, nullable=True, comment="报价交期(天)")
+    stock_qty = Column(Integer, nullable=True, comment="现货库存")
+    valid_until = Column(DateTime, nullable=True, comment="报价有效期")
+    is_in_stock = Column(Boolean, nullable=False, default=False)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        Index("idx_quote_rfq_supplier", "rfq_id", "supplier_company_id"),
+    )
+
+
+# ============================================================
+# 13. AuditQueueItem -- 审核队列 (轻量, 不做复杂工作流)
+#    item_type: supplier_capability | rfq_supplier_match | quotation_anomaly
+#    status:    pending | approved | rejected
+# ============================================================
+class AuditQueueItem(Base):
+    __tablename__ = "kb_audit_queue"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    item_type = Column(String(40), nullable=False, index=True,
+                       comment="supplier_capability|rfq_supplier_match|quotation_anomaly")
+    entity_id = Column(BigInteger, nullable=True, comment="关联实体ID (link_id/quote_id/...)")
+    company_id = Column(BigInteger, nullable=True, index=True)
+    title = Column(String(300), nullable=False)
+    payload_json = Column(Text, nullable=True, comment="审核上下文 JSON")
+    status = Column(String(20), nullable=False, default="pending",
+                    comment="pending|approved|rejected")
+    review_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_now)
+    reviewed_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("idx_audit_status_type", "status", "item_type"),
+    )
