@@ -22,7 +22,7 @@ function toggle(id: string) {
 }
 
 function reuse(q: string) {
-  router.push(`/?q=${encodeURIComponent(q)}`)
+  router.push(`/app?q=${encodeURIComponent(q)}`)
 }
 
 function del(id: string) {

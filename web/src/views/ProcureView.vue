@@ -107,86 +107,108 @@ function newProcure() {
       </Card>
 
       <template v-else>
-        <Card title="寻源进度" subtitle="6 个智能体阶段实时推进">
-          <AgentTimeline :agents="agents" />
-        </Card>
+        <div class="procure__grid">
+          <section class="procure__main">
+            <Card title="寻源进度" subtitle="6 个智能体阶段实时推进">
+              <AgentTimeline :agents="agents" />
+            </Card>
 
-        <Card
-          v-if="showSpec"
-          title="规格确认"
-          :subtitle="phase === 'gating' ? '请核对解析结果,缺失/低置信字段已标黄' : '已确认规格'"
-        >
-          <SpecConfirm
-            :spec="specForConfirm"
-            :gating="phase === 'gating'"
-            @confirm="store.confirmSpec"
-          />
-        </Card>
+            <Card
+              v-if="showSpec"
+              title="规格确认"
+              :subtitle="phase === 'gating' ? '请核对解析结果,缺失/低置信字段已标黄' : '已确认规格'"
+            >
+              <SpecConfirm
+                :spec="specForConfirm"
+                :gating="phase === 'gating'"
+                @confirm="store.confirmSpec"
+              />
+            </Card>
 
-        <Card
-          v-if="showAlternatives"
-          title="替代料推荐"
-          subtitle="基于知识图谱与规格交叉比对"
-        >
-          <AlternativesList
-            :alternatives="alternatives"
-            :original-part="originalPart"
-            :original-brand="originalBrand"
-          />
-        </Card>
+            <Card
+              v-if="showAlternatives"
+              title="替代料推荐"
+              subtitle="基于知识图谱与规格交叉比对"
+            >
+              <AlternativesList
+                :alternatives="alternatives"
+                :original-part="originalPart"
+                :original-brand="originalBrand"
+              />
+            </Card>
 
-        <Card
-          v-if="showSuppliers"
-          title="供应商匹配"
-          subtitle="供应能力匹配,非实时库存承诺"
-        >
-          <SuppliersMatch
-            :suppliers="matchedSuppliers"
-            :selected-ids="selectedSupplierIds"
-            @toggle="store.toggleSupplier"
-            @generate="onGenerateRfq"
-          />
-        </Card>
+            <Card
+              v-if="showSuppliers"
+              title="供应商匹配"
+              subtitle="供应能力匹配,非实时库存承诺"
+            >
+              <SuppliersMatch
+                :suppliers="matchedSuppliers"
+                :selected-ids="selectedSupplierIds"
+                @toggle="store.toggleSupplier"
+                @generate="onGenerateRfq"
+              />
+            </Card>
 
-        <Card
-          v-if="showRfq"
-          id="rfq-section"
-          title="询价单(RFQ)"
-          subtitle="AI 生成,可编辑"
-        >
-          <RfqEditor
-            :rfq-doc="rfqDoc"
-            :rfq-id="rfqId"
-            :spec="normalizedSpec"
-            :alternatives="alternatives"
-            :suppliers="matchedSuppliers"
-            :selected-supplier-ids="selectedSupplierIds"
-            :sent="rfqSent"
-            :streaming="genRfqRunning"
-            @update="store.setRfqDoc"
-            @sent="store.markRfqSent"
-          />
-        </Card>
+            <Card
+              v-if="showRfq"
+              id="rfq-section"
+              title="询价单(RFQ)"
+              subtitle="AI 生成,可编辑"
+            >
+              <RfqEditor
+                :rfq-doc="rfqDoc"
+                :rfq-id="rfqId"
+                :spec="normalizedSpec"
+                :alternatives="alternatives"
+                :suppliers="matchedSuppliers"
+                :selected-supplier-ids="selectedSupplierIds"
+                :sent="rfqSent"
+                :streaming="genRfqRunning"
+                @update="store.setRfqDoc"
+                @sent="store.markRfqSent"
+              />
+            </Card>
 
-        <Card
-          v-if="leadGrade"
-          title="线索分级"
-          subtitle="对该询价线索的质量评估"
-        >
-          <div class="procure__grade">
-            <div class="procure__grade-main">
-              <span class="procure__grade-letter" :class="`grade-${leadGrade.grade}`">{{ leadGrade.grade }}</span>
-              <span class="procure__grade-score">{{ leadGrade.score }} 分</span>
-              <Tag :type="gradeType" :value="`${leadGrade.grade} 级线索`" />
+            <Card
+              v-if="leadGrade"
+              title="线索分级"
+              subtitle="对该询价线索的质量评估"
+            >
+              <div class="procure__grade">
+                <div class="procure__grade-main">
+                  <span class="procure__grade-letter" :class="`grade-${leadGrade.grade}`">{{ leadGrade.grade }}</span>
+                  <span class="procure__grade-score">{{ leadGrade.score }} 分</span>
+                  <Tag :type="gradeType" :value="`${leadGrade.grade} 级线索`" />
+                </div>
+                <ul class="procure__grade-reasons">
+                  <li v-for="(r, i) in leadGrade.reasons" :key="i">{{ r }}</li>
+                </ul>
+              </div>
+            </Card>
+
+            <div v-if="phase === 'done'" class="procure__done">
+              <AppButton variant="primary" size="lg" @click="newProcure">开始新的寻源</AppButton>
             </div>
-            <ul class="procure__grade-reasons">
-              <li v-for="(r, i) in leadGrade.reasons" :key="i">{{ r }}</li>
-            </ul>
-          </div>
-        </Card>
+          </section>
 
-        <div v-if="phase === 'done'" class="procure__done">
-          <AppButton variant="primary" size="lg" @click="newProcure">开始新的寻源</AppButton>
+          <aside class="procure__aside">
+            <div class="aside-card">
+              <span class="aside-card__label">Thread</span>
+              <b>{{ threadId || '启动中' }}</b>
+              <p>{{ rawQuery }}</p>
+            </div>
+            <div class="aside-card">
+              <span class="aside-card__label">结果摘要</span>
+              <div class="aside-metric"><span>替代料</span><b>{{ alternatives.length }}</b></div>
+              <div class="aside-metric"><span>供应商</span><b>{{ matchedSuppliers.length }}</b></div>
+              <div class="aside-metric"><span>已选供应商</span><b>{{ selectedSupplierIds.size }}</b></div>
+            </div>
+            <div class="aside-card aside-card--muted">
+              <span class="aside-card__label">MVP 留白</span>
+              <p>运营审核、供应商入驻、报价对比和真实库存确认可在这里继续扩展。</p>
+            </div>
+          </aside>
         </div>
       </template>
     </div>
@@ -238,12 +260,70 @@ function newProcure() {
 .procure__steps { flex-shrink: 0; }
 
 .procure__body {
-  max-width: 960px;
+  max-width: 1240px;
   margin: 0 auto;
   padding: var(--space-5);
+}
+.procure__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--space-4);
+  align-items: start;
+}
+.procure__main {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+.procure__aside {
+  position: sticky;
+  top: 128px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.aside-card {
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+    var(--bg-1);
+}
+.aside-card--muted {
+  border-style: dashed;
+}
+.aside-card__label {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.aside-card b {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+.aside-card p {
+  margin-top: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+  word-break: break-word;
+}
+.aside-metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.aside-metric span {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
 }
 
 .procure__vague { text-align: center; padding: var(--space-6) var(--space-4); }
@@ -282,5 +362,7 @@ function newProcure() {
 @media (max-width: 768px) {
   .procure__topbar-inner { flex-wrap: wrap; }
   .procure__steps { width: 100%; overflow-x: auto; }
+  .procure__grid { grid-template-columns: 1fr; }
+  .procure__aside { position: static; }
 }
 </style>

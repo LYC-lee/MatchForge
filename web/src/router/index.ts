@@ -4,14 +4,26 @@ import { useAuthStore } from '@/stores/auth'
 
 const routes: RouteRecordRaw[] = [
   {
+    path: '/',
+    name: 'landing',
+    component: () => import('@/views/LandingView.vue'),
+    meta: { layout: 'blank', public: true },
+  },
+  {
     path: '/login',
     name: 'login',
     component: () => import('@/views/LoginView.vue'),
     meta: { layout: 'blank', public: true },
   },
   {
-    path: '/',
-    name: 'home',
+    path: '/register',
+    name: 'register',
+    component: () => import('@/views/RegisterView.vue'),
+    meta: { layout: 'blank', public: true },
+  },
+  {
+    path: '/app',
+    name: 'app',
     component: () => import('@/views/HomeView.vue'),
     meta: { requiresAuth: true },
   },
@@ -35,14 +47,11 @@ const router = createRouter({
   routes,
 })
 
-// 路由守卫:未登录访问受保护页 -> 跳登录;已登录访问登录页 -> 跳首页
+// 路由守卫:只保护产品功能区。登录/注册页始终可访问,由页面自己展示当前登录状态。
 router.beforeEach((to) => {
   const auth = useAuthStore()
-  if (to.meta.requiresAuth && !auth.isAuthenticated) {
+  if (to.meta.requiresAuth && !auth.validateSession()) {
     return { name: 'login', query: { redirect: to.fullPath } }
-  }
-  if (to.name === 'login' && auth.isAuthenticated) {
-    return { name: 'home' }
   }
 })
 

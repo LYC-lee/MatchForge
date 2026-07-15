@@ -33,46 +33,78 @@ function onSubmit(query: string) {
 }
 
 function reuse(q: string) {
-  router.push(`/?q=${encodeURIComponent(q)}`)
+  router.push(`/app?q=${encodeURIComponent(q)}`)
 }
 </script>
 
 <template>
   <div class="home">
-    <section class="home__hero">
-      <div class="home__badge">AI 元器件替代料寻源 · Spike</div>
-      <h1 class="home__title">缺货了?让 AI 帮你找<b>可靠替代料</b></h1>
-      <p class="home__sub">
-        输入型号或自然语言采购需求,AI 解析规格、推荐替代料、匹配供应商能力、生成可编辑询价单。
-      </p>
-      <QueryInput :initial="initial" @submit="onSubmit" />
+    <section class="workspace-hero">
+      <div class="workspace-hero__main">
+        <div class="home__badge">AI 元器件替代料寻源 · Spike</div>
+        <h1 class="home__title">缺货、停产、降本，都从一个采购请求开始</h1>
+        <p class="home__sub">
+          按 Linear 的工作区结构拆分寻源流程：输入需求、确认规格、查看替代、匹配供应商、生成 RFQ。
+        </p>
+        <QueryInput :initial="initial" @submit="onSubmit" />
+      </div>
+
+      <aside class="workspace-hero__side">
+        <div class="side-card side-card--active">
+          <span class="side-card__k">当前模式</span>
+          <b>Spike Demo</b>
+          <p>Mock SSE 已开启，可独立演示完整流程。</p>
+        </div>
+        <div class="side-card">
+          <span class="side-card__k">事实边界</span>
+          <b>能力匹配</b>
+          <p>不展示“确认有货”，所有供应商结果最终以询价回复为准。</p>
+        </div>
+        <div class="side-card">
+          <span class="side-card__k">首期留白</span>
+          <b>运营审核 / 供应商入驻</b>
+          <p>结构已预留，MVP 阶段接入真实后台。</p>
+        </div>
+      </aside>
     </section>
 
-    <section class="home__section">
-      <h2 class="home__section-title">核心能力</h2>
-      <div class="home__features">
-        <div v-for="f in features" :key="f.title" class="feature-card">
-          <span class="feature-card__dot" />
-          <h3 class="feature-card__title">{{ f.title }}</h3>
-          <p class="feature-card__desc">{{ f.desc }}</p>
+    <section class="home__grid">
+      <div class="home__panel home__panel--wide">
+        <div class="panel-head">
+          <span>Workflow</span>
+          <h2>三步完成寻源</h2>
+        </div>
+        <div class="home__steps">
+          <div v-for="s in steps" :key="s.n" class="step-card">
+            <span class="step-card__n">{{ s.n }}</span>
+            <div>
+              <h3 class="step-card__title">{{ s.title }}</h3>
+              <p class="step-card__desc">{{ s.desc }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="home__panel">
+        <div class="panel-head">
+          <span>Modules</span>
+          <h2>核心能力</h2>
+        </div>
+        <div class="home__features">
+          <div v-for="f in features" :key="f.title" class="feature-card">
+            <span class="feature-card__dot" />
+            <h3 class="feature-card__title">{{ f.title }}</h3>
+            <p class="feature-card__desc">{{ f.desc }}</p>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="home__section">
-      <h2 class="home__section-title">三步完成寻源</h2>
-      <div class="home__steps">
-        <div v-for="(s, i) in steps" :key="s.n" class="step-card">
-          <span class="step-card__n">{{ s.n }}</span>
-          <h3 class="step-card__title">{{ s.title }}</h3>
-          <p class="step-card__desc">{{ s.desc }}</p>
-          <span v-if="i < steps.length - 1" class="step-card__arrow">→</span>
-        </div>
+    <section class="home__recent">
+      <div class="panel-head">
+        <span>Recents</span>
+        <h2>最近寻源</h2>
       </div>
-    </section>
-
-    <section v-if="recent.length" class="home__recent">
-      <h3 class="home__recent-title">最近寻源</h3>
       <div class="home__recent-list">
         <button
           v-for="r in recent"
@@ -85,6 +117,9 @@ function reuse(q: string) {
             {{ r.created_at.slice(0, 10) }} · {{ r.state.alternatives?.length || 0 }} 个替代料
           </span>
         </button>
+        <div v-if="!recent.length" class="home__recent-empty">
+          还没有寻源记录，提交一个型号后这里会显示最近工作流。
+        </div>
       </div>
     </section>
 
@@ -99,11 +134,36 @@ function reuse(q: string) {
 
 <style scoped>
 .home {
-  max-width: 1200px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: var(--space-8) var(--space-5) var(--space-6);
+  padding: var(--space-6) var(--space-5) var(--space-6);
 }
-.home__hero { text-align: center; margin-bottom: var(--space-8); }
+.workspace-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.workspace-hero__main,
+.workspace-hero__side,
+.home__panel,
+.home__recent,
+.home__disclaimer {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+    var(--bg-1);
+}
+.workspace-hero__main {
+  padding: clamp(24px, 5vw, 56px);
+}
+.workspace-hero__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
 .home__badge {
   display: inline-block;
   font-size: var(--font-size-xs);
@@ -115,71 +175,123 @@ function reuse(q: string) {
   margin-bottom: var(--space-4);
 }
 .home__title {
-  font-size: var(--font-size-3xl);
+  max-width: 720px;
+  font-size: clamp(32px, 5vw, 56px);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.05;
   margin-bottom: var(--space-3);
-  letter-spacing: -0.02em;
-}
-.home__title b {
-  background: var(--gradient-accent);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.05em;
 }
 .home__sub {
   font-size: var(--font-size-md);
   color: var(--text-secondary);
-  max-width: 560px;
-  margin: 0 auto var(--space-6);
+  max-width: 660px;
+  margin-bottom: var(--space-6);
 }
 
-.home__section { margin-bottom: var(--space-8); }
-.home__section-title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
+.side-card {
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+}
+.side-card--active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+.side-card__k,
+.panel-head span {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.side-card b {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--font-size-sm);
+}
+.side-card p {
+  margin-top: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+}
+.home__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 0.72fr);
+  gap: var(--space-4);
   margin-bottom: var(--space-4);
-  color: var(--text-primary);
+}
+.home__panel {
+  padding: var(--space-5);
+}
+.panel-head {
+  margin-bottom: var(--space-4);
+}
+.panel-head h2 {
+  margin-top: var(--space-1);
+  font-size: var(--font-size-lg);
 }
 
 .home__features {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 .feature-card {
-  background: var(--bg-2);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
   transition: border-color var(--transition-base);
 }
 .feature-card:hover { border-color: var(--accent-border); }
 .feature-card__dot {
   display: block;
-  width: 28px;
-  height: 4px;
+  width: 18px;
+  height: 18px;
   border-radius: var(--radius-full);
   background: var(--gradient-accent);
-  margin-bottom: var(--space-3);
+  margin-top: 2px;
+  grid-row: 1 / span 2;
 }
-.feature-card__title { font-size: var(--font-size-md); font-weight: 600; margin-bottom: var(--space-2); }
-.feature-card__desc { font-size: var(--font-size-sm); color: var(--text-tertiary); line-height: 1.6; }
+.feature-card__title {
+  grid-column: 2;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  margin-bottom: 0;
+}
+.feature-card__desc {
+  grid-column: 2;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  line-height: 1.6;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
 
 .home__steps {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 .step-card {
-  position: relative;
-  background: var(--bg-2);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
 }
 .step-card__n {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
   font-weight: 700;
   font-family: var(--font-mono);
   color: var(--accent);
@@ -190,27 +302,20 @@ function reuse(q: string) {
 }
 .step-card__title { font-size: var(--font-size-md); font-weight: 600; margin: var(--space-2) 0; }
 .step-card__desc { font-size: var(--font-size-sm); color: var(--text-tertiary); line-height: 1.6; }
-.step-card__arrow {
-  position: absolute;
-  right: -10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-tertiary);
-  font-size: 18px;
-  z-index: 1;
-}
 
-.home__recent { margin-bottom: var(--space-6); }
-.home__recent-title { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-bottom: var(--space-3); text-transform: uppercase; letter-spacing: 0.04em; }
-.home__recent-list { display: flex; flex-direction: column; gap: var(--space-2); max-width: 720px; margin: 0 auto; }
+.home__recent {
+  margin-bottom: var(--space-4);
+  padding: var(--space-5);
+}
+.home__recent-list { display: flex; flex-direction: column; gap: var(--space-2); }
 .home__recent-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: var(--bg-2);
-  border: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   transition: all var(--transition-fast);
   text-align: left;
@@ -218,21 +323,25 @@ function reuse(q: string) {
 .home__recent-item:hover { border-color: var(--accent-border); background: var(--bg-3); }
 .home__recent-query { font-size: var(--font-size-sm); color: var(--text-primary); }
 .home__recent-meta { font-size: var(--font-size-xs); color: var(--text-tertiary); flex-shrink: 0; }
+.home__recent-empty {
+  padding: var(--space-4);
+  color: var(--text-tertiary);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
 
 .home__disclaimer {
-  max-width: 720px;
-  margin: 0 auto;
   padding: var(--space-4);
-  background: var(--bg-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
 }
 .home__disclaimer p { font-size: var(--font-size-xs); color: var(--text-tertiary); line-height: 1.7; }
 .home__disclaimer b { color: var(--text-secondary); }
 
 @media (max-width: 768px) {
-  .home__steps { grid-template-columns: 1fr; }
-  .step-card__arrow { display: none; }
+  .workspace-hero,
+  .home__grid {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 640px) {
   .home__title { font-size: var(--font-size-2xl); }
