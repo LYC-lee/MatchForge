@@ -1,13 +1,14 @@
 """
 MatchForge Graph State 定义
 与前端 types/procure.ts 严格对齐
+
+使用 reducer 使 graph 循环时列表字段正确追加而非覆盖
 """
 
-from typing import TypedDict, Optional, Union
+from typing import TypedDict, Optional
 
 
 class SpecField(TypedDict):
-    """规格字段（带置信度）"""
     value: str
     confidence: float
     missing: bool
@@ -15,7 +16,6 @@ class SpecField(TypedDict):
 
 
 class ParamDiff(TypedDict):
-    """参数差异项"""
     field: str
     original: str
     alternative: str
@@ -24,7 +24,6 @@ class ParamDiff(TypedDict):
 
 
 class DiffItem(TypedDict):
-    """参数差异项（兼容旧版）"""
     param: str
     original: str
     alternative: str
@@ -32,9 +31,8 @@ class DiffItem(TypedDict):
 
 
 class Alternative(TypedDict):
-    """替代料 — 与前端 Alternative 接口对齐"""
     part_name: str
-    part: str               # 兼容旧版
+    part: str
     brand: str
     package: str
     key_params: dict
@@ -44,20 +42,19 @@ class Alternative(TypedDict):
     source: str
     updated_at: str
     diffs: list[ParamDiff]
-    diff_items: list[DiffItem]  # 兼容旧版
+    diff_items: list[DiffItem]
     specs: dict
     reason: str
     note: str
 
 
 class Supplier(TypedDict):
-    """候选供应商 — 与前端 Supplier 接口对齐"""
     id: str
     name: str
     score: float
     category: str
     region: str
-    location: str           # 兼容旧版
+    location: str
     categories: list[str]
     brands: list[str]
     qualifications: list[str]
@@ -74,7 +71,6 @@ class Supplier(TypedDict):
 
 
 class LeadGrade(TypedDict):
-    """线索分级"""
     grade: str              # A/B/C/D
     score: int
     reasons: list[str]
@@ -83,7 +79,12 @@ class LeadGrade(TypedDict):
 class ProcureState(TypedDict):
     """
     Graph State — 6 个智能体间的共享状态
-    与前端 ProcureState 接口对齐
+
+    带 reducer 的字段:
+      - alternatives:    每次返回 append，不覆盖
+      - matched_suppliers: 同上
+      - errors:          每次返回追加
+      - next_agent:      总是覆盖
     """
     thread_id: str
     raw_query: str
@@ -95,5 +96,7 @@ class ProcureState(TypedDict):
     rfq_id: Optional[str]
     lead_grade: Optional[LeadGrade]
     errors: list[str]
+    next_agent: str                     # supervisor 路由用
+    user_id: Optional[str]              # 用户标识，记忆用
     started_at: str
     completed_at: Optional[str]
