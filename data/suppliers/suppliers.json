@@ -1,0 +1,2306 @@
+[
+  {
+    "id": 1,
+    "name": "深圳市昂洋科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "REACH"
+    ],
+    "rating": 4.8,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0755-83281900",
+    "contact_email": "sales@aychina.net",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "GRM188R71H104KA93D",
+        "brand": "村田(Murata)",
+        "specs": {
+          "封装": "0603",
+          "容值": "100nF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/GRM188R71H104KA93D.html",
+        "moq": 4000,
+        "lead_time_weeks": 2,
+        "price": 0.028,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "CL10B104KB8NNNC",
+        "brand": "三星电机(SEMCO)",
+        "specs": {
+          "封装": "0603",
+          "容值": "100nF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/CL10B104KB8NNNC.html",
+        "moq": 4000,
+        "lead_time_weeks": 2,
+        "price": 0.022,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "CC0603KRX7R9BB104",
+        "brand": "国巨(YAGEO)",
+        "specs": {
+          "封装": "0603",
+          "容值": "100nF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/CC0603KRX7R9BB104.html",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.018,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "东莞市超翔电子有限公司",
+    "location": "东莞",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "ISO14001"
+    ],
+    "rating": 4.6,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0769-22667088",
+    "contact_email": "sales@cxgeo.com",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "0805F105Z500NT",
+        "brand": "华新科(Walsin)",
+        "specs": {
+          "封装": "0805",
+          "容值": "1uF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/0805F105Z500NT.html",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.035,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "RC0603FR-0710KL",
+        "brand": "国巨(YAGEO)",
+        "specs": {
+          "封装": "0603",
+          "阻值": "10kΩ",
+          "精度": "±1%",
+          "额定功率": "1/10W",
+          "温度系数": "±100ppm/°C"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/RC0603FR-0710KL.html",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.008,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "C1608X7R1H104K080AC",
+        "brand": "TDK",
+        "specs": {
+          "封装": "0603",
+          "容值": "100nF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/C1608X7R1H104K080AC.html",
+        "moq": 4000,
+        "lead_time_weeks": 3,
+        "price": 0.03,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "深圳市南皇电子有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.5,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0755-82512999",
+    "contact_email": "sales@nanhuangic.com",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "GRM31CR60J107ME39L",
+        "brand": "村田(Murata)",
+        "specs": {
+          "封装": "1206",
+          "容值": "100uF",
+          "精度": "±20%",
+          "温度系数": "X5R",
+          "额定电压": "6.3V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/GRM31CR60J107ME39L.html",
+        "moq": 2000,
+        "lead_time_weeks": 3,
+        "price": 0.15,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "GRM188R71C105KA93D",
+        "brand": "村田(Murata)",
+        "specs": {
+          "封装": "0603",
+          "容值": "1uF",
+          "精度": "±10%",
+          "温度系数": "X5R",
+          "额定电压": "16V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/GRM188R71C105KA93D.html",
+        "moq": 4000,
+        "lead_time_weeks": 2,
+        "price": 0.025,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "name": "深圳市科茂森电子科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "REACH"
+    ],
+    "rating": 4.4,
+    "status": "approved",
+    "main_category": "贴片电阻",
+    "contact_phone": "0755-83981999",
+    "contact_email": "sales@kemaoosen.com",
+    "products": [
+      {
+        "category": "贴片电阻",
+        "part_number": "RC0402FR-0710KL",
+        "brand": "国巨(YAGEO)",
+        "specs": {
+          "封装": "0402",
+          "阻值": "10kΩ",
+          "精度": "±1%",
+          "额定功率": "1/16W",
+          "温度系数": "±100ppm/°C"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/RC0402FR-0710KL.html",
+        "moq": 10000,
+        "lead_time_weeks": 1,
+        "price": 0.005,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "0603WAJ0472T5E",
+        "brand": "厚声(UniOhm)",
+        "specs": {
+          "封装": "0603",
+          "阻值": "4.7kΩ",
+          "精度": "±1%",
+          "额定功率": "1/10W",
+          "温度系数": "±100ppm/°C"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/0603WAJ0472T5E.html",
+        "moq": 5000,
+        "lead_time_weeks": 2,
+        "price": 0.007,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "CL21B104KBCNNNC",
+        "brand": "三星电机(SEMCO)",
+        "specs": {
+          "封装": "0805",
+          "容值": "100nF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/CL21B104KBCNNNC.html",
+        "moq": 4000,
+        "lead_time_weeks": 2,
+        "price": 0.02,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "name": "深圳市钦胜恒腾电子有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.3,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0755-83218888",
+    "contact_email": "sales@qsheng.com",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "CL10A106MP8NNNC",
+        "brand": "三星电机(SEMCO)",
+        "specs": {
+          "封装": "0603",
+          "容值": "10uF",
+          "精度": "±20%",
+          "温度系数": "X5R",
+          "额定电压": "10V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/CL10A106MP8NNNC.html",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.04,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "RC0603JR-074K7L",
+        "brand": "国巨(YAGEO)",
+        "specs": {
+          "封装": "0603",
+          "阻值": "4.7kΩ",
+          "精度": "±5%",
+          "额定功率": "1/10W",
+          "温度系数": "±100ppm/°C"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/RC0603JR-074K7L.html",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.006,
+        "in_stock": true
+      },
+      {
+        "category": "二极管",
+        "part_number": "SS34",
+        "brand": "Vishay(威世)",
+        "specs": {
+          "类型": "肖特基",
+          "反向耐压": "40V",
+          "平均电流": "3A",
+          "封装": "SMA",
+          "正向压降": "0.55V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/SS34.html",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.12,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "name": "安升电子(深圳)有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "REACH",
+      "ISO14001"
+    ],
+    "rating": 4.7,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0755-83288000",
+    "contact_email": "sales@ansonsz.com",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "CC0805KKX7R9BB103",
+        "brand": "国巨(YAGEO)",
+        "specs": {
+          "封装": "0805",
+          "容值": "10uF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/CC0805KKX7R9BB103.html",
+        "moq": 2000,
+        "lead_time_weeks": 2,
+        "price": 0.045,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "RC0805FR-07100RL",
+        "brand": "国巨(YAGEO)",
+        "specs": {
+          "封装": "0805",
+          "阻值": "100Ω",
+          "精度": "±1%",
+          "额定功率": "1/8W",
+          "温度系数": "±100ppm/°C"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/RC0805FR-07100RL.html",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.01,
+        "in_stock": true
+      },
+      {
+        "category": "MOSFET",
+        "part_number": "AO3400A",
+        "brand": "AOS(万代)",
+        "specs": {
+          "类型": "N沟道",
+          "耐压": "30V",
+          "电流": "5.8A",
+          "封装": "SOT-23",
+          "导通电阻": "33mΩ"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/AO3400A.html",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.15,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "name": "深圳市宏诺德电子科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.2,
+    "status": "approved",
+    "main_category": "连接器",
+    "contact_phone": "0755-83668000",
+    "contact_email": "sales@homndtech.com",
+    "products": [
+      {
+        "category": "连接器",
+        "part_number": "XH2.54-2P",
+        "brand": "JST(日本航空电子)",
+        "specs": {
+          "类型": "线对板",
+          "间距": "2.54mm",
+          "芯数": 2,
+          "额定电流": "3A",
+          "额定电压": "250V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/XH2.54-2P.html",
+        "moq": 2000,
+        "lead_time_weeks": 2,
+        "price": 0.08,
+        "in_stock": true
+      },
+      {
+        "category": "连接器",
+        "part_number": "PH2.0-3P",
+        "brand": "JST(日本航空电子)",
+        "specs": {
+          "类型": "线对板",
+          "间距": "2.0mm",
+          "芯数": 3,
+          "额定电流": "2A",
+          "额定电压": "100V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/PH2.0-3P.html",
+        "moq": 2000,
+        "lead_time_weeks": 2,
+        "price": 0.06,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "CL10B104KB8NNNC",
+        "brand": "三星电机(SEMCO)",
+        "specs": {
+          "封装": "0603",
+          "容值": "100nF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/CL10B104KB8NNNC.html",
+        "moq": 4000,
+        "lead_time_weeks": 2,
+        "price": 0.022,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "name": "深圳市佳仕达科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.3,
+    "status": "approved",
+    "main_category": "二极管",
+    "contact_phone": "0755-83980000",
+    "contact_email": "sales@jsddz.net",
+    "products": [
+      {
+        "category": "二极管",
+        "part_number": "1N4148W",
+        "brand": "NXP(恩智浦)",
+        "specs": {
+          "类型": "开关",
+          "反向耐压": "100V",
+          "平均电流": "150mA",
+          "封装": "SOD-123",
+          "正向压降": "1V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/1N4148W.html",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.03,
+        "in_stock": true
+      },
+      {
+        "category": "二极管",
+        "part_number": "SS34",
+        "brand": "ON Semi(安森美)",
+        "specs": {
+          "类型": "肖特基",
+          "反向耐压": "40V",
+          "平均电流": "3A",
+          "封装": "SMA",
+          "正向压降": "0.55V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/SS34.html",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.11,
+        "in_stock": true
+      },
+      {
+        "category": "MOSFET",
+        "part_number": "AO3400A",
+        "brand": "AOS(万代)",
+        "specs": {
+          "类型": "N沟道",
+          "耐压": "30V",
+          "电流": "5.8A",
+          "封装": "SOT-23",
+          "导通电阻": "33mΩ"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/AO3400A.html",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.14,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "name": "深圳市三守科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "REACH"
+    ],
+    "rating": 4.4,
+    "status": "approved",
+    "main_category": "二极管",
+    "contact_phone": "0755-83259000",
+    "contact_email": "sales@sskjsemi.com",
+    "products": [
+      {
+        "category": "二极管",
+        "part_number": "1N4148W",
+        "brand": "NXP(恩智浦)",
+        "specs": {
+          "类型": "开关",
+          "反向耐压": "100V",
+          "平均电流": "150mA",
+          "封装": "SOD-123",
+          "正向压降": "1V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/1N4148W.html",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.028,
+        "in_stock": true
+      },
+      {
+        "category": "MOSFET",
+        "part_number": "AO3400A",
+        "brand": "AOS(万代)",
+        "specs": {
+          "类型": "N沟道",
+          "耐压": "30V",
+          "电流": "5.8A",
+          "封装": "SOT-23",
+          "导通电阻": "33mΩ"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/AO3400A.html",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.13,
+        "in_stock": true
+      },
+      {
+        "category": "二极管",
+        "part_number": "SMBJ5.0A",
+        "brand": "SEMIWARE(赛米微尔)",
+        "specs": {
+          "类型": "TVS",
+          "反向耐压": "5.0V",
+          "峰值功率": "600W",
+          "封装": "SMB",
+          "钳位电压": "9.2V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/SMBJ5.0A.html",
+        "moq": 2000,
+        "lead_time_weeks": 2,
+        "price": 0.2,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "name": "深圳市平台科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.2,
+    "status": "approved",
+    "main_category": "MCU单片机",
+    "contact_phone": "0755-83280000",
+    "contact_email": "sales@ptmsz.com",
+    "products": [
+      {
+        "category": "MCU单片机",
+        "part_number": "STM32F103C8T6",
+        "brand": "ST(意法半导体)",
+        "specs": {
+          "内核": "Cortex-M3",
+          "主频": "72MHz",
+          "Flash": "64KB",
+          "SRAM": "20KB",
+          "封装": "LQFP48"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/STM32F103C8T6.html",
+        "moq": 500,
+        "lead_time_weeks": 3,
+        "price": 1.2,
+        "in_stock": true
+      },
+      {
+        "category": "MCU单片机",
+        "part_number": "GD32F103C8T6",
+        "brand": "兆易创新(GigaDevice)",
+        "specs": {
+          "内核": "Cortex-M3",
+          "主频": "108MHz",
+          "Flash": "64KB",
+          "SRAM": "20KB",
+          "封装": "LQFP48"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/GD32F103C8T6.html",
+        "moq": 500,
+        "lead_time_weeks": 2,
+        "price": 0.8,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "name": "深圳市凯新达电子有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "ISO14001"
+    ],
+    "rating": 4.3,
+    "status": "approved",
+    "main_category": "连接器",
+    "contact_phone": "0755-83981000",
+    "contact_email": "sales@pioneeric.com",
+    "products": [
+      {
+        "category": "连接器",
+        "part_number": "XH2.54-4P",
+        "brand": "JST(日本航空电子)",
+        "specs": {
+          "类型": "线对板",
+          "间距": "2.54mm",
+          "芯数": 4,
+          "额定电流": "3A",
+          "额定电压": "250V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/XH2.54-4P.html",
+        "moq": 2000,
+        "lead_time_weeks": 2,
+        "price": 0.1,
+        "in_stock": true
+      },
+      {
+        "category": "连接器",
+        "part_number": "51021-0200",
+        "brand": "Molex(莫莱克斯)",
+        "specs": {
+          "类型": "线对板",
+          "间距": "1.25mm",
+          "芯数": 2,
+          "额定电流": "1A",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/51021-0200.html",
+        "moq": 2000,
+        "lead_time_weeks": 3,
+        "price": 0.15,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "name": "深圳市通顺达科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.1,
+    "status": "approved",
+    "main_category": "MOSFET",
+    "contact_phone": "0755-83660000",
+    "contact_email": "sales@tosuda.cn",
+    "products": [
+      {
+        "category": "MOSFET",
+        "part_number": "AO3400A",
+        "brand": "AOS(万代)",
+        "specs": {
+          "类型": "N沟道",
+          "耐压": "30V",
+          "电流": "5.8A",
+          "封装": "SOT-23",
+          "导通电阻": "33mΩ"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/AO3400A.html",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.14,
+        "in_stock": true
+      },
+      {
+        "category": "MOSFET",
+        "part_number": "IRF3205",
+        "brand": "IR(国际整流器)",
+        "specs": {
+          "类型": "N沟道",
+          "耐压": "55V",
+          "电流": "75A",
+          "封装": "TO-220",
+          "导通电阻": "8mΩ"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/IRF3205.html",
+        "moq": 500,
+        "lead_time_weeks": 2,
+        "price": 0.5,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "name": "德盛半导体(深圳)有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "IATF16949"
+    ],
+    "rating": 4.5,
+    "status": "approved",
+    "main_category": "二极管",
+    "contact_phone": "0755-83661111",
+    "contact_email": "sales@szds-semi.com",
+    "products": [
+      {
+        "category": "二极管",
+        "part_number": "1N4148W",
+        "brand": "德盛(DS)",
+        "specs": {
+          "类型": "开关",
+          "反向耐压": "100V",
+          "平均电流": "150mA",
+          "封装": "SOD-123",
+          "正向压降": "1V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/1N4148W.html",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.025,
+        "in_stock": true
+      },
+      {
+        "category": "MOSFET",
+        "part_number": "AO3400A",
+        "brand": "德盛(DS)",
+        "specs": {
+          "类型": "N沟道",
+          "耐压": "30V",
+          "电流": "5.8A",
+          "封装": "SOT-23",
+          "导通电阻": "33mΩ"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/AO3400A.html",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.12,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "name": "深圳市禾琦电子有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.0,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0755-83250000",
+    "contact_email": "sales@heqi.com",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "CC0603KRX7R9BB104",
+        "brand": "国巨(YAGEO)",
+        "specs": {
+          "封装": "0603",
+          "容值": "100nF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/CC0603KRX7R9BB104.html",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.018,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "RC0603FR-0710KL",
+        "brand": "国巨(YAGEO)",
+        "specs": {
+          "封装": "0603",
+          "阻值": "10kΩ",
+          "精度": "±1%",
+          "额定功率": "1/10W",
+          "温度系数": "±100ppm/°C"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/RC0603FR-0710KL.html",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.008,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 15,
+    "name": "深圳市威凯达电子科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001"
+    ],
+    "rating": 4.0,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0755-83680000",
+    "contact_email": "sales@weikaida.com",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "GRM188R71H104KA93D",
+        "brand": "村田(Murata)",
+        "specs": {
+          "封装": "0603",
+          "容值": "100nF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/GRM188R71H104KA93D.html",
+        "moq": 4000,
+        "lead_time_weeks": 2,
+        "price": 0.028,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "CC0805KKX7R9BB103",
+        "brand": "国巨(YAGEO)",
+        "specs": {
+          "封装": "0805",
+          "容值": "10uF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/CC0805KKX7R9BB103.html",
+        "moq": 2000,
+        "lead_time_weeks": 2,
+        "price": 0.045,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 16,
+    "name": "南京创倍希电子有限公司",
+    "location": "南京",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.2,
+    "status": "approved",
+    "main_category": "贴片电阻",
+    "contact_phone": "025-84700000",
+    "contact_email": "sales@chuangbeixi.com",
+    "products": [
+      {
+        "category": "贴片电阻",
+        "part_number": "RC0603FR-0710KL",
+        "brand": "国巨(YAGEO)",
+        "specs": {
+          "封装": "0603",
+          "阻值": "10kΩ",
+          "精度": "±1%",
+          "额定功率": "1/10W",
+          "温度系数": "±100ppm/°C"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/RC0603FR-0710KL.html",
+        "moq": 5000,
+        "lead_time_weeks": 2,
+        "price": 0.009,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电感",
+        "part_number": "LQM18PN2R2MFHD",
+        "brand": "村田(Murata)",
+        "specs": {
+          "封装": "0603",
+          "电感值": "2.2uH",
+          "精度": "±20%",
+          "额定电流": "1A",
+          "直流电阻": "0.1Ω"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/LQM18PN2R2MFHD.html",
+        "moq": 3000,
+        "lead_time_weeks": 3,
+        "price": 0.05,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "name": "苏州风华高新科技有限公司",
+    "location": "苏州",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "REACH",
+      "IATF16949",
+      "ISO14001"
+    ],
+    "rating": 4.9,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0512-68000000",
+    "contact_email": "sales@fenghua-sz.com",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "0805B104K500NT",
+        "brand": "风华高科(FH)",
+        "specs": {
+          "封装": "0805",
+          "容值": "100nF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/0805B104K500NT.html",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.015,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "0603SFAJ0100T5E",
+        "brand": "风华高科(FH)",
+        "specs": {
+          "封装": "0603",
+          "阻值": "100Ω",
+          "精度": "±5%",
+          "额定功率": "1/10W",
+          "温度系数": "±100ppm/°C"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/0603SFAJ0100T5E.html",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.005,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "0603B105K500NT",
+        "brand": "风华高科(FH)",
+        "specs": {
+          "封装": "0603",
+          "容值": "1uF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.szlcsc.com/product/0603B105K500NT.html",
+        "moq": 4000,
+        "lead_time_weeks": 1,
+        "price": 0.02,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 18,
+    "name": "深圳市金顺怡电子科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "REACH"
+    ],
+    "rating": 4.4,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0755-8388-3300",
+    "contact_email": "sales@jinshunyi.com",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "0805B106M500NT",
+        "brand": "风华高科(FH)",
+        "specs": {
+          "封装": "0805",
+          "容值": "10uF",
+          "精度": "±20%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://www.fenghua-advanced.com/upload/pdf/0805B106M500NT.pdf",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.08,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电感",
+        "part_number": "CD53-4R7M",
+        "brand": "顺络(Sunlord)",
+        "specs": {
+          "封装": "CD53(5.3x5.3mm)",
+          "电感量": "4.7uH",
+          "精度": "±20%",
+          "额定电流": "3A",
+          "类型": "绕线型"
+        },
+        "datasheet_url": "https://www.sunlordinc.com/UploadFiles/PDF/CD53.pdf",
+        "moq": 2000,
+        "lead_time_weeks": 2,
+        "price": 0.18,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "0603B104K100NT",
+        "brand": "风华高科(FH)",
+        "specs": {
+          "封装": "0603",
+          "容值": "100nF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "10V"
+        },
+        "datasheet_url": "https://www.fenghua-advanced.com/upload/pdf/0603B104K100NT.pdf",
+        "moq": 5000,
+        "lead_time_weeks": 2,
+        "price": 0.008,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "name": "苏州市鼎鑫电子元件商行",
+    "location": "苏州",
+    "qualifications": [
+      "ISO9001"
+    ],
+    "rating": 3.9,
+    "status": "pending",
+    "main_category": "贴片电阻",
+    "contact_phone": "0512-6555-7700",
+    "contact_email": "sales@dingxin-sz.com",
+    "products": [
+      {
+        "category": "贴片电阻",
+        "part_number": "1206W4J010KT5E",
+        "brand": "Uniohm(友旺)",
+        "specs": {
+          "封装": "1206",
+          "阻值": "0.1Ω",
+          "精度": "±5%",
+          "额定功率": "1/4W",
+          "工作温度": "-55~155°C"
+        },
+        "datasheet_url": "https://www.uniohm.com/upload/file/1206W.pdf",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.015,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "1206W4F1002T5E",
+        "brand": "Uniohm(友旺)",
+        "specs": {
+          "封装": "1206",
+          "阻值": "10kΩ",
+          "精度": "±1%",
+          "额定功率": "1/4W",
+          "工作温度": "-55~155°C"
+        },
+        "datasheet_url": "https://www.uniohm.com/upload/file/1206W.pdf",
+        "moq": 5000,
+        "lead_time_weeks": 1,
+        "price": 0.01,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 20,
+    "name": "深圳市长电科技股份有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "ISO14001",
+      "RoHS",
+      "REACH",
+      "IATF16949"
+    ],
+    "rating": 4.9,
+    "status": "approved",
+    "main_category": "三极管",
+    "contact_phone": "0755-8322-6800",
+    "contact_email": "sales@changjiang-semi.com",
+    "products": [
+      {
+        "category": "三极管",
+        "part_number": "S8050",
+        "brand": "长电科技(JCET)",
+        "specs": {
+          "类型": "NPN",
+          "集射极电压": "25V",
+          "集电极电流": "0.5A",
+          "封装": "SOT-23",
+          "放大倍数": "85~300"
+        },
+        "datasheet_url": "https://www.jcetglobal.com/products/datasheet/S8050.pdf",
+        "moq": 5000,
+        "lead_time_weeks": 2,
+        "price": 0.05,
+        "in_stock": true
+      },
+      {
+        "category": "三极管",
+        "part_number": "S8550",
+        "brand": "长电科技(JCET)",
+        "specs": {
+          "类型": "PNP",
+          "集射极电压": "-25V",
+          "集电极电流": "-0.5A",
+          "封装": "SOT-23",
+          "放大倍数": "85~300"
+        },
+        "datasheet_url": "https://www.jcetglobal.com/products/datasheet/S8550.pdf",
+        "moq": 5000,
+        "lead_time_weeks": 2,
+        "price": 0.05,
+        "in_stock": true
+      },
+      {
+        "category": "二极管",
+        "part_number": "1N4007",
+        "brand": "ON(安森美)",
+        "specs": {
+          "类型": "整流",
+          "反向耐压": "1000V",
+          "平均电流": "1A",
+          "封装": "DO-41",
+          "正向压降": "1.1V"
+        },
+        "datasheet_url": "https://www.onsemi.com/pub/Collateral/1N4007-D.pdf",
+        "moq": 5000,
+        "lead_time_weeks": 2,
+        "price": 0.04,
+        "in_stock": true
+      },
+      {
+        "category": "MOSFET",
+        "part_number": "2N7002",
+        "brand": "ON(安森美)",
+        "specs": {
+          "类型": "N沟道",
+          "漏源电压": "60V",
+          "漏极电流": "0.3A",
+          "封装": "SOT-23",
+          "导通电阻": "5Ω"
+        },
+        "datasheet_url": "https://www.onsemi.com/pub/Collateral/2N7002-D.pdf",
+        "moq": 5000,
+        "lead_time_weeks": 2,
+        "price": 0.04,
+        "in_stock": true
+      },
+      {
+        "category": "三极管",
+        "part_number": "BC847",
+        "brand": "NXP(恩智浦)",
+        "specs": {
+          "类型": "NPN",
+          "集射极电压": "45V",
+          "集电极电流": "0.1A",
+          "封装": "SOT-23",
+          "放大倍数": "110~800"
+        },
+        "datasheet_url": "https://www.nxp.com/docs/en/data-sheet/BC847.pdf",
+        "moq": 5000,
+        "lead_time_weeks": 2,
+        "price": 0.04,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 21,
+    "name": "上海乐鑫信息科技元件部",
+    "location": "上海",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.3,
+    "status": "approved",
+    "main_category": "连接器",
+    "contact_phone": "021-6104-3300",
+    "contact_email": "info@lesssion-conn.com",
+    "products": [
+      {
+        "category": "连接器",
+        "part_number": "MX3.0-2P",
+        "brand": "Molex(莫莱克斯)",
+        "specs": {
+          "类型": "线对板",
+          "间距": "3.0mm",
+          "芯数": 2,
+          "额定电流": "3A",
+          "额定电压": "250V"
+        },
+        "datasheet_url": "https://www.molex.com/molex/products/datasheet.jsp?part=active/5025760270.xml",
+        "moq": 2000,
+        "lead_time_weeks": 1,
+        "price": 0.15,
+        "in_stock": true
+      },
+      {
+        "category": "连接器",
+        "part_number": "MX3.0-4P",
+        "brand": "Molex(莫莱克斯)",
+        "specs": {
+          "类型": "线对板",
+          "间距": "3.0mm",
+          "芯数": 4,
+          "额定电流": "3A",
+          "额定电压": "250V"
+        },
+        "datasheet_url": "https://www.molex.com/molex/products/datasheet.jsp?part=active/5025760470.xml",
+        "moq": 2000,
+        "lead_time_weeks": 1,
+        "price": 0.25,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 22,
+    "name": "东莞市普耀电子科技有限公司",
+    "location": "东莞",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "REACH"
+    ],
+    "rating": 4.2,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0769-8702-5500",
+    "contact_email": "sales@puyao-dg.com",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "CL10B102KB8NNNC",
+        "brand": "三星电机(SEMCO)",
+        "specs": {
+          "封装": "0603",
+          "容值": "1nF",
+          "精度": "±10%",
+          "温度系数": "X7R",
+          "额定电压": "50V"
+        },
+        "datasheet_url": "https://weblib.samsungsem.com/co_csser/CL10B102KB8NNNC.pdf",
+        "moq": 5000,
+        "lead_time_weeks": 2,
+        "price": 0.008,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "0402WAF4702T5E",
+        "brand": "Uniohm(友旺)",
+        "specs": {
+          "封装": "0402",
+          "阻值": "47kΩ",
+          "精度": "±1%",
+          "额定功率": "1/16W",
+          "工作温度": "-55~155°C"
+        },
+        "datasheet_url": "https://www.uniohm.com/upload/file/0402W.pdf",
+        "moq": 10000,
+        "lead_time_weeks": 2,
+        "price": 0.003,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "CL21A106KAYNNNE",
+        "brand": "三星电机(SEMCO)",
+        "specs": {
+          "封装": "0805",
+          "容值": "10uF",
+          "精度": "±10%",
+          "温度系数": "X5R",
+          "额定电压": "16V"
+        },
+        "datasheet_url": "https://weblib.samsungsem.com/co_csser/CL21A106KAYNNNE.pdf",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.04,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 23,
+    "name": "深圳市汇春科技股份有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "ISO14001",
+      "RoHS",
+      "IATF16949"
+    ],
+    "rating": 4.7,
+    "status": "approved",
+    "main_category": "LED驱动IC",
+    "contact_phone": "0755-2699-5800",
+    "contact_email": "sales@huichun-ic.com",
+    "products": [
+      {
+        "category": "LED驱动IC",
+        "part_number": "FT8201",
+        "brand": "昂宝(On-Bright)",
+        "specs": {
+          "类型": "LED驱动",
+          "通道数": "3",
+          "输入电压": "3-5.5V",
+          "输出电流": "40mA",
+          "封装": "QFN-20"
+        },
+        "datasheet_url": "https://www.on-bright.com/datasheet/FT8201.pdf",
+        "moq": 1000,
+        "lead_time_weeks": 3,
+        "price": 3.5,
+        "in_stock": true
+      },
+      {
+        "category": "二极管",
+        "part_number": "MBR2045",
+        "brand": "ON(安森美)",
+        "specs": {
+          "类型": "肖特基",
+          "反向耐压": "45V",
+          "平均电流": "20A",
+          "封装": "TO-220",
+          "正向压降": "0.65V"
+        },
+        "datasheet_url": "https://www.onsemi.com/pub/Collateral/MBR2045-D.pdf",
+        "moq": 500,
+        "lead_time_weeks": 3,
+        "price": 1.0,
+        "in_stock": true
+      },
+      {
+        "category": "LED驱动IC",
+        "part_number": "IS31FL3731",
+        "brand": "Lumissil(联界)",
+        "specs": {
+          "类型": "LED驱动",
+          "通道数": "144",
+          "输入电压": "2.7-5.5V",
+          "输出电流": "40mA",
+          "封装": "QFN-28"
+        },
+        "datasheet_url": "https://www.lumissil.com/assets/Products/IS31FL3731.pdf",
+        "moq": 500,
+        "lead_time_weeks": 3,
+        "price": 2.8,
+        "in_stock": false
+      },
+      {
+        "category": "二极管",
+        "part_number": "SR360",
+        "brand": "Vishay(威世)",
+        "specs": {
+          "类型": "肖特基",
+          "反向耐压": "60V",
+          "平均电流": "3A",
+          "封装": "DO-201AD",
+          "正向压降": "0.65V"
+        },
+        "datasheet_url": "https://www.vishay.com/docs/88546/sr360.pdf",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.2,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 24,
+    "name": "苏州国芯电子科技有限公司",
+    "location": "苏州",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.4,
+    "status": "approved",
+    "main_category": "贴片电阻",
+    "contact_phone": "0512-6286-5500",
+    "contact_email": "info@guoxin-sz.com",
+    "products": [
+      {
+        "category": "贴片电阻",
+        "part_number": "0603WAF4700T5E",
+        "brand": "Uniohm(友旺)",
+        "specs": {
+          "封装": "0603",
+          "阻值": "470Ω",
+          "精度": "±1%",
+          "额定功率": "1/10W",
+          "工作温度": "-55~155°C"
+        },
+        "datasheet_url": "https://www.uniohm.com/upload/file/0603W.pdf",
+        "moq": 10000,
+        "lead_time_weeks": 2,
+        "price": 0.005,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电感",
+        "part_number": "CD75-101M",
+        "brand": "顺络(Sunlord)",
+        "specs": {
+          "封装": "CD75(7.5x7.5mm)",
+          "电感量": "100uH",
+          "精度": "±20%",
+          "额定电流": "1A",
+          "类型": "绕线型"
+        },
+        "datasheet_url": "https://www.sunlordinc.com/UploadFiles/PDF/CD75.pdf",
+        "moq": 1000,
+        "lead_time_weeks": 2,
+        "price": 0.4,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "0402WAF1001T5E",
+        "brand": "Uniohm(友旺)",
+        "specs": {
+          "封装": "0402",
+          "阻值": "1kΩ",
+          "精度": "±1%",
+          "额定功率": "1/16W",
+          "工作温度": "-55~155°C"
+        },
+        "datasheet_url": "https://www.uniohm.com/upload/file/0402W.pdf",
+        "moq": 10000,
+        "lead_time_weeks": 2,
+        "price": 0.003,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 25,
+    "name": "深圳市中颖电子股份有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "ISO14001",
+      "RoHS",
+      "REACH"
+    ],
+    "rating": 4.8,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0755-8378-3300",
+    "contact_email": "sales@sinowealth.com",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "CL31A106KAHNNSN",
+        "brand": "三星电机(SEMCO)",
+        "specs": {
+          "封装": "1206",
+          "容值": "10uF",
+          "精度": "±10%",
+          "温度系数": "X5R",
+          "额定电压": "25V"
+        },
+        "datasheet_url": "https://weblib.samsungsem.com/co_csser/CL31A106KAHNNSN.pdf",
+        "moq": 2000,
+        "lead_time_weeks": 3,
+        "price": 0.15,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "0603WAF1002T5EY",
+        "brand": "Uniohm(友旺)",
+        "specs": {
+          "封装": "0603",
+          "阻值": "10kΩ",
+          "精度": "±1%",
+          "额定功率": "1/10W",
+          "工作温度": "-55~155°C"
+        },
+        "datasheet_url": "https://www.uniohm.com/upload/file/0603W.pdf",
+        "moq": 10000,
+        "lead_time_weeks": 2,
+        "price": 0.005,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "CL21B105KAFNNNE",
+        "brand": "三星电机(SEMCO)",
+        "specs": {
+          "封装": "0805",
+          "容值": "1uF",
+          "精度": "±10%",
+          "温度系数": "X5R",
+          "额定电压": "25V"
+        },
+        "datasheet_url": "https://weblib.samsungsem.com/co_csser/CL21B105KAFNNNE.pdf",
+        "moq": 4000,
+        "lead_time_weeks": 2,
+        "price": 0.025,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "0402WAF4991T5E",
+        "brand": "Uniohm(友旺)",
+        "specs": {
+          "封装": "0402",
+          "阻值": "4.99kΩ",
+          "精度": "±1%",
+          "额定功率": "1/16W",
+          "工作温度": "-55~155°C"
+        },
+        "datasheet_url": "https://www.uniohm.com/upload/file/0402W.pdf",
+        "moq": 10000,
+        "lead_time_weeks": 2,
+        "price": 0.003,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 26,
+    "name": "上海复旦微电子元件代理",
+    "location": "上海",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.5,
+    "status": "approved",
+    "main_category": "连接器",
+    "contact_phone": "021-6564-2200",
+    "contact_email": "info@fudan-conn.com",
+    "products": [
+      {
+        "category": "连接器",
+        "part_number": "VH3.96-2P",
+        "brand": "JST(日本航空电子)",
+        "specs": {
+          "类型": "线对板",
+          "间距": "3.96mm",
+          "芯数": 2,
+          "额定电流": "10A",
+          "额定电压": "250V"
+        },
+        "datasheet_url": "https://www.jst-mfg.com/product/pdf/eng/eVH.pdf",
+        "moq": 1000,
+        "lead_time_weeks": 1,
+        "price": 0.2,
+        "in_stock": true
+      },
+      {
+        "category": "连接器",
+        "part_number": "VH3.96-3P",
+        "brand": "JST(日本航空电子)",
+        "specs": {
+          "类型": "线对板",
+          "间距": "3.96mm",
+          "芯数": 3,
+          "额定电流": "10A",
+          "额定电压": "250V"
+        },
+        "datasheet_url": "https://www.jst-mfg.com/product/pdf/eng/eVH.pdf",
+        "moq": 1000,
+        "lead_time_weeks": 1,
+        "price": 0.3,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 27,
+    "name": "东莞市德明电子元件商行",
+    "location": "东莞",
+    "qualifications": [
+      "ISO9001"
+    ],
+    "rating": 3.8,
+    "status": "pending",
+    "main_category": "贴片电阻",
+    "contact_phone": "0769-8567-3300",
+    "contact_email": "sales@deming-dg.com",
+    "products": [
+      {
+        "category": "贴片电阻",
+        "part_number": "0805WAF1002T5E",
+        "brand": "Uniohm(友旺)",
+        "specs": {
+          "封装": "0805",
+          "阻值": "10kΩ",
+          "精度": "±1%",
+          "额定功率": "1/8W",
+          "工作温度": "-55~155°C"
+        },
+        "datasheet_url": "https://www.uniohm.com/upload/file/0805W.pdf",
+        "moq": 10000,
+        "lead_time_weeks": 1,
+        "price": 0.008,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电阻",
+        "part_number": "0805WAF1001T5E",
+        "brand": "Uniohm(友旺)",
+        "specs": {
+          "封装": "0805",
+          "阻值": "1kΩ",
+          "精度": "±1%",
+          "额定功率": "1/8W",
+          "工作温度": "-55~155°C"
+        },
+        "datasheet_url": "https://www.uniohm.com/upload/file/0805W.pdf",
+        "moq": 10000,
+        "lead_time_weeks": 1,
+        "price": 0.008,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 28,
+    "name": "深圳市贝特电子科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "REACH"
+    ],
+    "rating": 4.3,
+    "status": "approved",
+    "main_category": "二极管",
+    "contact_phone": "0755-8398-5500",
+    "contact_email": "sales@beite-sz.com",
+    "products": [
+      {
+        "category": "二极管",
+        "part_number": "SS310",
+        "brand": "Vishay(威世)",
+        "specs": {
+          "类型": "肖特基",
+          "反向耐压": "100V",
+          "平均电流": "3A",
+          "封装": "SMA",
+          "正向压降": "0.85V"
+        },
+        "datasheet_url": "https://www.vishay.com/docs/88546/ss310.pdf",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.2,
+        "in_stock": true
+      },
+      {
+        "category": "MOSFET",
+        "part_number": "AOD442",
+        "brand": "AOS(万代)",
+        "specs": {
+          "类型": "N沟道",
+          "漏源电压": "60V",
+          "漏极电流": "40A",
+          "封装": "TO-252",
+          "导通电阻": "25mΩ"
+        },
+        "datasheet_url": "https://www.aosmd.com/pdfs/datasheet/AOD442.pdf",
+        "moq": 1000,
+        "lead_time_weeks": 3,
+        "price": 0.6,
+        "in_stock": true
+      },
+      {
+        "category": "二极管",
+        "part_number": "1N5819",
+        "brand": "Vishay(威世)",
+        "specs": {
+          "类型": "肖特基",
+          "反向耐压": "40V",
+          "平均电流": "1A",
+          "封装": "DO-41",
+          "正向压降": "0.6V"
+        },
+        "datasheet_url": "https://www.vishay.com/docs/88546/1N5819.pdf",
+        "moq": 5000,
+        "lead_time_weeks": 2,
+        "price": 0.06,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 29,
+    "name": "苏州博创电子股份有限公司",
+    "location": "苏州",
+    "qualifications": [
+      "ISO9001",
+      "ISO14001",
+      "RoHS",
+      "IATF16949"
+    ],
+    "rating": 4.6,
+    "status": "approved",
+    "main_category": "MLCC电容",
+    "contact_phone": "0512-6889-7700",
+    "contact_email": "sales@bochuang-sz.com",
+    "products": [
+      {
+        "category": "MLCC电容",
+        "part_number": "GRM188R61C106MA73D",
+        "brand": "村田(Murata)",
+        "specs": {
+          "封装": "0603",
+          "容值": "10uF",
+          "精度": "±20%",
+          "温度系数": "X5R",
+          "额定电压": "16V"
+        },
+        "datasheet_url": "https://www.murata.com/-/media/webrenewal/products/capacitor/mlcc/02a/pdf/j1000270b.pdf",
+        "moq": 4000,
+        "lead_time_weeks": 3,
+        "price": 0.05,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电感",
+        "part_number": "LQH32MN4R7K23L",
+        "brand": "村田(Murata)",
+        "specs": {
+          "封装": "1212(3.2x2.5mm)",
+          "电感量": "4.7uH",
+          "精度": "±10%",
+          "额定电流": "1A",
+          "类型": "绕线型"
+        },
+        "datasheet_url": "https://www.murata.com/-/media/webrenewal/products/inductor/chip/tok_j150.pdf",
+        "moq": 3000,
+        "lead_time_weeks": 3,
+        "price": 0.15,
+        "in_stock": true
+      },
+      {
+        "category": "MLCC电容",
+        "part_number": "GRM31CR61C476ME15L",
+        "brand": "村田(Murata)",
+        "specs": {
+          "封装": "1206",
+          "容值": "47uF",
+          "精度": "±20%",
+          "温度系数": "X5R",
+          "额定电压": "16V"
+        },
+        "datasheet_url": "https://www.murata.com/-/media/webrenewal/products/capacitor/mlcc/02a/pdf/j1000270b.pdf",
+        "moq": 1000,
+        "lead_time_weeks": 4,
+        "price": 0.28,
+        "in_stock": true
+      },
+      {
+        "category": "贴片电感",
+        "part_number": "LQH32MN2R2K23L",
+        "brand": "村田(Murata)",
+        "specs": {
+          "封装": "1212(3.2x2.5mm)",
+          "电感量": "2.2uH",
+          "精度": "±10%",
+          "额定电流": "1.2A",
+          "类型": "绕线型"
+        },
+        "datasheet_url": "https://www.murata.com/-/media/webrenewal/products/inductor/chip/tok_j150.pdf",
+        "moq": 3000,
+        "lead_time_weeks": 3,
+        "price": 0.12,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 30,
+    "name": "深圳市富满电子股份有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "ISO14001",
+      "RoHS",
+      "REACH"
+    ],
+    "rating": 4.7,
+    "status": "approved",
+    "main_category": "LED驱动IC",
+    "contact_phone": "0755-8331-9800",
+    "contact_email": "sales@fuman-ic.com",
+    "products": [
+      {
+        "category": "LED驱动IC",
+        "part_number": "FM6911",
+        "brand": "富满(Fuman)",
+        "specs": {
+          "类型": "LED驱动",
+          "通道数": "1",
+          "输入电压": "5-28V",
+          "输出电流": "1.5A",
+          "封装": "SOT-23-6"
+        },
+        "datasheet_url": "https://www.fuman.com/datasheet/FM6911.pdf",
+        "moq": 1000,
+        "lead_time_weeks": 2,
+        "price": 0.3,
+        "in_stock": true
+      },
+      {
+        "category": "二极管",
+        "part_number": "SS22",
+        "brand": "Vishay(威世)",
+        "specs": {
+          "类型": "肖特基",
+          "反向耐压": "20V",
+          "平均电流": "2A",
+          "封装": "SMB",
+          "正向压降": "0.55V"
+        },
+        "datasheet_url": "https://www.vishay.com/docs/88546/ss22.pdf",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.1,
+        "in_stock": true
+      },
+      {
+        "category": "LED驱动IC",
+        "part_number": "FM9113",
+        "brand": "富满(Fuman)",
+        "specs": {
+          "类型": "LED驱动",
+          "通道数": "3",
+          "输入电压": "2.5-5.5V",
+          "输出电流": "80mA",
+          "封装": "DFN-8"
+        },
+        "datasheet_url": "https://www.fuman.com/datasheet/FM9113.pdf",
+        "moq": 500,
+        "lead_time_weeks": 3,
+        "price": 0.5,
+        "in_stock": true
+      },
+      {
+        "category": "二极管",
+        "part_number": "SS35",
+        "brand": "Vishay(威世)",
+        "specs": {
+          "类型": "肖特基",
+          "反向耐压": "50V",
+          "平均电流": "3A",
+          "封装": "SMC",
+          "正向压降": "0.65V"
+        },
+        "datasheet_url": "https://www.vishay.com/docs/88546/ss35.pdf",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.15,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 31,
+    "name": "深圳市华冠电子科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "REACH"
+    ],
+    "rating": 4.3,
+    "status": "approved",
+    "main_category": "晶振",
+    "contact_phone": "0755-8321-7790",
+    "contact_email": "sales@huaguan-sz.com",
+    "products": [
+      {
+        "category": "晶振",
+        "part_number": "X322525MOB4SI",
+        "brand": "大河(TAO)",
+        "specs": {
+          "类型": "无源晶振",
+          "频率": "25MHz",
+          "封装": "3225",
+          "负载电容": "12pF",
+          "精度": "±20ppm"
+        },
+        "datasheet_url": "https://www.txccrystal.com/pdf/X322525MOB4SI.pdf",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.15,
+        "in_stock": true
+      },
+      {
+        "category": "晶振",
+        "part_number": "X322516MOB4SI",
+        "brand": "大河(TAO)",
+        "specs": {
+          "类型": "无源晶振",
+          "频率": "16MHz",
+          "封装": "3225",
+          "负载电容": "12pF",
+          "精度": "±20ppm"
+        },
+        "datasheet_url": "https://www.txccrystal.com/pdf/X322516MOB4SI.pdf",
+        "moq": 3000,
+        "lead_time_weeks": 2,
+        "price": 0.15,
+        "in_stock": true
+      },
+      {
+        "category": "晶振",
+        "part_number": "DSB2XCEN32.000",
+        "brand": "大河(TAO)",
+        "specs": {
+          "类型": "有源晶振",
+          "频率": "32MHz",
+          "封装": "7050",
+          "供电电压": "3.3V",
+          "精度": "±20ppm"
+        },
+        "datasheet_url": "https://www.txccrystal.com/pdf/DSB2XCEN32.000.pdf",
+        "moq": 1000,
+        "lead_time_weeks": 3,
+        "price": 0.45,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 32,
+    "name": "东莞市德生电子科技有限公司",
+    "location": "东莞",
+    "qualifications": [
+      "ISO9001",
+      "ISO14001",
+      "RoHS"
+    ],
+    "rating": 4.2,
+    "status": "approved",
+    "main_category": "电解电容",
+    "contact_phone": "0769-2268-9900",
+    "contact_email": "info@desheng-cap.com",
+    "products": [
+      {
+        "category": "电解电容",
+        "part_number": "10X16-100UF-16V",
+        "brand": "立隆(Lelon)",
+        "specs": {
+          "类型": "铝电解电容",
+          "容值": "100uF",
+          "额定电压": "16V",
+          "尺寸": "10x16mm",
+          "工作温度": "-40~105°C"
+        },
+        "datasheet_url": "https://www.lelon.com.tw/datasheet/RA.pdf",
+        "moq": 2000,
+        "lead_time_weeks": 2,
+        "price": 0.08,
+        "in_stock": true
+      },
+      {
+        "category": "电解电容",
+        "part_number": "8X12-470UF-25V",
+        "brand": "立隆(Lelon)",
+        "specs": {
+          "类型": "铝电解电容",
+          "容值": "470uF",
+          "额定电压": "25V",
+          "尺寸": "8x12mm",
+          "工作温度": "-40~105°C"
+        },
+        "datasheet_url": "https://www.lelon.com.tw/datasheet/RA.pdf",
+        "moq": 2000,
+        "lead_time_weeks": 2,
+        "price": 0.12,
+        "in_stock": true
+      },
+      {
+        "category": "电解电容",
+        "part_number": "10X20-1000UF-16V",
+        "brand": "立隆(Lelon)",
+        "specs": {
+          "类型": "铝电解电容",
+          "容值": "1000uF",
+          "额定电压": "16V",
+          "尺寸": "10x20mm",
+          "工作温度": "-40~105°C"
+        },
+        "datasheet_url": "https://www.lelon.com.tw/datasheet/RA.pdf",
+        "moq": 1000,
+        "lead_time_weeks": 2,
+        "price": 0.25,
+        "in_stock": true
+      },
+      {
+        "category": "电解电容",
+        "part_number": "6.3X11-220UF-25V",
+        "brand": "立隆(Lelon)",
+        "specs": {
+          "类型": "铝电解电容",
+          "容值": "220uF",
+          "额定电压": "25V",
+          "尺寸": "6.3x11mm",
+          "工作温度": "-40~105°C"
+        },
+        "datasheet_url": "https://www.lelon.com.tw/datasheet/RA.pdf",
+        "moq": 2000,
+        "lead_time_weeks": 2,
+        "price": 0.06,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 33,
+    "name": "苏州和鑫电子科技有限公司",
+    "location": "苏州",
+    "qualifications": [
+      "ISO9001",
+      "RoHS"
+    ],
+    "rating": 4.1,
+    "status": "approved",
+    "main_category": "MCU单片机",
+    "contact_phone": "0512-6237-8800",
+    "contact_email": "sales@hexin-mcu.com",
+    "products": [
+      {
+        "category": "MCU单片机",
+        "part_number": "STM32F103C8T6",
+        "brand": "意法半导体(ST)",
+        "specs": {
+          "内核": "ARM Cortex-M3",
+          "主频": "72MHz",
+          "Flash": "64KB",
+          "RAM": "20KB",
+          "封装": "LQFP-48"
+        },
+        "datasheet_url": "https://www.st.com/resource/en/datasheet/stm32f103c8.pdf",
+        "moq": 500,
+        "lead_time_weeks": 3,
+        "price": 2.5,
+        "in_stock": true
+      },
+      {
+        "category": "MCU单片机",
+        "part_number": "STM8S003F3P6",
+        "brand": "意法半导体(ST)",
+        "specs": {
+          "内核": "STM8",
+          "主频": "16MHz",
+          "Flash": "8KB",
+          "RAM": "1KB",
+          "封装": "TSSOP-20"
+        },
+        "datasheet_url": "https://www.st.com/resource/en/datasheet/stm8s003.pdf",
+        "moq": 1000,
+        "lead_time_weeks": 2,
+        "price": 0.35,
+        "in_stock": true
+      },
+      {
+        "category": "MCU单片机",
+        "part_number": "ESP32-WROOM-32E",
+        "brand": "乐鑫(Espressif)",
+        "specs": {
+          "内核": "Xtensa 32位LX6",
+          "主频": "240MHz",
+          "Flash": "4MB",
+          "RAM": "320KB",
+          "封装": "模组"
+        },
+        "datasheet_url": "https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32_datasheet_en.pdf",
+        "moq": 500,
+        "lead_time_weeks": 3,
+        "price": 3.2,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 34,
+    "name": "上海晨芯微电子有限公司",
+    "location": "上海",
+    "qualifications": [
+      "ISO9001",
+      "RoHS",
+      "REACH"
+    ],
+    "rating": 4.4,
+    "status": "approved",
+    "main_category": "电源IC",
+    "contact_phone": "021-5027-7700",
+    "contact_email": "sales@chenxin-ic.com",
+    "products": [
+      {
+        "category": "电源IC",
+        "part_number": "AMS1117-3.3",
+        "brand": "先进(AMS)",
+        "specs": {
+          "类型": "LDO线性稳压",
+          "输入电压": "15V(max)",
+          "输出电压": "3.3V",
+          "输出电流": "1A",
+          "封装": "SOT-223"
+        },
+        "datasheet_url": "https://www.advanced-monolithic.com/pdf/ds-1117.pdf",
+        "moq": 2000,
+        "lead_time_weeks": 2,
+        "price": 0.08,
+        "in_stock": true
+      },
+      {
+        "category": "电源IC",
+        "part_number": "MP1584EN",
+        "brand": "芯源(MPS)",
+        "specs": {
+          "类型": "DC-DC降压",
+          "输入电压": "4.5-28V",
+          "输出电压": "0.8-25V(可调)",
+          "输出电流": "3A",
+          "封装": "SOIC-8"
+        },
+        "datasheet_url": "https://www.monolithicpower.com/en/documentview/productdocument/index/982/index.html",
+        "moq": 1000,
+        "lead_time_weeks": 2,
+        "price": 0.25,
+        "in_stock": true
+      },
+      {
+        "category": "电源IC",
+        "part_number": "TP4056",
+        "brand": "南京拓微(TPW)",
+        "specs": {
+          "类型": "锂电池充电IC",
+          "输入电压": "4-8V",
+          "充电电流": "1A(可调)",
+          "电池类型": "锂离子/锂聚合物",
+          "封装": "SOP-8"
+        },
+        "datasheet_url": "https://dlnmh9ip6v2uc.cloudfront.net/datasheets/Prototyping/TP4056.pdf",
+        "moq": 1000,
+        "lead_time_weeks": 2,
+        "price": 0.12,
+        "in_stock": true
+      }
+    ]
+  },
+  {
+    "id": 35,
+    "name": "深圳市安芯电子科技有限公司",
+    "location": "深圳",
+    "qualifications": [
+      "ISO9001",
+      "ISO14001",
+      "RoHS",
+      "IATF16949"
+    ],
+    "rating": 4.6,
+    "status": "approved",
+    "main_category": "通信模块",
+    "contact_phone": "0755-8301-2200",
+    "contact_email": "sales@anxin-sz.com",
+    "products": [
+      {
+        "category": "通信模块",
+        "part_number": "ESP-01S",
+        "brand": "安信可(Ai-Thinker)",
+        "specs": {
+          "类型": "WiFi模块",
+          "芯片": "ESP8266EX",
+          "工作电压": "3.3V",
+          "通信距离": "100m",
+          "封装": "DIP-8"
+        },
+        "datasheet_url": "https://www.ai-thinker.com/esp01s",
+        "moq": 500,
+        "lead_time_weeks": 2,
+        "price": 0.8,
+        "in_stock": true
+      },
+      {
+        "category": "通信模块",
+        "part_number": "HC-05",
+        "brand": "汇承(HC)",
+        "specs": {
+          "类型": "蓝牙模块",
+          "芯片": "CSR BC417",
+          "工作电压": "3.3-6V",
+          "通信距离": "10m",
+          "封装": "DIP-8"
+        },
+        "datasheet_url": "https://www.hc01.com/product/HC-05",
+        "moq": 500,
+        "lead_time_weeks": 2,
+        "price": 1.5,
+        "in_stock": true
+      },
+      {
+        "category": "通信模块",
+        "part_number": "NRF24L01",
+        "brand": "北欧半导体(Nordic)",
+        "specs": {
+          "类型": "无线收发模块",
+          "芯片": "NRF24L01+",
+          "工作电压": "1.9-3.6V",
+          "通信距离": "100m",
+          "频段": "2.4GHz"
+        },
+        "datasheet_url": "https://www.nordicsemi.com/Products/Low-power-short-range-wireless/nRF24-series",
+        "moq": 1000,
+        "lead_time_weeks": 3,
+        "price": 0.6,
+        "in_stock": true
+      },
+      {
+        "category": "通信模块",
+        "part_number": "SIM800C",
+        "brand": "芯讯通(SIMCom)",
+        "specs": {
+          "类型": "GSM/GPRS模块",
+          "芯片": "SIM800C",
+          "工作电压": "3.4-4.4V",
+          "通信距离": "全网覆盖",
+          "频段": "四频"
+        },
+        "datasheet_url": "https://www.simcom.com/product/SIM800C.html",
+        "moq": 200,
+        "lead_time_weeks": 3,
+        "price": 5.5,
+        "in_stock": false
+      }
+    ]
+  }
+]

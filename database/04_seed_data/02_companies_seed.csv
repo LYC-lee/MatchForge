@@ -1,0 +1,31 @@
+﻿id,name,name_en,name_alias,country,region,website,description,confidence_level,source_name,source_url,updated_at
+1,村田制作所,"Murata Manufacturing Co., Ltd.",村田/Murata,日本,京都,https://www.murata.com,全球MLCC龙头，份额约40%，FY2025营收1830.9亿日元创历史新高,official,公司官网,https://www.murata.com/en-global/about,2026-07-15 10:30:00
+2,TDK Corporation,TDK Corporation,TDK,日本,东京,https://www.tdk.com,全球被动元件主力供应商，MLCC/传感器/磁性材料,official,公司官网,https://www.tdk.com/en/about_tdk/,2026-07-15 10:30:00
+3,国巨股份有限公司,YAGEO Corporation,国巨/YAGEO,中国台湾,新北,https://www.yageo.com,全球电阻龙头，MLCC主要供应商,official,公司官网,https://www.yageo.com/en/about/,2026-07-15 10:30:00
+4,三星电机,Samsung Electro-Mechanics,三星电机/SEMCO,韩国,水原,https://www.samsungsem.com,MLCC全球第二，受益AI服务器与手机需求,official,公司官网,https://www.samsungsem.com/,2026-07-15 10:30:00
+5,华新科技股份有限公司,Walsin Technology Corporation,华新科/Walsin,中国台湾,新竹,https://www.walsin.com,全球被动元件主要供应商,official,公司官网,https://www.walsin.com/,2026-07-15 10:30:00
+6,广东风华高新科技股份有限公司,Fenghua Advanced Technology,风华高科/Fenghua,中国,肇庆,https://www.fenghua-advanced.com,中国大陆被动元件龙头，MLCC国产替代主力,official,公司官网,https://www.fenghua-advanced.com/,2026-07-15 10:30:00
+7,太阳诱电株式会社,"Taiyo Yuden Co., Ltd.",太阳诱电/Taiyo Yuden,日本,东京,https://www.yuden.co.jp,MLCC与电感主要供应商,official,公司官网,https://www.yuden.co.jp/en/,2026-07-15 10:30:00
+8,三星电子,"Samsung Electronics Co., Ltd.",三星电子/Samsung,韩国,水原,https://www.samsung.com,DRAM/NAND/HBM全球第一，2024半导体营收$66.5B,official,公司年报,https://www.samsung.com/sec/ir/,2026-07-15 10:30:00
+9,SK海力士,SK hynix Inc.,SK海力士/SK hynix,韩国,利川,https://www.skhynix.com,DRAM/NAND/HBM，HBM3E主导市场,official,公司年报,https://www.skhynix.com/IR/,2026-07-15 10:30:00
+10,美光科技,"Micron Technology, Inc.",美光/Micron,美国,博伊西,https://www.micron.com,DRAM份额约22%，HBM产能扩张中,official,公司年报,https://investors.micron.com/,2026-07-15 10:30:00
+11,长江存储科技有限责任公司,Yangtze Memory Technologies,长江存储/YMTC,中国,武汉,https://www.ymtc.com,中国大陆NAND龙头，232层3D NAND量产,cross_checked,行业报告,https://www.ymtc.com/,2026-07-15 10:30:00
+12,深圳市江波龙电子股份有限公司,Longsys Electronics,江波龙/Longsys,中国,深圳,https://www.longsys.com,中国大陆存储模组龙头，消费/企业级SSD,cross_checked,行业报告,https://www.longsys.com/,2026-07-15 10:30:00
+13,Intel Corporation,Intel Corporation,Intel,美国,圣克拉拉,https://www.intel.com,CPU（Core/Xeon）与代工，2024全年营收$53.1B,official,公司年报,https://www.intc.com/,2026-07-15 10:30:00
+14,"Advanced Micro Devices, Inc.",AMD,AMD,美国,圣克拉拉,https://www.amd.com,CPU（Ryzen/EPYC）与GPU，2024数据中心营收$12.6B,official,公司年报,https://ir.amd.com/,2026-07-15 10:30:00
+15,NVIDIA Corporation,NVIDIA,NVIDIA,美国,圣克拉拉,https://www.nvidia.com,GPU与AI加速器，FY2025营收$130.5B同比+114%,official,公司年报,https://investor.nvidia.com/,2026-07-15 10:30:00
+16,Qualcomm Incorporated,Qualcomm,高通/Qualcomm,美国,圣迭戈,https://www.qualcomm.com,移动SoC与PC处理器（Snapdragon X Elite）,official,公司官网,https://www.qualcomm.com/,2026-07-15 10:30:00
+17,TE Connectivity Ltd.,TE Connectivity,TE,瑞士,沙夫豪森,https://www.te.com,全球连接器第一，FY2024净销售额约$16B+,official,公司年报,https://www.te.com/usa-en/about-te.html,2026-07-15 10:30:00
+18,Amphenol Corporation,Amphenol,Amphenol,美国,沃灵福德,https://www.amphenol.com,全球连接器第二，2024营收$15.2B同比+21%,official,公司年报,https://www.amphenol.com/investors,2026-07-15 10:30:00
+19,Molex LLC,Molex,Molex,美国,利斯尔,https://www.molex.com,全球连接器Top3，11个细分市场9个进Top10,official,公司官网,https://www.molex.com/,2026-07-15 10:30:00
+20,立讯精密工业股份有限公司,Luxshare Precision Industry,立讯精密/Luxshare,中国,东莞,https://www.luxshare-ict.com,全球连接器Top5，苹果供应链核心,cross_checked,行业报告,https://www.luxshare-ict.com/,2026-07-15 10:30:00
+21,鹏鼎控股股份有限公司,Avary Holding,鹏鼎/Avary,中国,深圳,https://www.avaryholding.com,PCB制造（HDI/多层/FPC），2025营收391.47亿元,official,公司年报,https://www.avaryholding.com/,2026-07-15 10:30:00
+22,深南电路股份有限公司,Shennan Circuits,深南电路/SCC,中国,深圳,https://www.scc.com.cn,PCB与封装基板，2025营收约236.5亿元,official,公司年报,https://www.scc.com.cn/,2026-07-15 10:30:00
+23,"Arrow Electronics, Inc.",Arrow Electronics,Arrow,美国,森特尼尔,https://www.arrow.com,全球最大电子元器件分销商之一，2024营收$28B,official,公司年报,https://www.arrow.com/,2026-07-15 10:30:00
+24,"Avnet, Inc.",Avnet,Avnet,美国,凤凰城,https://www.avnet.com,全球电子元器件分销，FY2024营收$23.76B,official,公司年报,https://www.avnet.com/,2026-07-15 10:30:00
+25,Digi-Key Electronics,Digi-Key Electronics,Digi-Key,美国,锡夫里弗福尔斯,https://www.digikey.com,电子元器件在线分销，2024营收超$3B,official,公司官网,https://www.digikey.com/,2026-07-15 10:30:00
+26,Mouser Electronics,Mouser Electronics,Mouser,美国,曼斯菲尔德,https://www.mouser.com,电子元器件在线分销，年营收超$4B,official,公司官网,https://www.mouser.com/,2026-07-15 10:30:00
+27,立创商城,LCSC (JLC ELEC),立创商城/LCSC,中国,深圳,https://www.szlcsc.com,电子元器件在线分销+PCB/PCBA，2024营收67亿元,official,公司官网,https://www.szlcsc.com/,2026-07-15 10:30:00
+28,上海云汉芯城电子股份有限公司,Yunhanxincheng,云汉芯城,中国,上海,https://www.yunhanxin.com,电子元器件B2B在线交易，2024营收112.3亿元,official,公司官网,https://www.yunhanxin.com/,2026-07-15 10:30:00
+29,鸿海精密工业股份有限公司,Foxconn Technology Group,富士康/Foxconn,中国台湾,新北,https://www.foxconn.com,全球最大电子代工厂，FY2025营收8.1兆新台币,official,公司年报,https://www.foxconn.com/,2026-07-15 10:30:00
+30,广达电脑股份有限公司,Quanta Computer,广达/Quanta,中国台湾,龟山,https://www.quantatw.com,笔电ODM与AI服务器代工，2024营收1.41兆新台币,official,公司年报,https://www.quantatw.com/,2026-07-15 10:30:00

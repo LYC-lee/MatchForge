@@ -14,14 +14,14 @@ const emit = defineEmits<{ (e: 'click'): void }>()
   height: 30px;
   padding: 0 12px;
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  background: var(--bg-2);
-  border: 1px solid var(--border-default);
+  color: #c5cada;
+  background: #151924;
+  border: 1px solid #343a4d;
   border-radius: var(--radius-full);
   transition: all var(--transition-fast);
 }
 .chip:hover {
-  color: var(--accent-hover);
+  color: #f4f7ff;
   border-color: var(--accent-border);
   background: var(--accent-soft);
 }

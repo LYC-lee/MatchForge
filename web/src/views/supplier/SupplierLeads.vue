@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import AppButton from '@/components/ui/AppButton.vue'
-import Tag from '@/components/ui/Tag.vue'
 
 interface LeadItem {
   id: string

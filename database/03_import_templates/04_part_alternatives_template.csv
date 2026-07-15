@@ -1,0 +1,2 @@
+original_part_number,alternative_part_number,level,level_desc,confidence,param_diff,risk_note,source_name,source_url,review_status,reviewed_by,updated_at
+GRM188R71H104KA93D,CL10B104KB8NNNC,l2,向上兼容：耐压一致容值一致,0.95,"原型号 0603 0.1uF 50V X7R；替代型号 0603 0.1uF 50V X7R",需确认焊接工艺与DC偏压特性,Datasheet规格比对,https://www.murata.com,approved,zhang.san,2026-07-15 10:30:00

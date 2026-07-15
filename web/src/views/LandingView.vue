@@ -28,9 +28,21 @@ const sections = [
 ]
 
 const principles = [
-  '事实型数据不交给 LLM 自由编造',
-  '替代料必须显示来源、更新时间和人工核验状态',
-  '供应商仅展示能力匹配，不承诺库存、报价、交期',
+  {
+    title: '事实隔离，降低幻觉风险',
+    desc: '型号、参数、供应商、库存等事实字段来自规则、字典和数据库，不交给 LLM 自由编造。',
+    value: '采购决策更可信',
+  },
+  {
+    title: '来源可追溯，便于工程复核',
+    desc: '替代料展示来源、更新时间、置信度和人工核验状态，方便采购与工程协同确认。',
+    value: '替代建议有依据',
+  },
+  {
+    title: '能力匹配，不误导现货承诺',
+    desc: '供应商结果只表达经营品类和品牌覆盖能力，不声称确认库存、报价或交期。',
+    value: '避免错误预期',
+  },
 ]
 
 const scenarios = [
@@ -170,9 +182,13 @@ const metrics = [
           </div>
         </div>
         <div class="principle-list">
-          <div v-for="p in principles" :key="p" class="principle-item">
-            <span />
-            <p>{{ p }}</p>
+          <div v-for="p in principles" :key="p.title" class="principle-item">
+            <span class="principle-item__mark" />
+            <div class="principle-item__content">
+              <h3>{{ p.title }}</h3>
+              <p>{{ p.desc }}</p>
+              <b>{{ p.value }}</b>
+            </div>
           </div>
         </div>
       </section>
@@ -628,27 +644,60 @@ const metrics = [
 .principle-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 .principle-item {
+  position: relative;
+  overflow: hidden;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 12% 10%, rgba(34, 197, 94, 0.16), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    var(--bg-1);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.24);
 }
-.principle-item span {
-  width: 10px;
-  height: 10px;
-  margin-top: 6px;
+.principle-item::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--success), #60a5fa);
+}
+.principle-item__mark {
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
   border-radius: 50%;
-  background: var(--success);
+  background:
+    radial-gradient(circle, #86efac 0 24%, rgba(34, 197, 94, 0.22) 25% 100%);
+  box-shadow: 0 0 28px rgba(34, 197, 94, 0.32);
 }
-.principle-item p {
-  color: var(--text-secondary);
+.principle-item__content h3 {
+  color: #f4f7ff;
+  font-size: var(--font-size-md);
+  line-height: 1.35;
+}
+.principle-item__content p {
+  margin-top: var(--space-2);
+  color: #b8bfce;
   font-size: var(--font-size-sm);
+  line-height: 1.65;
+}
+.principle-item__content b {
+  display: inline-flex;
+  margin-top: var(--space-3);
+  padding: 5px 9px;
+  color: #bbf7d0;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.24);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
 }
 .final-cta {
   max-width: 1180px;
