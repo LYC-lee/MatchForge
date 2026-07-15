@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { streamProcure } from '@/api/procure'
 import { buildRfqTemplate } from '@/mock/data'
 import type {
@@ -24,15 +24,22 @@ export const useProcureStore = defineStore('procure', () => {
   const agents = ref<AgentState[]>(
     AGENT_ORDER.map((name) => ({ name, status: 'pending' as const })),
   )
-  const parsedSpec = ref<Record<string, SpecField> | null>(null)
-  const normalizedSpec = ref<Record<string, SpecField> | null>(null)
-  const alternatives = ref<Alternative[]>([])
-  const matchedSuppliers = ref<Supplier[]>([])
+  const parsedSpec = ref<Record<string, any> | null>(null)
+  const normalizedSpec = ref<Record<string, any> | null>(null)
+  const alternatives = ref<any[]>([])
+  const matchedSuppliers = ref<any[]>([])
   const selectedSupplierIds = ref<Set<string>>(new Set())
   const rfqDoc = ref<string>('')
   const rfqSent = ref(false)
   const leadGrade = ref<LeadGrade | null>(null)
   const errors = ref<string[]>([])
+
+  // Compatibility state for the multi-page flow merged from main.
+  const progress = ref<{ agent: string; status: string }[]>([])
+  const isStreaming = ref(false)
+  const selectedAlternative = ref<any | null>(null)
+  const selectedSuppliers = ref<any[]>([])
+
   let controller: AbortController | null = null
 
   /** 信息不足:无解析结果且无替代料 */
@@ -41,15 +48,15 @@ export const useProcureStore = defineStore('procure', () => {
   )
 
   function setAgent(name: AgentName, status: AgentState['status'], message?: string) {
-    const a = agents.value.find((x) => x.name === name)
-    if (!a) return
-    a.status = status
-    a.message = message
-    if (status === 'running') a.startedAt = Date.now()
-    if (status === 'done' || status === 'error') a.endedAt = Date.now()
+    const agent = agents.value.find((x) => x.name === name)
+    if (!agent) return
+    agent.status = status
+    agent.message = message
+    if (status === 'running') agent.startedAt = Date.now()
+    if (status === 'done' || status === 'error') agent.endedAt = Date.now()
   }
 
-  function applyResult(state: Partial<ProcureState>) {
+  function applyState(state: Partial<ProcureState>) {
     if (state.thread_id) threadId.value = state.thread_id
     if (state.raw_query !== undefined) rawQuery.value = state.raw_query
     if (state.parsed_spec !== undefined) parsedSpec.value = state.parsed_spec
@@ -78,6 +85,10 @@ export const useProcureStore = defineStore('procure', () => {
     rfqSent.value = false
     leadGrade.value = null
     errors.value = []
+    progress.value = []
+    isStreaming.value = false
+    selectedAlternative.value = null
+    selectedSuppliers.value = []
   }
 
   /** 阶段1:发起寻源,跑 parse + normalize,然后停在规格确认门控 */
@@ -85,11 +96,16 @@ export const useProcureStore = defineStore('procure', () => {
     reset()
     rawQuery.value = query
     phase.value = 'spec'
+    isStreaming.value = true
 
     controller = streamProcure({ query, phase: 'spec' }, {
-      onStart: (tid) => { threadId.value = tid },
+      onStart: (tid, rid) => {
+        threadId.value = tid
+        if (rid) rfqId.value = rid
+      },
       onProgress: (agent, status, result) => {
         setAgent(agent, status)
+        progress.value.push({ agent, status })
         if (agent === 'parse' && status === 'done' && result) {
           parsedSpec.value = result as Record<string, SpecField>
         }
@@ -102,8 +118,9 @@ export const useProcureStore = defineStore('procure', () => {
         errors.value.push(message)
         if (phase.value === 'spec') phase.value = 'done'
       },
-      onResult: (state) => applyResult(state),
+      onResult: (state) => applyState(state),
       onEnd: () => {
+        isStreaming.value = false
         if (phase.value === 'spec' && !errors.value.length) {
           phase.value = 'gating'
         } else if (phase.value === 'match') {
@@ -117,16 +134,21 @@ export const useProcureStore = defineStore('procure', () => {
   function confirmSpec(editedSpec: Record<string, SpecField>) {
     normalizedSpec.value = editedSpec
     phase.value = 'match'
+    isStreaming.value = true
     const restAgents: AgentName[] = ['alternatives', 'match', 'gen_rfq', 'grade']
-    restAgents.forEach((n) => setAgent(n, 'pending'))
+    restAgents.forEach((name) => setAgent(name, 'pending'))
     rfqDoc.value = ''
 
     controller = streamProcure(
       { thread_id: threadId.value, confirmed_spec: editedSpec, phase: 'match' },
       {
-        onStart: (tid) => { threadId.value = tid },
+        onStart: (tid, rid) => {
+          threadId.value = tid
+          if (rid) rfqId.value = rid
+        },
         onProgress: (agent, status, result) => {
           setAgent(agent, status)
+          progress.value.push({ agent, status })
           if (agent === 'alternatives' && status === 'done' && result) {
             alternatives.value = result as Alternative[]
           }
@@ -148,32 +170,39 @@ export const useProcureStore = defineStore('procure', () => {
             })
           }
         },
-        onResult: (state) => applyResult(state),
-        onEnd: () => { phase.value = 'done' },
+        onResult: (state) => applyState(state),
+        onEnd: () => {
+          isStreaming.value = false
+          phase.value = 'done'
+        },
       },
     )
   }
 
   function toggleSupplier(id: string) {
-    const s = new Set(selectedSupplierIds.value)
-    if (s.has(id)) {
-      s.delete(id)
+    const ids = new Set(selectedSupplierIds.value)
+    if (ids.has(id)) {
+      ids.delete(id)
     } else {
-      s.add(id)
+      ids.add(id)
     }
-    selectedSupplierIds.value = s
+    selectedSupplierIds.value = ids
   }
 
   function setRfqDoc(text: string) { rfqDoc.value = text }
   function markRfqSent() { rfqSent.value = true }
-  function abort() { controller?.abort() }
+  function abort() {
+    controller?.abort()
+    isStreaming.value = false
+  }
 
   return {
     threadId, rfqId, rawQuery, phase, agents,
     parsedSpec, normalizedSpec, alternatives, matchedSuppliers,
     selectedSupplierIds, rfqDoc, rfqSent, leadGrade, errors,
+    progress, isStreaming, selectedAlternative, selectedSuppliers,
     isVague,
     startProcure, confirmSpec, reset, abort,
-    toggleSupplier, setRfqDoc, markRfqSent,
+    toggleSupplier, setRfqDoc, markRfqSent, applyState,
   }
 })

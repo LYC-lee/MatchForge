@@ -25,6 +25,7 @@ export interface ParamDiff {
 
 export interface Alternative {
   part_name: string
+  part?: string
   brand: string
   package: string
   key_params: Record<string, string>
@@ -34,6 +35,14 @@ export interface Alternative {
   source: string
   updated_at: string
   diffs?: ParamDiff[]
+  specs?: Record<string, unknown>
+  reason?: string
+  diff_items?: {
+    param: string
+    original: string
+    alternative: string
+    type: 'match' | 'diff' | 'risk'
+  }[]
   note?: string
 }
 
@@ -41,11 +50,16 @@ export interface Alternative {
 export interface Supplier {
   id: string
   name: string
+  score?: number
+  category?: string
   region: string
+  location?: string
   categories: string[]
   brands: string[]
   qualifications: string[]
   moq: number
+  lead_time_weeks?: number
+  in_stock?: boolean
   response_speed: string
   data_source: string
   updated_at: string
@@ -75,8 +89,8 @@ export interface SpecField {
 export interface ProcureState {
   thread_id: string
   raw_query: string
-  parsed_spec: Record<string, SpecField> | null
-  normalized_spec: Record<string, SpecField> | null
+  parsed_spec: Record<string, SpecField | string> | null
+  normalized_spec: Record<string, SpecField | string> | null
   alternatives: Alternative[]
   matched_suppliers: Supplier[]
   rfq_doc: string | null
