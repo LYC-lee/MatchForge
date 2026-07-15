@@ -3,7 +3,7 @@ Agent 统一基类：LLM 工厂 + 可复用执行引擎。
 
 本模块为 MatchForge 中所有 Agent 提供统一的基础设施，包括：
 1. LLM 实例工厂函数 —— 按统一配置创建 ChatOpenAI 实例
-2. run_tool_agent() —— 工具型 Agent 标准 ReAct 流程（LLM 决策 → 工具执行 → 最终回复）
+2. run_tool_agent() —— 工具型 Agent 多轮 ReAct 流程（LLM 自主决策 → 工具执行 → 循环 → 最终回复）
 3. run_direct_agent() —— 纯 LLM Agent 流程（无工具调用，直接生成回复）
 
 使用方式：
@@ -13,11 +13,17 @@ Agent 统一基类：LLM 工厂 + 可复用执行引擎。
 
 from __future__ import annotations
 
-from langchain_core.messages import SystemMessage
+import json
+import logging
+from typing import Any
+
+from langchain_core.messages import SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 from ai.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_MODEL_LIGHT
 from ai.config import LLM_TEMPERATURE, LLM_MAX_TOKENS, LLM_TIMEOUT
+
+logger = logging.getLogger(__name__)
 
 
 def get_agent_llm(
@@ -35,8 +41,8 @@ def get_agent_llm(
 
     参数:
         streaming: 是否启用流式输出。
-                   - True:  LLM 以 SSE 方式逐 token 返回
-                   - False: 一次性返回完整响应（默认）
+                  - True:  LLM 以 SSE 方式逐 token 返回
+                  - False: 一次性返回完整响应（默认）
         heavy: True 使用 LLM_MODEL（高推理），False 使用 LLM_MODEL_LIGHT（轻量）
         temperature: 采样温度，None 则从配置读取 LLM_TEMPERATURE
         max_tokens: 最大输出 token 数，None 则从配置读取 LLM_MAX_TOKENS
@@ -91,21 +97,24 @@ async def run_tool_agent(
     system_prompt: str,
     tools: list,
     user_id: str = "",
+    max_tool_rounds: int = 5,
+    heavy: bool = True,
 ) -> dict:
     """
-    执行工具型 Agent 的标准 ReAct 流程：LLM 决策 → 工具执行 → 生成最终回复。
+    执行工具型 Agent 的多轮 ReAct 流程：LLM 自主决策 → 工具执行 → 循环 → 最终回复。
 
-    这是工具型 Agent 体系的核心执行引擎。它实现了一个简化但完整的 ReAct 循环：
-    1. 将系统提示词 + 最近对话历史组装为消息列表
-    2. 让 LLM（绑定工具后）分析消息并决定：直接回复文本，还是调用工具
-    3. 如果 LLM 决定调用工具，执行工具并收集结果，再次调用 LLM 生成最终回复
-    4. 如果 LLM 直接回复文本，则跳过工具执行步骤
+    这是工具型 Agent 体系的核心执行引擎。与旧版单轮不同，新版支持：
+    - LLM 自主决定调用哪些工具、传入什么参数
+    - 多轮工具调用：LLM 拿到工具结果后可继续调用其他工具
+    - 最多 max_tool_rounds 轮，防止无限循环
 
     参数:
         state: 当前 Agent 状态字典，必须包含 "messages" 键。
         system_prompt: 系统提示词字符串，定义 Agent 的角色、能力边界。
         tools: LangChain BaseTool 实例列表。
         user_id: 当前用户的唯一标识。
+        max_tool_rounds: 最大工具调用轮数，默认 5。
+        heavy: 是否使用重模型。
 
     返回:
         dict: 状态更新字典，包含 "messages" 和 "next_agent"。
@@ -117,18 +126,22 @@ async def run_tool_agent(
         *messages[-10:],
     ]
 
-    # 第一阶段：LLM 决策（绑定工具）
-    llm = get_agent_llm(streaming=False).bind_tools(tools)
-    ai_msg = await llm.ainvoke(agent_messages)
+    # 绑定工具的 LLM（用于决策轮）
+    tool_llm = get_agent_llm(streaming=False, heavy=heavy).bind_tools(tools)
+    # 纯 LLM（用于最终回复）
+    final_llm = get_agent_llm(streaming=False, heavy=heavy)
 
-    if ai_msg.tool_calls:
-        # 构建工具名称 → 工具实例的映射表
-        tool_map = {t.name: t for t in tools}
+    tool_map = {t.name: t for t in tools}
 
-        from langchain_core.messages import ToolMessage
+    for _round in range(max_tool_rounds):
+        ai_msg = await tool_llm.ainvoke(agent_messages)
 
-        tool_results = []
+        if not ai_msg.tool_calls:
+            # LLM 决定不再调用工具，直接返回回复
+            return {"messages": [ai_msg], "next_agent": None}
 
+        # 收集并执行本轮所有工具调用
+        tool_results: list[ToolMessage] = []
         for tc in ai_msg.tool_calls:
             fn_name = tc["name"]
             fn_args = tc["args"]
@@ -140,24 +153,23 @@ async def run_tool_agent(
                     output = await asyncio.to_thread(tool.invoke, fn_args)
                 except Exception as e:
                     output = f"工具执行出错: {e}"
+                    logger.warning(f"Tool {fn_name} failed: {e}")
             else:
                 output = f"未知工具: {fn_name}"
 
             tool_results.append(
-                ToolMessage(
-                    content=str(output),
-                    tool_call_id=tc["id"],
-                )
+                ToolMessage(content=str(output), tool_call_id=tc["id"])
             )
 
-        # 第二阶段：基于工具结果生成最终回复
+        # 将本轮决策 + 工具结果追加到对话历史
         agent_messages.extend([ai_msg, *tool_results])
-        final_llm = get_agent_llm(streaming=False)
-        response = await final_llm.ainvoke(agent_messages)
-    else:
-        response = ai_msg
 
-    return {"messages": [response], "next_agent": None}
+    # 达到最大轮数仍要调用工具 → 强制生成最终回复
+    final_msg = await final_llm.ainvoke([
+        *agent_messages,
+        SystemMessage(content="已超过最大工具调用轮数，请基于已有信息直接给出最终回复。"),
+    ])
+    return {"messages": [final_msg], "next_agent": None}
 
 
 async def run_direct_agent(
@@ -200,3 +212,30 @@ async def run_direct_agent(
     response = await llm.ainvoke(agent_messages)
 
     return {"messages": [response], "next_agent": None}
+
+
+def parse_json_from_llm(content: str) -> Any:
+    """
+    从 LLM 的文本回复中提取 JSON。
+
+    自动处理 markdown 代码块包裹、尾部逗号等常见格式问题。
+    解析失败返回 None。
+    """
+    import re
+
+    text = content.strip()
+    # 去掉 markdown 代码块包裹
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # 尝试提取第一个 JSON 数组/对象
+        m = re.search(r"(\[.*\]|\{.*\})", text, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group(1))
+            except json.JSONDecodeError:
+                pass
+        return None

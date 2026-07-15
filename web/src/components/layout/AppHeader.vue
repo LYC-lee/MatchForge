@@ -15,6 +15,9 @@ const pageTitle = computed(() => {
   if (route.name === 'supplier-products') return '产品管理'
   if (route.name === 'supplier-leads') return '线索管理'
   if (route.name === 'admin-audit') return '运营审核'
+  if (route.name === 'company-assistant') return '企业 AI 助手'
+  if (route.name === 'company-chat') return '企业问答'
+  if (route.name === 'admin-knowledge') return '知识库管理'
   return '产品功能'
 })
 
@@ -40,6 +43,14 @@ function logout() {
       <RouterLink to="/chat" class="nav__link">
         <span class="nav__icon">💬</span>
         <span>对话寻源</span>
+      </RouterLink>
+      <RouterLink to="/company-chat" class="nav__link">
+        <span class="nav__icon">🏢</span>
+        <span>企业问答</span>
+      </RouterLink>
+      <RouterLink to="/company-assistant" class="nav__link">
+        <span class="nav__icon">🤖</span>
+        <span>企业 AI 助手</span>
       </RouterLink>
       <RouterLink to="/app" class="nav__link">
         <span class="nav__icon">⌘</span>
@@ -76,6 +87,10 @@ function logout() {
       <RouterLink to="/admin/audit" class="nav__link">
         <span class="nav__icon">✓</span>
         <span>审核管理</span>
+      </RouterLink>
+      <RouterLink to="/admin/knowledge" class="nav__link">
+        <span class="nav__icon">📚</span>
+        <span>知识库管理</span>
       </RouterLink>
     </div>
 
