@@ -13,19 +13,31 @@ const password = ref('')
 const error = ref('')
 const loading = ref(false)
 
-function submit() {
+async function submit() {
   error.value = ''
   loading.value = true
-  setTimeout(() => {
-    const r = auth.login(account.value, password.value)
+  const IS_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
+  if (IS_MOCK) {
+    setTimeout(() => {
+      const r = auth.login(account.value, password.value)
+      loading.value = false
+      if (r.ok) {
+        const redirect = (route.query.redirect as string) || '/app'
+        router.push(redirect)
+      } else {
+        error.value = r.msg || '登录失败'
+      }
+    }, 300)
+  } else {
+    const r = await auth.loginWithApi(account.value, password.value)
     loading.value = false
     if (r.ok) {
       const redirect = (route.query.redirect as string) || '/app'
       router.push(redirect)
     } else {
-      error.value = r.msg || '��¼ʧ��'
+      error.value = r.msg || '登录失败'
     }
-  }, 300)
+  }
 }
 
 function demoLogin() { account.value = 'demo@matchforge.ai'; password.value = 'demo12345'; submit() }

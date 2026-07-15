@@ -16,29 +16,35 @@ const role = ref<AuthUser['role']>('buyer')
 const error = ref('')
 const loading = ref(false)
 
-function submit() {
+async function submit() {
   error.value = ''
   if (password.value !== confirmPassword.value) {
     error.value = '两次输入的密码不一致'
     return
   }
   loading.value = true
-  setTimeout(() => {
-    const result = auth.register({
-      name: name.value,
-      company: company.value,
-      account: account.value,
-      password: password.value,
-      role: role.value,
+  const IS_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
+  if (IS_MOCK) {
+    setTimeout(() => {
+      const result = auth.register({
+        name: name.value, company: company.value,
+        account: account.value, password: password.value, role: role.value,
+      })
+      loading.value = false
+      if (result.ok) { router.push('/app') }
+      else { error.value = result.msg || '注册失败' }
+    }, 300)
+  } else {
+    const result = await auth.registerWithApi({
+      name: name.value, company: company.value,
+      account: account.value, password: password.value, role: role.value,
     })
     loading.value = false
-    if (result.ok) {
-      router.push('/app')
-    } else {
-      error.value = result.msg || '注册失败'
-    }
-  }, 300)
+    if (result.ok) { router.push('/app') }
+    else { error.value = result.msg || '注册失败' }
+  }
 }
+
 </script>
 
 <template>

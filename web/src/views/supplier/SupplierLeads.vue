@@ -49,17 +49,29 @@ function handleQuote(lead: LeadItem) {
   alert(`报价: ${lead.id}\n功能将在 MVP 阶段对接询价单系统。`)
 }
 
-onMounted(() => {
+onMounted(async () => {
+  const IS_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
+  if (!IS_MOCK) {
+    try {
+      const res = await fetch('/api/v1/leads').then(r => r.json())
+      if (res.data && res.data.length > 0) {
+        leads.value = res.data.map((l:any) => ({
+          id: l.id, title: l.raw_query || '来源询价',
+          spec: l.grade || '', grade: l.grade || 'C', score: l.score || 0,
+          moq: 0, qty: 0, company: l.supplier_id || '', date: l.created_at || '',
+          status: l.status || 'new',
+        }))
+        loading.value = false; return
+      }
+    } catch {}
+  }
   setTimeout(() => {
     leads.value = [
-      { id: 'L001', title: 'MLCC 0805 10uF X7R 50V', spec: '0805 10uF X7R ±10% 50V', grade: 'A', score: 88, moq: 5000, qty: 500000, company: '深圳华强电子', date: '2026-07-14', status: 'new', message: '请报含税单价及交期，月用量50万' },
-      { id: 'L002', title: 'TMK212BJ105KG-T 替代料', spec: '0805 1uF X5R 25V', grade: 'B', score: 72, moq: 10000, qty: 200000, company: '上海赛格电子', date: '2026-07-13', status: 'new' },
-      { id: 'L003', title: 'GRM188R61A106KE69D 寻源', spec: '0603 10uF X5R 10V', grade: 'C', score: 55, moq: 20000, qty: 100000, company: '东莞电子科技', date: '2026-07-11', status: 'contacted' },
-      { id: 'L004', title: 'CC0805KKX7R9BB103 批量', spec: '0805 10nF X7R 50V', grade: 'A', score: 92, moq: 3000, qty: 1000000, company: '北京中发电子', date: '2026-07-10', status: 'quoted' },
-      { id: 'L005', title: 'CL21B105KAFNNNE 询价', spec: '0805 1uF X5R 25V', grade: 'B', score: 68, moq: 5000, qty: 300000, company: '苏州元器件贸易', date: '2026-07-08', status: 'won' },
+      { id: 'L001', title: 'MLCC 0805 10uF X7R 询价', spec: '0805 10uF X7R 25V', grade: 'A', score: 88, moq: 10000, qty: 500000, company: '某智能电器有限公司', date: '2026-07-14', status: 'new' },
+      { id: 'L002', title: 'STM32F103C8T6 询价', spec: 'STM32F103C8T6 LQFP-48', grade: 'B', score: 74, moq: 5000, qty: 20000, company: '某汽车电子有限公司', date: '2026-07-13', status: 'new' },
     ]
     loading.value = false
-  }, 500)
+  }, 300)
 })
 </script>
 

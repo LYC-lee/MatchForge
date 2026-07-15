@@ -21,21 +21,23 @@ const recentLeads = ref<
 const loading = ref(true)
 
 // 模拟数据
-onMounted(() => {
+onMounted(async () => {
+  const IS_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
+  if (!IS_MOCK) {
+    try {
+      const res = await fetch('/api/v1/leads').then(r => r.json())
+      if (res.data) {
+        const leads = res.data
+        stats.value.totalLeads = leads.length
+        stats.value.newLeads = leads.filter((l:any) => l.status === 'new').length
+        stats.value.wonLeads = leads.filter((l:any) => l.status === 'won').length
+        stats.value.avgScore = leads.length ? Math.round(leads.reduce((s:number,l:any) => s+(l.score||0), 0)/leads.length) : 0
+      }
+    } catch {}
+  }
   setTimeout(() => {
-    stats.value = {
-      activeLeads: 4,
-      totalProducts: 26,
-      newInquiries: 2,
-      responseRate: 78,
-    }
-    recentLeads.value = [
-      { id: 'L001', title: 'MLCC 0805 10uF X7R 50V', grade: 'A', score: 88, date: '2026-07-14', status: 'new' },
-      { id: 'L002', title: 'TMK212BJ105KG-T 替代料', grade: 'B', score: 72, date: '2026-07-13', status: 'contacted' },
-      { id: 'L003', title: 'GRM188R61A106KE69D 寻源', grade: 'C', score: 55, date: '2026-07-12', status: 'won' },
-    ]
     loading.value = false
-  }, 600)
+  }, 200)
 })
 
 function gradeClass(grade: string) {

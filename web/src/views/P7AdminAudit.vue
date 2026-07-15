@@ -64,14 +64,14 @@ const filteredSups = computed(() => {
 
 // ── 审核操作 ──
 function approveAlt(item: AltAuditItem) {
-  item.status = 'approved'
+  item.status = 'approved'; callAudit(item.id, 'approve')
   altQueue.value = altQueue.value.filter((i) => i.id !== item.id)
   stats.value.pendingAlts--
 }
 
 function rejectAlt(item: AltAuditItem) {
   const reason = prompt('驳回原因（可选）:')
-  item.status = 'rejected'
+  item.status = 'rejected'; callAudit(item.id, 'reject')
   altQueue.value = altQueue.value.filter((i) => i.id !== item.id)
   stats.value.pendingAlts--
   if (reason) item.reason = reason
@@ -84,14 +84,14 @@ function markRiskAlt(item: AltAuditItem) {
 }
 
 function approveSup(item: SupAuditItem) {
-  item.status = 'approved'
+  item.status = 'approved'; callAudit(item.id, 'approve')
   supQueue.value = supQueue.value.filter((i) => i.id !== item.id)
   stats.value.pendingSuppliers--
 }
 
 function rejectSup(item: SupAuditItem) {
   const reason = prompt('驳回原因（可选）:')
-  item.status = 'rejected'
+  item.status = 'rejected'; callAudit(item.id, 'reject')
   supQueue.value = supQueue.value.filter((i) => i.id !== item.id)
   stats.value.pendingSuppliers--
   if (reason) item.reason = reason
@@ -118,20 +118,44 @@ function statusLabel(status: string) {
 }
 
 // ── 数据加载 ──
-onMounted(() => {
+onMounted(async () => {
+  const IS_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
+  if (!IS_MOCK) { await loadRealData() }
   setTimeout(() => {
-    altQueue.value = [
-      { id: 'A001', originalPart: 'TMK212BJ105KG-T', altPart: '0805F105Z500NT', brand: 'Walsin', confidence: 0.66, source: 'llm_inferred', reason: '封装/容值匹配，额定电压有差异', submittedAt: '2026-07-14 10:30', status: 'pending', sourceInput: '' },
-      { id: 'A002', originalPart: 'GRM188R61A106KE69D', altPart: 'CL10A106MP8NNNC', brand: 'Samsung EM', confidence: 0.58, source: 'llm_inferred(单一来源)', reason: '容值/封装匹配，温度系数差异需确认', submittedAt: '2026-07-14 09:15', status: 'pending', sourceInput: '' },
-      { id: 'A003', originalPart: 'CC0805KKX7R9BB103', altPart: '0805B103K500CT', brand: 'Walsin', confidence: 0.72, source: '分销商数据', reason: '参数一致，来源为分销商数据需交叉核验', submittedAt: '2026-07-13 16:45', status: 'pending', sourceInput: '' },
-    ]
-    supQueue.value = [
-      { id: 'S001', name: '深圳芯联电子有限公司', company: '芯联电子', status: 'pending', category: 'MLCC / 贴片电阻', brands: ['三星', '国巨'], qualifications: ['ISO9001'], location: '深圳', contact: '张经理', submittedAt: '2026-07-14 09:00', sourceInput: '' },
-      { id: 'S002', name: '苏州微电子科技有限公司', company: '苏州微电子', status: 'pending', category: '被动元件 / 连接器', brands: ['Murata', 'TDK'], qualifications: ['ISO9001', 'IATF16949'], location: '苏州', contact: '李工', submittedAt: '2026-07-13 14:20', sourceInput: '' },
-    ]
     loading.value = false
-  }, 400)
+  }, 200)
 })
+
+async function loadRealData() {
+  try {
+    const [altRes, supRes, metRes] = await Promise.all([
+      fetch('/api/v1/admin/audit?type=alternatives').then(r=>r.json()),
+      fetch('/api/v1/admin/audit?type=suppliers').then(r=>r.json()),
+      fetch('/api/v1/admin/metrics').then(r=>r.json()),
+    ])
+    if (altRes.data && altRes.data.length > 0) {
+      altQueue.value = altRes.data.map((r:any) => ({
+        id: r.id, originalPart: r.target_id || '', altPart: '', brand: '',
+        confidence: 0, source: r.target_type, reason: r.note,
+        submittedAt: r.created_at, status: r.action || 'pending', sourceInput: '',
+      }))
+    }
+    if (supRes.data && supRes.data.length > 0) {
+      supQueue.value = supRes.data.map((r:any) => ({
+        id: r.id, name: r.target_id || '', company: '', status: r.action || 'pending',
+        category: '', brands: [], qualifications: [], location: '', contact: '',
+        submittedAt: r.created_at, sourceInput: '', reason: r.note,
+      }))
+    }
+    if (metRes.data) { stats.value = metRes.data }
+  } catch {}
+}
+
+async function callAudit(id: string, action: string) {
+  if (import.meta.env.VITE_USE_MOCK === 'false') {
+    try { await fetch('/api/v1/admin/audit/'+id, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action}) }) } catch {}
+  }
+}
 </script>
 
 <template>
