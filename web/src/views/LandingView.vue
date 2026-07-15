@@ -3,35 +3,52 @@ import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
+const heroImage = '/assets/matchforge-hero.png'
+const trustFlowImage = '/assets/matchforge-trust-flow.png'
 
 const sections = [
   {
     label: '01',
     title: '采购输入需求',
     desc: '输入缺货型号、参数描述或品牌偏好，系统先结构化需求，不直接给出未经校验的结论。',
+    image: '/assets/landing-flow-input.png',
   },
   {
     label: '02',
     title: 'AI 拆解与核验',
     desc: '解析规格、补全缺失字段、查替代关系，并用 L1-L5 分级展示替代风险。',
+    image: '/assets/landing-flow-verify.png',
   },
   {
     label: '03',
     title: '生成 RFQ',
     desc: '选择能力匹配供应商后生成可编辑询价单，明确“能力匹配非现货承诺”。',
+    image: '/assets/landing-flow-rfq.png',
   },
 ]
 
 const principles = [
-  '事实型数据不交给 LLM 自由编造',
-  '替代料必须显示来源、更新时间和人工核验状态',
-  '供应商仅展示能力匹配，不承诺库存、报价、交期',
+  {
+    title: '事实隔离，降低幻觉风险',
+    desc: '型号、参数、供应商、库存等事实字段来自规则、字典和数据库，不交给 LLM 自由编造。',
+    value: '采购决策更可信',
+  },
+  {
+    title: '来源可追溯，便于工程复核',
+    desc: '替代料展示来源、更新时间、置信度和人工核验状态，方便采购与工程协同确认。',
+    value: '替代建议有依据',
+  },
+  {
+    title: '能力匹配，不误导现货承诺',
+    desc: '供应商结果只表达经营品类和品牌覆盖能力，不声称确认库存、报价或交期。',
+    value: '避免错误预期',
+  },
 ]
 
 const scenarios = [
-  { title: '指定型号缺货', desc: '研发指定料停产或缺货时，快速找到 2-3 个可核验替代建议。' },
-  { title: '按参数找候选料', desc: '只有封装、容值、电压等参数时，收敛到具体可询价型号。' },
-  { title: '生成询价单', desc: '把规格、替代料、用量、交期和供应商对象合并成可编辑 RFQ。' },
+  { title: '指定型号缺货', desc: '研发指定料停产或缺货时，快速找到 2-3 个可核验替代建议。', image: '/assets/landing-usecase-shortage.png' },
+  { title: '按参数找候选料', desc: '只有封装、容值、电压等参数时，收敛到具体可询价型号。', image: '/assets/landing-usecase-params.png' },
+  { title: '生成询价单', desc: '把规格、替代料、用量、交期和供应商对象合并成可编辑 RFQ。', image: '/assets/landing-usecase-rfq.png' },
 ]
 
 const capabilities = [
@@ -96,33 +113,10 @@ const metrics = [
         </div>
 
         <div class="hero-visual" aria-label="MatchForge 产品示意图">
-          <div class="visual-window">
-            <div class="visual-window__bar">
-              <span /><span /><span />
-              <b>Procure Workspace</b>
-            </div>
-            <div class="visual-grid">
-              <div class="visual-card visual-card--query">
-                <small>Raw Query</small>
-                <p>0805 10uF X7R 50V，月用量50万，要国巨或华新科</p>
-              </div>
-              <div class="visual-card">
-                <small>Parsed Spec</small>
-                <div class="visual-tags">
-                  <span>MLCC</span><span>0805</span><span>10uF</span><span>50V</span>
-                </div>
-              </div>
-              <div class="visual-card visual-card--wide">
-                <small>Alternatives</small>
-                <div class="alt-row"><b>L1</b><span>CC0805KKX7R9BB103</span><em>0.95</em></div>
-                <div class="alt-row"><b>L2</b><span>CL21A106KAYNNNE</span><em>0.88</em></div>
-                <div class="alt-row alt-row--warn"><b>L3</b><span>需工程确认</span><em>risk</em></div>
-              </div>
-              <div class="visual-card">
-                <small>RFQ</small>
-                <p class="doc-lines">品名 / 规格 / 替代 / 用量 / 交期 / 请报字段</p>
-              </div>
-            </div>
+          <img :src="heroImage" alt="AI 元器件寻源工作台视觉示意" class="hero-visual__image">
+          <div class="hero-visual__caption">
+            <b>AI sourcing workspace</b>
+            <span>规格解析 · 替代料分级 · 供应商能力匹配 · RFQ</span>
           </div>
         </div>
       </section>
@@ -134,8 +128,11 @@ const metrics = [
         </div>
         <div class="scenario-grid">
           <article v-for="s in scenarios" :key="s.title" class="scenario-card">
-            <h3>{{ s.title }}</h3>
-            <p>{{ s.desc }}</p>
+            <img :src="s.image" :alt="s.title">
+            <div class="scenario-card__body">
+              <h3>{{ s.title }}</h3>
+              <p>{{ s.desc }}</p>
+            </div>
           </article>
         </div>
       </section>
@@ -147,9 +144,12 @@ const metrics = [
         </div>
         <div class="flow-grid">
           <article v-for="item in sections" :key="item.label" class="flow-card">
-            <span class="flow-card__label">{{ item.label }}</span>
-            <h3>{{ item.title }}</h3>
-            <p>{{ item.desc }}</p>
+            <img :src="item.image" :alt="item.title">
+            <div class="flow-card__body">
+              <span class="flow-card__label">{{ item.label }}</span>
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.desc }}</p>
+            </div>
           </article>
         </div>
       </section>
@@ -177,11 +177,18 @@ const metrics = [
           <p class="section__copy">
             页面设计会保留 Linear 式的清晰分隔：公开介绍、注册登录、产品功能页各自独立，功能区只在登录后出现。
           </p>
+          <div class="trust-visual">
+            <img :src="trustFlowImage" alt="AI 寻源可信流程示意">
+          </div>
         </div>
         <div class="principle-list">
-          <div v-for="p in principles" :key="p" class="principle-item">
-            <span />
-            <p>{{ p }}</p>
+          <div v-for="p in principles" :key="p.title" class="principle-item">
+            <span class="principle-item__mark" />
+            <div class="principle-item__content">
+              <h3>{{ p.title }}</h3>
+              <p>{{ p.desc }}</p>
+              <b>{{ p.value }}</b>
+            </div>
           </div>
         </div>
       </section>
@@ -352,6 +359,39 @@ const metrics = [
   background: radial-gradient(circle, rgba(99, 102, 241, 0.28), transparent 62%);
   filter: blur(12px);
 }
+.hero-visual__image {
+  position: relative;
+  width: 100%;
+  display: block;
+  border: 1px solid var(--border-default);
+  border-radius: 22px;
+  background: var(--bg-1);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+}
+.hero-visual__caption {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  background: rgba(10, 11, 15, 0.72);
+  backdrop-filter: blur(14px);
+}
+.hero-visual__caption b {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+.hero-visual__caption span {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  text-align: right;
+}
 .visual-window {
   position: relative;
   overflow: hidden;
@@ -496,13 +536,23 @@ const metrics = [
   margin-top: var(--space-6);
 }
 .scenario-card {
-  min-height: 180px;
-  padding: var(--space-5);
+  overflow: hidden;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   background:
     linear-gradient(180deg, rgba(99, 102, 241, 0.08), rgba(255, 255, 255, 0.015)),
     var(--bg-1);
+}
+.scenario-card img,
+.flow-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: block;
+  object-fit: cover;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.scenario-card__body {
+  padding: var(--space-5);
 }
 .scenario-card h3 {
   font-size: var(--font-size-lg);
@@ -543,13 +593,15 @@ const metrics = [
   line-height: 1.7;
 }
 .flow-card {
-  min-height: 220px;
-  padding: var(--space-5);
+  overflow: hidden;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
     var(--bg-1);
+}
+.flow-card__body {
+  padding: var(--space-5);
 }
 .flow-card__label {
   color: var(--accent-hover);
@@ -557,7 +609,7 @@ const metrics = [
   font-size: var(--font-size-sm);
 }
 .flow-card h3 {
-  margin-top: var(--space-5);
+  margin-top: var(--space-4);
   font-size: var(--font-size-lg);
 }
 .flow-card p {
@@ -577,30 +629,75 @@ const metrics = [
   margin-top: var(--space-4);
   color: var(--text-secondary);
 }
+.trust-visual {
+  margin-top: var(--space-5);
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
+  box-shadow: var(--shadow-lg);
+}
+.trust-visual img {
+  width: 100%;
+  display: block;
+}
 .principle-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 .principle-item {
+  position: relative;
+  overflow: hidden;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 12% 10%, rgba(34, 197, 94, 0.16), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    var(--bg-1);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.24);
 }
-.principle-item span {
-  width: 10px;
-  height: 10px;
-  margin-top: 6px;
+.principle-item::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--success), #60a5fa);
+}
+.principle-item__mark {
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
   border-radius: 50%;
-  background: var(--success);
+  background:
+    radial-gradient(circle, #86efac 0 24%, rgba(34, 197, 94, 0.22) 25% 100%);
+  box-shadow: 0 0 28px rgba(34, 197, 94, 0.32);
 }
-.principle-item p {
-  color: var(--text-secondary);
+.principle-item__content h3 {
+  color: #f4f7ff;
+  font-size: var(--font-size-md);
+  line-height: 1.35;
+}
+.principle-item__content p {
+  margin-top: var(--space-2);
+  color: #b8bfce;
   font-size: var(--font-size-sm);
+  line-height: 1.65;
+}
+.principle-item__content b {
+  display: inline-flex;
+  margin-top: var(--space-3);
+  padding: 5px 9px;
+  color: #bbf7d0;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.24);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
 }
 .final-cta {
   max-width: 1180px;

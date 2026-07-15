@@ -37,6 +37,7 @@ interface SupAuditItem {
   contact: string
   submittedAt: string
   sourceInput: string
+  reason?: string
 }
 
 const activeTab = ref<'alternatives' | 'suppliers'>('alternatives')
@@ -93,6 +94,7 @@ function rejectSup(item: SupAuditItem) {
   item.status = 'rejected'
   supQueue.value = supQueue.value.filter((i) => i.id !== item.id)
   stats.value.pendingSuppliers--
+  if (reason) item.reason = reason
 }
 
 function statusTag(status: string) {

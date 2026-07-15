@@ -1,0 +1,2 @@
+part_number,brand,category_name,specs,lifecycle_status,datasheet_url,description,confidence_level,source_name,source_url,updated_at
+GRM188R71H104KA93D,Murata,MLCC,"{""封装"":""0603"",""容值"":""0.1uF"",""精度"":""±10%"",""温度系数"":""X7R"",""额定电压"":""50V""}",active,https://www.murata.com/products/capacitor/mlcc,0603 0.1uF 50V X7R MLCC贴片电容,official,立创商城,https://www.szlcsc.com/product/GRM188R71H104KA93D.html,2026-07-15 10:30:00

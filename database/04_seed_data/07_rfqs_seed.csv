@@ -1,0 +1,6 @@
+﻿id,rfq_number,title,raw_query,part_id,part_number,quantity,unit,target_price,lead_time_weeks,accept_alternatives,scenario,status,created_by,updated_at
+1,RFQ-2026-001,急寻0805 1uF X5R 25V电容10万PCS缺货,客户产线缺料，急需Taiyo Yuden TMK212BJ105KG-T或同等替代 0805 1uF X5R 25V 10万PCS,21,TMK212BJ105KG-T,100000,pcs,0.012,2,1,stockout,sent,li.si,2026-07-15 10:30:00
+2,RFQ-2026-002,MLCC 0603 0.1uF X7R 50V 降本寻源50万PCS,现有Murata GRM188R71H104KA93D，寻求国巨/三星/华新科同等替代以降本，月用量50万,1,GRM188R71H104KA93D,500000,pcs,0.008,3,1,cost_reduction,sent,li.si,2026-07-15 10:30:00
+3,RFQ-2026-003,JST XH2.54-2P 连接器新寻源5万PCS,新项目导入JST XH2.54-2P线对板连接器，寻授权代理或现货，5万PCS,36,XH2.54-2P,50000,pcs,0.15,3,1,new_sourcing,sent,wang.wu,2026-07-15 10:30:00
+4,RFQ-2026-004,SS34 肖特基二极管缺货2万PCS,产线SS34缺货，接受SS310等向上兼容替代，2万PCS,44,SS34,20000,pcs,0.06,2,1,stockout,quoted,li.si,2026-07-15 10:30:00
+5,RFQ-2026-005,0603 10kΩ 1% 贴片电阻降本20万PCS,RC0603FR-0710KL降本，接受UniOhm/Uniohm同等替代，20万PCS,22,RC0603FR-0710KL,200000,pcs,0.004,3,1,cost_reduction,draft,wang.wu,2026-07-15 10:30:00

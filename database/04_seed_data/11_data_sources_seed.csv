@@ -1,0 +1,11 @@
+id,name,type,url,reliability,last_checked
+1,公司官网,official,,high,2026-07-15
+2,公司年报/IR,official,,high,2026-07-15
+3,立创商城,marketplace,https://www.szlcsc.com,high,2026-07-15
+4,云汉芯城,marketplace,https://www.yunhanxincheng.com,medium,2026-07-15
+5,Digi-Key,marketplace,https://www.digikey.com,high,2026-07-15
+6,Mouser,marketplace,https://www.mouser.com,high,2026-07-15
+7,Datasheet规格比对,official,,high,2026-07-15
+8,行业交叉表,industry_report,,medium,2026-07-15
+9,TrendForce/行业报告,industry_report,https://www.trendforce.com,medium,2026-07-15
+10,供应商自填+实地审核,internal,,medium,2026-07-15

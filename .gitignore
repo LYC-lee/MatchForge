@@ -24,6 +24,14 @@ dist/
 .DS_Store
 Thumbs.db
 
-# 大量原始种子数据按需忽略
-# data/raw/
+# Logs
 logs/
+
+# Docker 数据卷
+mysql_data/
+neo4j_data/
+milvus_data/
+redis_data/
+etcd_data/
+minio_data/
+postgres_data/

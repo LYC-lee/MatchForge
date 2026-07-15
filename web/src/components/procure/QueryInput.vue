@@ -59,12 +59,12 @@ function submit() {
 .query {
   width: 100%;
   max-width: 720px;
-  margin: 0 auto;
+  margin: 0;
 }
 .query__box {
-  background: var(--bg-2);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
+  background: #151924;
+  border: 1px solid #343a4d;
+  border-radius: 12px;
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 .query__box:focus-within {
@@ -79,10 +79,10 @@ function submit() {
   outline: none;
   padding: var(--space-4) var(--space-5);
   font-size: var(--font-size-md);
-  color: var(--text-primary);
+  color: #f4f7ff;
   resize: none;
 }
-.query__input::placeholder { color: var(--text-tertiary); }
+.query__input::placeholder { color: #7f8799; }
 .query__bar {
   display: flex;
   align-items: center;
@@ -90,7 +90,7 @@ function submit() {
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--border-subtle);
 }
-.query__hint { font-size: var(--font-size-xs); color: var(--text-tertiary); }
+.query__hint { font-size: var(--font-size-xs); color: #8d95aa; }
 .query__examples {
   display: flex;
   align-items: center;
@@ -98,5 +98,5 @@ function submit() {
   gap: var(--space-2);
   margin-top: var(--space-4);
 }
-.query__ex-label { font-size: var(--font-size-sm); color: var(--text-tertiary); }
+.query__ex-label { font-size: var(--font-size-sm); color: #9aa3b7; }
 </style>
