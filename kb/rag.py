@@ -206,7 +206,7 @@ def _factual_answer(query: str, hits: list[dict], company_name: str, lang: str) 
 
 
 def chat_text_sync(system: str, user: str) -> str | None:
-    """同步包装 (RAG 回答用)。"""
+    """同步包装 (RAG 回答用)。max_tokens 提高以适配推理模型。"""
     import asyncio
 
     try:
@@ -217,14 +217,14 @@ def chat_text_sync(system: str, user: str) -> str | None:
 
             box: dict = {}
             def _run():
-                box["r"] = asyncio.run(chat_text(system, user, heavy=False, max_tokens=800))
+                box["r"] = asyncio.run(chat_text(system, user, heavy=False, max_tokens=3000))
             t = threading.Thread(target=_run)
             t.start()
             t.join()
             return box.get("r")
     except RuntimeError:
         pass
-    return asyncio.run(chat_text(system, user, heavy=False, max_tokens=800))
+    return asyncio.run(chat_text(system, user, heavy=False, max_tokens=3000))
 
 
 def _advisory_answer(query: str, hits: list[dict], company_name: str, lang: str, boundary) -> str:

@@ -77,8 +77,6 @@ class KnowledgeManual(Base):
     updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
 
     __table_args__ = (
-        UniqueConstraint("company_id", "manual_type", "language", "active_version",
-                         name="uq_manual_active"),
         Index("idx_manual_company_type_lang", "company_id", "manual_type", "language"),
     )
 

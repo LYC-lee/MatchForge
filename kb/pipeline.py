@@ -71,6 +71,7 @@ async def generate_for_company(
     company: CompanyCache,
     task_id: str | None = None,
     force: bool = False,
+    skip_vectors: bool = False,
 ) -> dict:
     """为一家公司生成全套双语知识。返回结果摘要。"""
     cid = company.id
@@ -139,10 +140,10 @@ async def generate_for_company(
 
             # 持久化 Manual
             with session_scope() as s:
-                # 标记同 (company,type,lang) 旧活跃为 inactive
+                # 删除同 (company,type,lang) 旧手册 (重新生成, 不保留多版本)
                 s.query(KnowledgeManual).filter_by(
-                    company_id=cid, manual_type=manual_type, language=lang, active_version=True
-                ).update({"active_version": False})
+                    company_id=cid, manual_type=manual_type, language=lang
+                ).delete()
                 manual = KnowledgeManual(
                     company_id=cid,
                     manual_type=manual_type,
@@ -184,7 +185,10 @@ async def generate_for_company(
 
             # 持久化 chunk (Source of Truth) -- 与向量写入分离, 避免并发写锁
             chunk_texts = [c["text"] for c in chunks]
-            embeddings = await embed_batch_async(chunk_texts) if chunk_texts else []
+            if skip_vectors:
+                embeddings = [[0.0] * 1024 for _ in chunk_texts]  # 占位, 由 rebuild 重建
+            else:
+                embeddings = await embed_batch_async(chunk_texts) if chunk_texts else []
             pending_vectors: list[tuple[str, list[float], dict]] = []
 
             with session_scope() as s:
@@ -244,21 +248,27 @@ async def generate_for_company(
                 # session 提交在此处发生 (释放写锁)
 
             # 向量写入 (DB 事务已提交, 独立连接写向量)
-            synced_uids: list[str] = []
-            for uid, emb, meta in pending_vectors:
-                try:
-                    store.upsert(uid, emb, meta)
-                    synced_uids.append(uid)
-                except Exception as e:
-                    logger.warning("向量写入失败 %s: %s", uid, str(e)[:120])
-            if synced_uids:
+            if skip_vectors:
                 with session_scope() as s:
                     s.query(KnowledgeChunk).filter(
-                        KnowledgeChunk.chunk_uid.in_(synced_uids)
-                    ).update(
-                        {"vector_synced": True, "vector_backend": store.backend},
-                        synchronize_session=False,
-                    )
+                        KnowledgeChunk.chunk_uid.in_([pv[0] for pv in pending_vectors])
+                    ).update({"vector_synced": False, "vector_backend": None}, synchronize_session=False)
+            else:
+                synced_uids: list[str] = []
+                for uid, emb, meta in pending_vectors:
+                    try:
+                        store.upsert(uid, emb, meta)
+                        synced_uids.append(uid)
+                    except Exception as e:
+                        logger.warning("向量写入失败 %s: %s", uid, str(e)[:120])
+                if synced_uids:
+                    with session_scope() as s:
+                        s.query(KnowledgeChunk).filter(
+                            KnowledgeChunk.chunk_uid.in_(synced_uids)
+                        ).update(
+                            {"vector_synced": True, "vector_backend": store.backend},
+                            synchronize_session=False,
+                        )
 
             result["manuals"][stage] = {"chunks": len(chunks), "issues": len(rep.issues)}
 
@@ -334,6 +344,7 @@ async def generate_all(
     task_id: str | None = None,
     company_ids: list[int] | None = None,
     force: bool = False,
+    skip_vectors: bool = False,
 ) -> dict:
     """为所有公司(或指定子集)生成知识。并发控制 + 失败隔离 + 断点续跑。"""
     with session_scope() as s:
@@ -369,7 +380,7 @@ async def generate_all(
             return
         async with sem:
             try:
-                res = await generate_for_company(c, task_id=task_id, force=force)
+                res = await generate_for_company(c, task_id=task_id, force=force, skip_vectors=skip_vectors)
                 summaries.append(res)
                 if res.get("issues") and not res.get("skipped"):
                     failed.append({"company_id": c.id, "company_name": c.name, "issues": res["issues"]})
@@ -460,17 +471,33 @@ def rebuild_vector_index(task_id: str | None = None, drop_first: bool = False) -
         _update_task(task_id, completed_steps=1, current_stage="rebuild: embed + index")
 
     with session_scope() as s:
-        chunks = s.query(KnowledgeChunk).filter_by(active=True).all()
+        # resumable: 若非 drop 模式, 跳过已同步的 chunk (断点续跑)
+        if not drop_first:
+            chunks = s.query(KnowledgeChunk).filter_by(active=True, vector_synced=False).all()
+        else:
+            chunks = s.query(KnowledgeChunk).filter_by(active=True).all()
         total = len(chunks)
+        if not chunks:
+            result = {"total_chunks": 0, "indexed": 0, "failed": 0, "backend": store.backend, "note": "all already synced"}
+            if task_id:
+                _update_task(task_id, completed_steps=3, progress=100, status="completed",
+                             result_summary=result, finished_at=datetime.utcnow())
+            return result
         texts = [c.text for c in chunks]
-        # 批量 embedding
+        # 批量 embedding (真实 BGE-M3 或降级 hashbow)
         from kb.embedder import embed_batch
 
         indexed = 0
-        batch = 32
+        failed = 0
+        batch = 16
         for i in range(0, len(texts), batch):
             batch_texts = texts[i:i + batch]
-            embs = embed_batch(batch_texts)
+            try:
+                embs = embed_batch(batch_texts)
+            except Exception as e:
+                logger.warning("rebuild embedding 批次 %d 失败, 跳过: %s", i, str(e)[:120])
+                failed += len(batch_texts)
+                continue
             for c, emb in zip(chunks[i:i + batch], embs):
                 meta = {
                     "company_id": c.company_id,
@@ -490,9 +517,14 @@ def rebuild_vector_index(task_id: str | None = None, drop_first: bool = False) -
                     indexed += 1
                 except Exception as e:
                     logger.warning("rebuild upsert 失败 %s: %s", c.chunk_uid, str(e)[:120])
+            if i % (batch * 5) == 0:
+                logger.info("rebuild 进度: %d/%d (indexed=%d failed=%d)", i + len(batch_texts), total, indexed, failed)
             s.commit()
+            # 轻微限速, 避免 embedding API rate limit
+            import time as _time
+            _time.sleep(0.1)
 
-    result = {"total_chunks": total, "indexed": indexed, "backend": store.backend}
+    result = {"total_chunks": total, "indexed": indexed, "failed": failed, "backend": store.backend}
     if task_id:
         _update_task(task_id, completed_steps=3, progress=100, status="completed",
                      result_summary=result, finished_at=datetime.utcnow(),

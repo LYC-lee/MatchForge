@@ -44,8 +44,8 @@ def cmd_init(args):
     ids = None
     if args.companies:
         ids = [int(x) for x in args.companies.split(",")]
-    print(f"启动知识生成: companies={ids or 'ALL'} force={args.force}")
-    summary = asyncio.run(generate_all(company_ids=ids, force=args.force))
+    print(f"启动知识生成: companies={ids or 'ALL'} force={args.force} skip_vectors={args.skip_vectors}")
+    summary = asyncio.run(generate_all(company_ids=ids, force=args.force, skip_vectors=args.skip_vectors))
     print("\n=== 生成完成 ===")
     for k, v in summary.items():
         if k != "failed":
@@ -114,6 +114,7 @@ def main():
     p_init = sub.add_parser("init", help="全部公司知识初始化")
     p_init.add_argument("--companies", help="逗号分隔的公司ID, 默认全部")
     p_init.add_argument("--force", action="store_true", help="强制重新生成")
+    p_init.add_argument("--skip-vectors", action="store_true", help="只生成内容不写向量(后续用 rebuild-index 重建)")
     p_init.set_defaults(func=cmd_init)
 
     p_gen = sub.add_parser("generate", help="单公司生成")

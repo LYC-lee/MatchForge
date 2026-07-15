@@ -130,6 +130,7 @@ class BusinessBoundary:
     probable_customer_types: list[str]
     chain_position: str
     role: str
+    segment_code: str = ""  # 产业环节编码 (用于模板查找; 旧数据可能为空)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -162,6 +163,7 @@ def build_boundary(company: CompanyCache) -> BusinessBoundary:
         probable_customer_types=list(base.get("probable_customer_types_cn", [])),
         chain_position=company.chain_position or base.get("chain_position", "upstream"),
         role=role,
+        segment_code=code or "",
     )
     # 持久化到 CompanyCache
     company.business_boundary_json = json.dumps(bd.to_dict(), ensure_ascii=False)

@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import Any
 
 from kb.boundary import BusinessBoundary, build_boundary
-from kb.config import KB_DEMO_MODE, llm_available
+from kb.config import KB_DEMO_MODE, KB_LLM_FOR_GENERATION, llm_available
 from kb.llm_client import chat_json
 from kb.models import CompanyCache, KnowledgeManual, Product
 
@@ -69,6 +69,9 @@ Return JSON: {"manual_title": str, "business_types": [{"business_type","definiti
 
 
 async def _llm_generate(company: CompanyCache, boundary: BusinessBoundary, manual_type: str, lang: str) -> dict | None:
+    # KB_LLM_FOR_GENERATION=off -> 强制模板; =auto 且 llm 可用 -> 用 LLM
+    if KB_LLM_FOR_GENERATION == "off":
+        return None
     if not llm_available():
         return None
     sys_map = {
@@ -278,9 +281,29 @@ def _name(company: CompanyCache, lang: str) -> str:
     return company.name
 
 
+# industry 中文名 -> segment_code (兼容旧 boundary 数据)
+_INDUSTRY_TO_CODE = {
+    "被动元件": "passive_components",
+    "内存与存储": "memory_storage",
+    "半导体芯片": "semiconductor_chips",
+    "连接器与线束": "connectors_cables",
+    "PCB与PCBA": "pcb_pcba",
+    "采购寻源与分销": "sourcing_distribution",
+    "ODM/EMS制造组装": "odm_ems_manufacturing",
+}
+
+
+def _segment_for(boundary: BusinessBoundary) -> str:
+    """从 boundary 解析 segment_code (优先 segment_code, 回退 industry 中文名映射)。"""
+    if boundary.segment_code:
+        return boundary.segment_code
+    return _INDUSTRY_TO_CODE.get(boundary.industry, "passive_components")
+
+
 def _template_products(company: CompanyCache, boundary: BusinessBoundary, lang: str) -> dict:
     """确定性生成产品知识。"""
-    templates = _SEGMENT_PRODUCTS.get(boundary.industry, _SEGMENT_PRODUCTS["passive_components"])
+    seg = _segment_for(boundary)
+    templates = _SEGMENT_PRODUCTS.get(seg, _SEGMENT_PRODUCTS["passive_components"])
     cname = _name(company, lang)
     is_en = lang == "en"
     products: list[dict] = []
@@ -317,7 +340,7 @@ def _template_products(company: CompanyCache, boundary: BusinessBoundary, lang: 
                     f"for services, provide BOM/gerber/forecast to initiate."
                 )
                 procurement = {
-                    "moq": "Per OEM MOQ (typ. 4k reel for MLCC)",
+                    "moq": "Per OEM MOQ",
                     "lead_time": "2-4 weeks (authorized); 24-48h (spot)",
                     "payment": "Net 30 / T/T",
                     "packaging": "Tape & reel",
@@ -351,7 +374,7 @@ def _template_products(company: CompanyCache, boundary: BusinessBoundary, lang: 
                     f"服务类产品需提供 BOM/gerber/需求预测后启动。"
                 )
                 procurement = {
-                    "moq": "按原厂 MOQ（MLCC 通常 4k/盘）",
+                    "moq": "按原厂 MOQ",
                     "lead_time": "授权 2-4 周；现货 24-48 小时",
                     "payment": "月结 30 天 / 电汇",
                     "packaging": "编带包装",
@@ -442,7 +465,8 @@ _BUSINESS_TEMPLATES: dict[str, list[dict]] = {
 def _template_business(company: CompanyCache, boundary: BusinessBoundary, lang: str) -> dict:
     cname = _name(company, lang)
     is_en = lang == "en"
-    items = _BUSINESS_TEMPLATES.get(boundary.industry, _BUSINESS_TEMPLATES["sourcing_distribution"])
+    seg = _segment_for(boundary)
+    items = _BUSINESS_TEMPLATES.get(seg, _BUSINESS_TEMPLATES["sourcing_distribution"])
     business_types: list[dict] = []
     for zh_name, en_name, _desc in items:
         bt_name = en_name if is_en else zh_name
