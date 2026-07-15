@@ -9,6 +9,7 @@ MatchForge API 主入口 (FastAPI)
   /api/v1/chat/*                 - 单公司 RAG / 多公司比较 / Trace
   /api/v1/admin/kb/*             - 知识库管理 (生成 / 增量 / 重建 / 任务 / 统计)
   /api/v1/enterprise-context/*   - 当前企业驾驶舱上下文
+  /api/v1/companies/*/dashboard  - 经营驾驶舱 Phase2 (BOM/订单/预测/缺件/推荐动作/聚合)
   /api/v1/health                 - 健康检查
 """
 
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
         auth,
         chat,
         companies,
+        dashboard,
         enterprise_context,
         kb_admin,
         relationships,
@@ -71,6 +73,7 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, prefix=api_prefix)
     app.include_router(kb_admin.router, prefix=api_prefix)
     app.include_router(enterprise_context.router, prefix=api_prefix)
+    app.include_router(dashboard.router, prefix=api_prefix)
 
     @app.get("/api/v1/health")
     def health():
