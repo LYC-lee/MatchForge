@@ -26,3 +26,4 @@ Thumbs.db
 
 # 大量原始种子数据按需忽略
 # data/raw/
+logs/
