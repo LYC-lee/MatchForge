@@ -8,9 +8,14 @@ Supervisor — LangGraph 图编排（主 Agent LLM 路由）
 
 关键设计:
   - 用 LangGraph Store 实现跨会话长期记忆
-  - LangFuse trace 监控每次 proc 请求
-  - PromptTemplate + 输出解析器
+  - LangSmith 自动 trace 所有 LangChain/LangGraph 调用
+  - PromptTemplate 模板
   - PostgresSaver 生产级 checkpointer
+
+LangSmith 配置 (.env):
+  LANGCHAIN_TRACING_V2=true
+  LANGCHAIN_API_KEY=ls_xxx
+  LANGCHAIN_PROJECT=MatchForge
 """
 
 import uuid
@@ -34,14 +39,12 @@ from ai.agents.gen_rfq import gen_rfq_agent
 from ai.agents.grade import grade_agent
 from ai.monitor import TraceLogger, AgentLogger
 
-# LangFuse — 生产 trace (可选依赖)
-try:
-    from langfuse.decorators import observe
-    from langfuse import Langfuse
-    _langfuse = Langfuse()
-except ImportError:
-    observe = lambda **kw: (lambda f: f)
-    _langfuse = None
+# LangSmith — 自动 trace (设环境变量即可，无需 import)
+# 在 .env 中添加：
+#   LANGCHAIN_TRACING_V2=true
+#   LANGCHAIN_API_KEY=ls_xxx
+#   LANGCHAIN_PROJECT=MatchForge
+# 所有 LLM 调用、LangGraph 节点执行、token 消耗自动上报
 
 AGENT_META: dict[str, dict] = {
     "parse": {"name": "需求解析", "description": "将用户自然语言输入解析为结构化元器件规格字段",
@@ -123,7 +126,6 @@ def _get_llm() -> ChatOpenAI:
     return _supervisor_llm
 
 
-@observe(name="supervisor_route")
 async def supervisor_node(state: ProcureState) -> dict:
     """Supervisor 节点：LLM 决定下一步"""
     agent_lines = "\n".join(
@@ -256,7 +258,6 @@ def init_state(raw_query: str, user_id: str = "", thread_id: str | None = None) 
 # ============================================================
 # SSE 流式执行
 # ============================================================
-@observe(name="procure")
 async def run_procure_stream(
     raw_query: str = "", thread_id: str | None = None,
     confirmed_spec: dict | None = None, phase: str = "spec", user_id: str = "",
@@ -268,13 +269,7 @@ async def run_procure_stream(
         if confirmed_spec:
             state["parsed_spec"] = state["normalized_spec"] = confirmed_spec
 
-    if _langfuse:
-        _langfuse.trace(
-            name="procure",
-            session_id=state["thread_id"],
-            user_id=user_id or None,
-            metadata={"phase": phase, "raw_query": raw_query[:100]},
-        )
+    # LangSmith 通过环境变量自动 trace，无需代码
 
     agent_keys = set(ROUTING_ORDER)
     graph = build_supervised_graph()
