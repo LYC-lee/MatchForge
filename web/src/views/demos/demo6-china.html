@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MatchForge · 赛博地球</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0b0f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+    overflow: hidden;
+  }
+  .demo-container {
+    width: 1000px;
+    height: 660px;
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #2a2f3e;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  }
+  .left-panel {
+    position: relative;
+    background: radial-gradient(ellipse at 50% 50%, rgba(15,20,40,0.6), #000103);
+    overflow: hidden;
+  }
+  #globe-container { width: 100%; height: 100%; }
+  .brand-overlay {
+    position: absolute; top: 18px; left: 22px; z-index: 10;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .brand-dot {
+    width: 22px; height: 22px; border-radius: 5px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    box-shadow: 0 0 18px rgba(99,102,241,0.4);
+    animation: breathe 3s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%,100%{box-shadow:0 0 18px rgba(99,102,241,0.3)}
+    50%{box-shadow:0 0 32px rgba(99,102,241,0.6)}
+  }
+  .brand-text { color: #e7e9ee; font-weight: 700; font-size: 13px; }
+  .right-panel {
+    background: #151823;
+    display: flex; align-items: center; justify-content: center; padding: 32px;
+  }
+  .mock-form { width: 100%; max-width: 300px; }
+  .mock-form h2 { color: #e7e9ee; font-size: 22px; margin-bottom: 4px; }
+  .mock-form .sub { color: #626978; font-size: 13px; margin-bottom: 24px; }
+  .mock-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .mock-field label { color: #626978; font-size: 11px; font-weight: 600; }
+  .mock-field input {
+    height: 40px; padding: 0 12px; background: #1c2030;
+    border: 1px solid #2a2f3e; border-radius: 6px; color: #e7e9ee; outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .mock-field input:focus { border-color: rgba(99,102,241,0.4); box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
+  .mock-btn {
+    width: 100%; height: 42px; border: none; border-radius: 6px;
+    background: #6366f1;
+    color: #fff; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: .15s;
+  }
+  .mock-btn:hover { background: #818cf8; }
+  .mock-link { text-align: center; margin-top: 20px; color: #626978; font-size: 12px; }
+  .mock-link a { color: #818cf8; font-weight: 700; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="demo-container">
+  <div class="left-panel">
+    <div class="brand-overlay">
+      <div class="brand-dot"></div>
+      <div class="brand-text">MatchForge · 智配</div>
+    </div>
+    <div id="globe-container"></div>
+  </div>
+  <div class="right-panel">
+    <div class="mock-form">
+      <h2>登录</h2>
+      <p class="sub">赛博元器件 · 全球智能供需网络</p>
+      <div class="mock-field">
+        <label>账号</label>
+        <input type="text" placeholder="name@company.com" value="demo@matchforge.ai">
+      </div>
+      <div class="mock-field">
+        <label>密码</label>
+        <input type="password" placeholder="输入密码" value="•••••••••">
+      </div>
+      <button class="mock-btn">登录</button>
+      <p class="mock-link">还没有账号? <a href="#">创建采购工作台</a></p>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const container = document.getElementById('globe-container');
+const W = container.clientWidth;
+const H = container.clientHeight;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000103);
+
+const cam = new THREE.PerspectiveCamera(45, W/H, 0.1, 100);
+cam.position.set(0, 0.15, 3.2);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+container.appendChild(renderer.domElement);
+
+const ambient = new THREE.AmbientLight(0x0a1a2a, 1.0);
+scene.add(ambient);
+const dirLight = new THREE.DirectionalLight(0x6366f1, 0.8);
+dirLight.position.set(2, 3, 4);
+scene.add(dirLight);
+const fillLight = new THREE.DirectionalLight(0x818cf8, 0.3);
+fillLight.position.set(-2, -1, -3);
+scene.add(fillLight);
+
+const R = 1, group = new THREE.Group(); scene.add(group);
+
+function ll2p(lat,lng,r) {
+  const phi=(90-lat)*Math.PI/180, theta=(lng+180)*Math.PI/180;
+  return new THREE.Vector3(-r*Math.sin(phi)*Math.cos(theta), r*Math.cos(phi), r*Math.sin(phi)*Math.sin(theta));
+}
+
+// 1. 低多边形球体
+const lowMat = new THREE.MeshPhongMaterial({
+  color: 0x0a0a1a, emissive: 0x0a0a2a, emissiveIntensity: 0.2,
+  transparent: true, opacity: 0.25, flatShading: true, side: THREE.DoubleSide,
+});
+const lowMesh = new THREE.Mesh(new THREE.SphereGeometry(R*0.97, 24, 16), lowMat);
+group.add(lowMesh);
+
+// 2. 线框图
+const wireMat = new THREE.MeshBasicMaterial({
+  color: 0x6366f1, wireframe: true, transparent: true, opacity: 0.06,
+});
+const wireMesh = new THREE.Mesh(new THREE.SphereGeometry(R*0.98, 24, 16), wireMat);
+group.add(wireMesh);
+
+// 3. 像素点阵
+const dotTex = (() => {
+  const c=document.createElement('canvas'); c.width=8; c.height=8;
+  const ct=c.getContext('2d');
+  ct.fillStyle='#6366f1'; ct.fillRect(0,0,8,8);
+  return new THREE.CanvasTexture(c);
+})();
+
+const dotSprites = [];
+for (let i = 0; i < 300; i++) {
+  const golden = (1+Math.sqrt(5))/2;
+  const theta = 2*Math.PI*i/golden;
+  const phi = Math.acos(1-2*(i+0.5)/300);
+  const lat = 90 - phi*180/Math.PI;
+  const lng = theta*180/Math.PI;
+  const pos = ll2p(lat, lng, R*1.002);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: dotTex, blending: THREE.AdditiveBlending,
+    transparent: true, depthWrite: false, color: 0x6366f1,
+  }));
+  sp.position.copy(pos);
+  sp.scale.set(0.01, 0.01, 1);
+  sp.userData = { phase: Math.random()*100, lat, lng };
+  group.add(sp);
+  dotSprites.push(sp);
+}
+
+// 4. 轨道环
+for (let i = 0; i < 3; i++) {
+  const pts = [];
+  const r = R * (1.2 + i*0.12);
+  for (let j = 0; j <= 80; j++) {
+    const a = j/80*Math.PI*2;
+    pts.push(new THREE.Vector3(Math.cos(a)*r, Math.sin(a)*r*0.08, Math.sin(a)*r));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({
+    color: [0x6366f1, 0x818cf8, 0xa78bfa][i],
+    transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending,
+  });
+  const line = new THREE.Line(geo, mat);
+  line.rotation.x = 0.3 + i*0.25;
+  line.rotation.z = i*0.15;
+  line.userData = { rotSpeed: 0.0003+i*0.0002 };
+  group.add(line);
+}
+
+// 5. 中国全版图 (23个多边形: 大陆+海南+台湾+南海诸岛)
+const chinaPolys = [
+  // 0: 中国大陆 (268点)
+  [[21.5080,107.9727],[21.6334,108.5021],[21.9046,108.4799],[21.4403,109.0815],[21.6934,109.5215],[21.4806,109.9308],[20.9169,109.6626],[20.2637,110.1231],[20.4600,110.5176],[20.9446,110.1540],[21.3381,110.4109],[21.2141,110.5672],[21.5591,111.6027],[21.8497,111.9439],[21.7417,112.3050],[21.9780,112.3597],[21.7769,112.5863],[22.2080,113.0888],[22.2226,113.5481],[22.9120,113.3311],[23.1021,113.5197],[22.5119,114.0154],[22.3650,113.9373],[22.2956,114.2680],[22.5410,114.2660],[22.9459,116.4707],[23.6467,116.9106],[23.5886,117.3677],[24.2461,118.0561],[24.4743,117.8427],[24.6214,118.6570],[25.2093,118.9775],[25.2322,119.2855],[25.4498,119.1801],[25.3912,119.6225],[26.0036,119.6188],[26.1218,119.1395],[26.0547,119.4631],[26.3342,119.8811],[26.7850,119.5882],[26.6716,120.0867],[28.0100,120.7477],[28.3267,121.1457],[28.2921,121.6100],[29.1932,121.4871],[29.1350,121.9178],[29.6059,121.9412],[29.4846,121.5062],[29.8704,122.0829],[30.3041,121.2580],[30.2413,120.1946],[30.9170,121.8779],[31.9837,120.7155],[31.9363,120.0359],[32.1059,120.5201],[31.8165,121.8563],[32.6614,120.8532],[34.2740,120.2667],[34.8488,119.1653],[35.9844,120.2848],[36.2024,120.1833],[36.1299,120.6379],[36.6328,120.8108],[36.9595,121.9327],[36.8322,122.3409],[37.4028,122.6670],[37.4604,121.6402],[37.8339,120.7500],[37.1551,119.7605],[37.1383,119.2874],[37.3312,118.9526],[38.0428,118.9400],[38.3117,117.7667],[38.8529,117.6167],[39.1913,117.8657],[39.1826,118.9770],[39.7525,119.3911],[40.2310,120.4791],[40.9013,121.1745],[40.9743,121.8349],[40.5418,122.2750],[39.5447,121.2675],[39.3865,121.8185],[38.9208,121.1067],[38.7316,121.1636],[39.6008,122.8400],[40.0041,124.3621],[40.9046,125.9891],[41.7249,126.7431],[41.3877,128.1494],[41.9875,128.0452],[42.0382,128.9234],[42.4481,129.6979],[42.9981,129.8982],[42.5354,130.5270],[42.7271,130.4248],[42.9022,131.0686],[43.3781,131.2573],[44.8443,130.9816],[45.3269,131.8519],[45.1307,133.1135],[47.3022,134.1677],[47.7154,134.7523],[48.2539,134.6652],[48.4363,135.0834],[48.3734,134.2934],[48.1057,133.1440],[47.7150,132.4763],[47.7093,130.9619],[48.8612,130.5531],[49.3888,129.4981],[49.8018,127.5508],[50.2090,127.5902],[53.0423,125.6490],[53.5465,123.6078],[53.2846,120.9854],[52.7872,120.0945],[52.5667,120.6562],[52.0965,120.7498],[50.4060,119.1637],[50.0664,119.2599],[49.5135,117.8734],[49.8238,116.6833],[47.8748,115.6164],[47.6869,115.8982],[47.8698,116.7605],[47.6522,117.3508],[47.9879,117.7684],[47.9840,118.4984],[47.1500,119.7111],[46.6722,119.8672],[46.5862,117.4381],[46.3620,117.3334],[46.2898,116.5626],[45.4583,115.6811],[45.3900,114.5602],[44.7457,113.5870],[45.0641,111.8980],[44.3673,111.4022],[43.7114,111.9332],[42.7737,110.4004],[42.4384,109.3398],[42.2887,106.7700],[41.5955,104.9820],[41.6587,104.4982],[41.8770,104.4982],[41.7513,103.7111],[42.1581,102.1566],[42.5388,101.4953],[42.7204,96.3854],[44.2781,95.3503],[44.9445,93.5162],[45.1961,90.8772],[46.9545,90.8699],[47.8777,90.0279],[48.0025,89.0477],[48.5551,87.9797],[49.1623,87.8143],[49.0858,87.3229],[49.0497,86.8083],[48.5286,86.5494],[48.3851,85.7494],[47.0635,85.4848],[46.8307,84.7861],[47.1859,83.0295],[45.5949,82.3152],[45.1255,82.5215],[45.3494,81.6920],[44.8838,79.8719],[44.7146,80.4815],[44.0973,80.3553],[43.1616,80.7857],[42.7345,80.2022],[42.1900,80.2094],[41.0756,78.1234],[41.0242,76.9077],[40.3522,76.3186],[40.3058,75.6771],[40.6252,75.5556],[40.4826,74.8352],[40.0431,73.9916],[39.4489,73.6316],[38.6069,73.8017],[38.4603,74.8123],[37.3857,75.1188],[37.2316,74.8913],[37.1577,74.3722],[37.0222,74.5414],[36.6949,75.7722],[36.0490,75.9123],[35.6617,76.7669],[35.4959,77.7994],[35.4798,78.0427],[34.6064,78.3270],[34.3026,78.9701],[34.0134,78.7267],[32.5011,79.2193],[32.3582,78.9189],[32.5970,78.7009],[32.5199,78.3896],[31.1000,78.8077],[31.0136,79.7078],[30.1645,81.0103],[30.3268,82.0434],[29.1836,83.5835],[29.2200,84.1014],[28.9118,84.2287],[28.5922,85.1591],[28.3160,85.1225],[28.2774,85.6783],[27.9104,85.9945],[28.1144,86.1370],[27.8383,87.1414],[27.8706,88.1098],[28.0069,88.8037],[27.3161,88.8914],[28.3112,89.9811],[28.0802,90.3527],[28.0784,91.2730],[27.7600,91.6319],[27.5577,91.5947],[27.2906,92.0834],[26.8550,91.9983],[26.9527,92.6470],[26.8801,93.1114],[27.0252,93.8173],[27.5814,94.2774],[27.7431,94.8859],[27.9400,95.2863],[28.1423,95.3971],[28.2952,95.8320],[28.2282,96.2755],[27.7475,97.0868],[27.9377,97.3352],[28.2180,97.3225],[28.5170,97.5992],[28.1859,98.0616],[27.5501,98.2988],[27.5725,98.6512],[26.7857,98.7385],[25.8636,98.6563],[25.2519,97.8195],[24.7748,97.5833],[23.9110,97.5646],[24.1212,98.8351],[23.9051,98.6768],[23.1913,98.8638],[22.9591,99.5071],[22.1260,99.1930],[22.0280,99.9177],[21.4805,100.1477],[21.7559,101.0798],[21.5675,101.1389],[21.1973,101.2479],[21.2126,101.8006],[22.2537,101.5245],[22.4953,101.7388],[22.3792,102.1274],[22.7509,102.4709],[22.4482,102.9819],[22.7698,103.3267],[22.5401,103.9415],[23.3452,105.2754],[22.9228,105.8430],[22.7789,106.7803],[22.5014,106.5504],[21.9789,106.6636],[21.5080,107.9727]],
+  // 1: 海南岛
+  [[19.9919,110.8888],[20.1377,110.6518],[19.8827,109.2635],[19.3041,108.6655],[18.5353,108.7016],[18.2183,109.5193],[18.4476,110.0674],[19.6555,111.0137],[19.9919,110.8888]],
+  // 2: 台湾岛
+  [[22.6204,121.0088],[23.1725,121.3975],[24.9737,121.9290],[25.2753,121.5937],[25.0328,121.0406],[23.6529,120.1321],[22.7179,120.2328],[21.9250,120.8398],[22.6204,121.0088]],
+  // 3-22: 南海诸岛等
+  [[25.9358,124.4751],[25.8592,124.4641],[25.9111,124.6536],[25.9655,124.5822],[25.9358,124.4751]],
+  [[26.0025,123.7143],[25.9210,123.5962],[25.8716,123.7198],[25.9210,123.7967],[26.0025,123.7143]],
+  [[25.7554,123.4946],[25.7306,123.3270],[25.6712,123.2639],[25.6192,123.3325],[25.6861,123.5797],[25.7554,123.4946]],
+  [[20.7717,116.7696],[20.6833,116.8897],[20.6010,116.7493],[20.5886,116.8626],[20.7269,116.9255],[20.7717,116.7696]],
+  [[16.5520,111.7447],[16.4598,111.7392],[16.5125,111.7886],[16.5520,111.7447]],
+  [[16.2621,111.8134],[16.2602,111.6623],[16.1619,111.5689],[16.2252,111.8161],[16.2621,111.8134]],
+  [[16.0590,112.6126],[16.0432,112.4615],[16.0009,112.4753],[16.0590,112.6126]],
+  [[7.6072,113.8969],[7.5378,114.0589],[7.6386,114.3687],[7.9458,114.5405],[7.6072,113.8969]],
+  [[7.3443,109.4640],[7.5230,109.9487],[7.5597,109.6531],[7.3443,109.4640]],
+  [[10.3957,116.4888],[10.3091,116.4672],[10.3351,116.6446],[10.3957,116.4888]],
+  [[23.4608,122.5187],[24.5737,122.7986],[24.5786,122.7792],[23.4657,122.4993],[23.4608,122.5187]],
+  [[20.8055,121.1720],[21.6874,121.9094],[21.7003,121.8940],[20.8183,121.1567],[20.8055,121.1720]],
+  [[18.0071,119.4737],[19.0240,120.0257],[19.0336,120.0081],[18.0166,119.4561],[18.0071,119.4737]],
+  [[15.0075,119.0722],[16.0439,119.0727],[16.0439,119.0527],[15.0078,119.0522],[15.0075,119.0722]],
+  [[11.1896,118.6865],[10.9126,118.5240],[10.9029,118.5404],[11.1815,118.7048],[11.6075,118.8746],[11.9857,118.9890],[11.9915,118.9698],[11.6137,118.8556],[11.1896,118.6865]],
+  [[7.1467,115.5447],[7.9793,116.2505],[7.9922,116.2352],[7.1597,115.5294],[7.1467,115.5447]],
+  [[3.5349,112.3071],[3.4169,111.7869],[3.3974,111.7913],[3.5156,112.3125],[3.5786,112.5215],[3.7326,112.8521],[3.7507,112.8436],[3.5975,112.5150],[3.5349,112.3071]],
+  [[6.0127,108.2901],[6.0199,108.3088],[6.0954,108.2796],[6.2275,108.2561],[6.5382,108.2168],[6.9496,108.2188],[7.0739,108.2442],[7.0779,108.2246],[6.9507,108.1988],[6.5376,108.1968],[6.2248,108.2363],[6.0910,108.2600],[6.0127,108.2901]],
+  [[11.3689,110.1282],[11.2534,110.0555],[11.2427,110.0725],[11.3595,110.1459],[11.4813,110.2070],[11.6050,110.2590],[11.7836,110.3046],[11.9457,110.3282],[12.1416,110.3342],[12.2404,110.3323],[12.2400,110.3123],[12.1420,110.3142],[11.9480,110.3084],[11.7871,110.2849],[11.6107,110.2398],[11.4900,110.1890],[11.3689,110.1282]],
+  [[15.1532,109.8452],[15.1572,109.8648],[15.2339,109.8489],[15.4507,109.7897],[15.6755,109.6901],[15.8368,109.5915],[15.9226,109.5320],[16.2073,109.3089],[16.1949,109.2931],[15.9110,109.5157],[15.8261,109.5746],[15.6656,109.6726],[15.4447,109.7707],[15.2290,109.8295],[15.1532,109.8452]],
+];
+
+// 绘制所有多边形
+function drawChinaPolygon(poly) {
+  const pts = poly.map(p => ll2p(p[0], p[1], R*1.004));
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color: 0x818cf8, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+  group.add(new THREE.Line(geo, mat));
+
+  // 发光外扩
+  const gpts = poly.map(p => ll2p(p[0], p[1], R*1.01));
+  const ggeo = new THREE.BufferGeometry().setFromPoints(gpts);
+  const gmat = new THREE.LineBasicMaterial({ color: 0x6366f1, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending });
+  group.add(new THREE.Line(ggeo, gmat));
+
+  // 仅大陆和海南台湾做填充
+  if (poly.length > 20) {
+    const fp = poly.map(p => ll2p(p[0],p[1],R*1.002));
+    const fg = new THREE.BufferGeometry();
+    const fv=[]; fp.forEach(p=>fv.push(p.x,p.y,p.z));
+    const fi=[]; for(let i=1;i<fp.length-1;i++) fi.push(0,i,i+1);
+    fg.setAttribute('position',new THREE.Float32BufferAttribute(fv,3));
+    fg.setIndex(fi);
+    fg.computeVertexNormals();
+    const fm = new THREE.MeshBasicMaterial({ color: 0x818cf8, transparent: true, opacity: 0.025, side: THREE.DoubleSide, depthWrite: false });
+    group.add(new THREE.Mesh(fg, fm));
+  }
+}
+
+chinaPolys.forEach(poly => drawChinaPolygon(poly));
+
+// 6. 中国城市
+const cnCities = [
+  {lat:22.5,lng:114.1},{lat:31.2,lng:121.5},{lat:39.9,lng:116.4},
+  {lat:30.6,lng:104.1},{lat:23.1,lng:113.3},{lat:30.6,lng:114.3},
+  {lat:34.3,lng:108.9},{lat:32.1,lng:118.8},{lat:31.3,lng:120.6},
+  {lat:29.6,lng:106.5},{lat:30.3,lng:120.2},{lat:24.5,lng:118.1},
+  {lat:28.2,lng:112.9},{lat:31.8,lng:117.3},{lat:23.0,lng:113.8},
+];
+cnCities.forEach(ct => {
+  const pos = ll2p(ct.lat, ct.lng, R*1.003);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: dotTex, blending: THREE.AdditiveBlending, transparent: true,
+    depthWrite: false, color: 0x818cf8,
+  }));
+  sp.position.copy(pos);
+  sp.scale.set(0.025, 0.025, 1);
+  sp.userData = { phase: Math.random()*100 };
+  group.add(sp);
+});
+
+// 7. 数字雨
+const chars = '01アイウエオカキクケコ';
+function makeCharTex(ch) {
+  const c=document.createElement('canvas'); c.width=16; c.height=16;
+  const ct=c.getContext('2d');
+  ct.fillStyle='rgba(99,102,241,0.6)'; ct.font='10px monospace'; ct.textAlign='center'; ct.textBaseline='middle';
+  ct.fillText(ch, 8, 8);
+  return new THREE.CanvasTexture(c);
+}
+const rainDrops = [];
+cnCities.forEach((ct, ci) => {
+  for (let i = 0; i < 2; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeCharTex(chars[Math.random()*chars.length|0]),
+      blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
+    }));
+    const pos = ll2p(ct.lat, ct.lng, R*1.01);
+    sp.position.copy(pos);
+    sp.scale.set(0.015, 0.015, 1);
+    sp.userData = {
+      phase: Math.random()*100, speed: 0.2+Math.random()*0.3,
+      height: 0.08+Math.random()*0.15, startPos: pos.clone(),
+      dir: pos.clone().normalize(),
+    };
+    group.add(sp);
+    rainDrops.push(sp);
+  }
+});
+
+// 8. 流动粒子
+const flowList = [];
+function makeFTex() {
+  const c=document.createElement('canvas'); c.width=16; c.height=16;
+  const ct=c.getContext('2d');
+  const g=ct.createRadialGradient(8,8,0,8,8,8);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  ct.fillStyle=g; ct.fillRect(0,0,16,16);
+  return new THREE.CanvasTexture(c);
+}
+const fTex = makeFTex();
+
+const intCities = [
+  {lat:35.7,lng:139.7},{lat:37.6,lng:127},{lat:1.4,lng:103.8},
+  {lat:37.4,lng:-122.1},{lat:50.1,lng:8.7},{lat:51.5,lng:-0.1},
+  {lat:25.0,lng:121.5},{lat:13.8,lng:100.5},{lat:-33.9,lng:151.2},
+];
+
+function addFlow(fromList, toList, count) {
+  for (let i = 0; i < count; i++) {
+    const a = fromList[Math.random()*fromList.length|0];
+    const b = toList[Math.random()*toList.length|0];
+    const p1 = ll2p(a.lat,a.lng,R), p2 = ll2p(b.lat,b.lng,R);
+    const mid = p1.clone().add(p2).multiplyScalar(0.5).normalize().multiplyScalar(R+0.12+Math.random()*0.1);
+    const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: fTex, blending: THREE.AdditiveBlending, transparent: true,
+      depthWrite: false, color: 0x6366f1,
+    }));
+    sp.scale.set(0.015, 0.015, 1);
+    group.add(sp);
+    flowList.push({ sp, curve, p: Math.random(), spd: 0.001+Math.random()*0.003 });
+  }
+}
+addFlow(cnCities, cnCities, 6);
+addFlow(cnCities, intCities, 4);
+
+// 动画
+let rot = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  rot += 0.0006;
+  group.rotation.y = rot;
+
+  group.children.forEach(child => {
+    if (child.userData && child.userData.rotSpeed) {
+      child.rotation.x += child.userData.rotSpeed;
+    }
+  });
+
+  const t = Date.now() * 0.001;
+
+  dotSprites.forEach(sp => {
+    const f = Math.sin(t*2+sp.userData.phase) > 0.3;
+    sp.material.opacity = f ? 0.5+0.4*Math.sin(t*0.5+sp.userData.phase) : 0.03;
+    const s = f ? 0.01 : 0.003;
+    sp.scale.set(s, s, 1);
+  });
+
+  rainDrops.forEach(sp => {
+    const d = sp.userData;
+    d.phase += d.speed * 0.03;
+    const offset = Math.sin(d.phase) * d.height;
+    sp.position.copy(d.startPos).add(d.dir.clone().multiplyScalar(offset*0.3));
+    if (Math.random() < 0.008) {
+      sp.material.map = makeCharTex(chars[Math.random()*chars.length|0]);
+      sp.material.needsUpdate = true;
+    }
+  });
+
+  flowList.forEach(fp => {
+    fp.p += fp.spd; if(fp.p>1) fp.p=0;
+    const pos = fp.curve.getPoint(fp.p);
+    fp.sp.position.copy(pos);
+    const s = 0.008+0.012*Math.sin(fp.p*Math.PI);
+    fp.sp.scale.set(s,s,1);
+  });
+
+  // 中国轮廓呼吸 (所有中国线)
+  const breathe = 0.5+0.3*Math.sin(t*0.6);
+  group.children.forEach(child => {
+    if (child.isLine && child.material.color.getHex() === 0x818cf8) {
+      child.material.opacity = breathe;
+    }
+  });
+
+  group.children.forEach(child => {
+    if (child.isSprite && child.material.map === dotTex && child.scale.x > 0.02) {
+      const s = 0.018+0.01*Math.sin(t*1.2+(child.userData.phase||0));
+      child.scale.set(s, s, 1);
+    }
+  });
+
+  renderer.render(scene, cam);
+}
+animate();
+
+window.addEventListener('resize', ()=>{
+  const w=container.clientWidth, h=container.clientHeight;
+  cam.aspect=w/h; cam.updateProjectionMatrix(); renderer.setSize(w,h);
+});
+</script>
+</body>
+</html>
