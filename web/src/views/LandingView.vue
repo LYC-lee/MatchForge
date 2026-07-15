@@ -3,22 +3,27 @@ import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
+const heroImage = '/assets/matchforge-hero.png'
+const trustFlowImage = '/assets/matchforge-trust-flow.png'
 
 const sections = [
   {
     label: '01',
     title: '采购输入需求',
     desc: '输入缺货型号、参数描述或品牌偏好，系统先结构化需求，不直接给出未经校验的结论。',
+    image: '/assets/landing-flow-input.png',
   },
   {
     label: '02',
     title: 'AI 拆解与核验',
     desc: '解析规格、补全缺失字段、查替代关系，并用 L1-L5 分级展示替代风险。',
+    image: '/assets/landing-flow-verify.png',
   },
   {
     label: '03',
     title: '生成 RFQ',
     desc: '选择能力匹配供应商后生成可编辑询价单，明确“能力匹配非现货承诺”。',
+    image: '/assets/landing-flow-rfq.png',
   },
 ]
 
@@ -29,9 +34,9 @@ const principles = [
 ]
 
 const scenarios = [
-  { title: '指定型号缺货', desc: '研发指定料停产或缺货时，快速找到 2-3 个可核验替代建议。' },
-  { title: '按参数找候选料', desc: '只有封装、容值、电压等参数时，收敛到具体可询价型号。' },
-  { title: '生成询价单', desc: '把规格、替代料、用量、交期和供应商对象合并成可编辑 RFQ。' },
+  { title: '指定型号缺货', desc: '研发指定料停产或缺货时，快速找到 2-3 个可核验替代建议。', image: '/assets/landing-usecase-shortage.png' },
+  { title: '按参数找候选料', desc: '只有封装、容值、电压等参数时，收敛到具体可询价型号。', image: '/assets/landing-usecase-params.png' },
+  { title: '生成询价单', desc: '把规格、替代料、用量、交期和供应商对象合并成可编辑 RFQ。', image: '/assets/landing-usecase-rfq.png' },
 ]
 
 const capabilities = [
@@ -96,33 +101,10 @@ const metrics = [
         </div>
 
         <div class="hero-visual" aria-label="MatchForge 产品示意图">
-          <div class="visual-window">
-            <div class="visual-window__bar">
-              <span /><span /><span />
-              <b>Procure Workspace</b>
-            </div>
-            <div class="visual-grid">
-              <div class="visual-card visual-card--query">
-                <small>Raw Query</small>
-                <p>0805 10uF X7R 50V，月用量50万，要国巨或华新科</p>
-              </div>
-              <div class="visual-card">
-                <small>Parsed Spec</small>
-                <div class="visual-tags">
-                  <span>MLCC</span><span>0805</span><span>10uF</span><span>50V</span>
-                </div>
-              </div>
-              <div class="visual-card visual-card--wide">
-                <small>Alternatives</small>
-                <div class="alt-row"><b>L1</b><span>CC0805KKX7R9BB103</span><em>0.95</em></div>
-                <div class="alt-row"><b>L2</b><span>CL21A106KAYNNNE</span><em>0.88</em></div>
-                <div class="alt-row alt-row--warn"><b>L3</b><span>需工程确认</span><em>risk</em></div>
-              </div>
-              <div class="visual-card">
-                <small>RFQ</small>
-                <p class="doc-lines">品名 / 规格 / 替代 / 用量 / 交期 / 请报字段</p>
-              </div>
-            </div>
+          <img :src="heroImage" alt="AI 元器件寻源工作台视觉示意" class="hero-visual__image">
+          <div class="hero-visual__caption">
+            <b>AI sourcing workspace</b>
+            <span>规格解析 · 替代料分级 · 供应商能力匹配 · RFQ</span>
           </div>
         </div>
       </section>
@@ -134,8 +116,11 @@ const metrics = [
         </div>
         <div class="scenario-grid">
           <article v-for="s in scenarios" :key="s.title" class="scenario-card">
-            <h3>{{ s.title }}</h3>
-            <p>{{ s.desc }}</p>
+            <img :src="s.image" :alt="s.title">
+            <div class="scenario-card__body">
+              <h3>{{ s.title }}</h3>
+              <p>{{ s.desc }}</p>
+            </div>
           </article>
         </div>
       </section>
@@ -147,9 +132,12 @@ const metrics = [
         </div>
         <div class="flow-grid">
           <article v-for="item in sections" :key="item.label" class="flow-card">
-            <span class="flow-card__label">{{ item.label }}</span>
-            <h3>{{ item.title }}</h3>
-            <p>{{ item.desc }}</p>
+            <img :src="item.image" :alt="item.title">
+            <div class="flow-card__body">
+              <span class="flow-card__label">{{ item.label }}</span>
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.desc }}</p>
+            </div>
           </article>
         </div>
       </section>
@@ -177,6 +165,9 @@ const metrics = [
           <p class="section__copy">
             页面设计会保留 Linear 式的清晰分隔：公开介绍、注册登录、产品功能页各自独立，功能区只在登录后出现。
           </p>
+          <div class="trust-visual">
+            <img :src="trustFlowImage" alt="AI 寻源可信流程示意">
+          </div>
         </div>
         <div class="principle-list">
           <div v-for="p in principles" :key="p" class="principle-item">
@@ -352,6 +343,39 @@ const metrics = [
   background: radial-gradient(circle, rgba(99, 102, 241, 0.28), transparent 62%);
   filter: blur(12px);
 }
+.hero-visual__image {
+  position: relative;
+  width: 100%;
+  display: block;
+  border: 1px solid var(--border-default);
+  border-radius: 22px;
+  background: var(--bg-1);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+}
+.hero-visual__caption {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  background: rgba(10, 11, 15, 0.72);
+  backdrop-filter: blur(14px);
+}
+.hero-visual__caption b {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+.hero-visual__caption span {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  text-align: right;
+}
 .visual-window {
   position: relative;
   overflow: hidden;
@@ -496,13 +520,23 @@ const metrics = [
   margin-top: var(--space-6);
 }
 .scenario-card {
-  min-height: 180px;
-  padding: var(--space-5);
+  overflow: hidden;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   background:
     linear-gradient(180deg, rgba(99, 102, 241, 0.08), rgba(255, 255, 255, 0.015)),
     var(--bg-1);
+}
+.scenario-card img,
+.flow-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: block;
+  object-fit: cover;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.scenario-card__body {
+  padding: var(--space-5);
 }
 .scenario-card h3 {
   font-size: var(--font-size-lg);
@@ -543,13 +577,15 @@ const metrics = [
   line-height: 1.7;
 }
 .flow-card {
-  min-height: 220px;
-  padding: var(--space-5);
+  overflow: hidden;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
     var(--bg-1);
+}
+.flow-card__body {
+  padding: var(--space-5);
 }
 .flow-card__label {
   color: var(--accent-hover);
@@ -557,7 +593,7 @@ const metrics = [
   font-size: var(--font-size-sm);
 }
 .flow-card h3 {
-  margin-top: var(--space-5);
+  margin-top: var(--space-4);
   font-size: var(--font-size-lg);
 }
 .flow-card p {
@@ -576,6 +612,18 @@ const metrics = [
   max-width: 640px;
   margin-top: var(--space-4);
   color: var(--text-secondary);
+}
+.trust-visual {
+  margin-top: var(--space-5);
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
+  box-shadow: var(--shadow-lg);
+}
+.trust-visual img {
+  width: 100%;
+  display: block;
 }
 .principle-list {
   display: flex;
