@@ -178,7 +178,6 @@ def _safety_filter(alternatives: list[dict]) -> list[dict]:
 async def alternatives_agent(state: ProcureState) -> ProcureState:
     log = AgentLogger("alternatives", thread_id=state.get("thread_id", ""))
     normalized_spec = state.get("normalized_spec") or {}
-    errors = list(state.get("errors", []))
 
     if not normalized_spec:
         state["alternatives"] = []
@@ -189,7 +188,6 @@ async def alternatives_agent(state: ProcureState) -> ProcureState:
     try:
         all_results: list[dict] = []
 
-        # ---- Step 1: Neo4j 图查询 ----
         part_number = normalized_spec.get("part_number", "")
         if part_number:
             try:
@@ -207,7 +205,7 @@ async def alternatives_agent(state: ProcureState) -> ProcureState:
                     )
                     all_results.append(alt)
             except Exception as e:
-                errors.append(f"[alternatives] Neo4j 查询失败: {str(e)[:100]}")
+                state.setdefault("errors", []).append(f"[alternatives] Neo4j 查询失败: {str(e)[:100]}")
 
         # ---- Step 2: LLM 推理补充 ----
         if len(all_results) < 3:
@@ -241,7 +239,7 @@ async def alternatives_agent(state: ProcureState) -> ProcureState:
                     )
                     all_results.append(alt)
             except Exception as e:
-                errors.append(f"[alternatives] LLM 推理失败: {str(e)[:100]}")
+                state.setdefault("errors", []).append(f"[alternatives] LLM 推理失败: {str(e)[:100]}")
 
         # ---- Step 3 & 4: 安全过滤 + 5级分类 ----
         all_results = _safety_filter(all_results)
@@ -259,9 +257,8 @@ async def alternatives_agent(state: ProcureState) -> ProcureState:
         log.end(state)
 
     except Exception as e:
-        errors.append(f"[alternatives] {str(e)[:200]}")
+        state.setdefault("errors", []).append(f"[alternatives] {str(e)[:200]}")
         state["alternatives"] = []
-        state["errors"] = errors
         log.fail(str(e)[:200])
 
     return state

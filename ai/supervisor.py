@@ -1,136 +1,100 @@
 """
-Supervisor + LangGraph 图编排
+Supervisor — LangGraph 图编排（主 Agent LLM 路由）
 
-架构: Supervisor Agent (LLM) → 控制子 Agent → 结果回 Supervisor → 循环直到完成
+架构:
+  START → memory_inject → supervisor → parse → supervisor → normalize
+    → supervisor → alternatives → supervisor → match → supervisor
+    → gen_rfq → supervisor → grade → memory_save → END
 
-原理:
-  1. Supervisor 是一个 LLM-powered Agent，知道完整工作流 (6 步骤)
-  2. 每个子 Agent 是图中的一个节点
-  3. Supervisor 检查当前 State，决定调用哪个子 Agent
-  4. 子 Agent 执行完毕后回到 Supervisor
-  5. 重复直到所有步骤完成 → FINISH
+关键设计:
+  - 用 LangGraph Store 实现跨会话长期记忆
+  - LangSmith 自动 trace 所有 LangChain/LangGraph 调用
+  - PromptTemplate 模板
+  - PostgresSaver 生产级 checkpointer
 
-工作流:
-  supervisor → parse → supervisor → normalize → supervisor
-    → alternatives → supervisor → match → supervisor
-    → gen_rfq → supervisor → grade → supervisor → END
-
-SSE 格式 (与前端 api/sse.ts 对齐):
-  data: {"type":"start","thread_id":"xxx"}\n\n
-  data: {"type":"progress","agent":"parse","status":"running"}\n\n
-  data: {"type":"progress","agent":"parse","status":"done","result":{...}}\n\n
-  data: {"type":"result","state":{...}}\n\n
-  data: {"type":"end"}\n\n
-
-两阶段:
-  phase=spec:  supervisor → parse → normalize → END
-  phase=match: supervisor → alternatives → match → gen_rfq → grade → END
+LangSmith 配置 (.env):
+  LANGCHAIN_TRACING_V2=true
+  LANGCHAIN_API_KEY=ls_xxx
+  LANGCHAIN_PROJECT=MatchForge
 """
 
 import uuid
 import json
 from datetime import datetime
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Any
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.store.memory import InMemoryStore
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import PromptTemplate
 
 from ai.state import ProcureState
-from ai.config import LLM_MODEL, LLM_TEMPERATURE, LLM_MAX_TOKENS, LLM_TIMEOUT
-from ai.monitor import TraceLogger, AgentLogger
-from ai.memory import inject_user_memory, save_search_to_memory, save_part_to_memory, AgentMemory, ensure_table
+from ai.config import LLM_MODEL, LLM_BASE_URL, DASHSCOPE_API_KEY, POSTGRESQL_URL
 from ai.agents.parse import parse_agent
 from ai.agents.normalize import normalize_agent
 from ai.agents.alternatives import alternatives_agent
 from ai.agents.match import match_agent
 from ai.agents.gen_rfq import gen_rfq_agent
 from ai.agents.grade import grade_agent
+from ai.monitor import TraceLogger, AgentLogger
 
-# Agent 元信息 — Supervisor 的 Prompt 用
+# LangSmith — 自动 trace (设环境变量即可，无需 import)
+# 在 .env 中添加：
+#   LANGCHAIN_TRACING_V2=true
+#   LANGCHAIN_API_KEY=ls_xxx
+#   LANGCHAIN_PROJECT=MatchForge
+# 所有 LLM 调用、LangGraph 节点执行、token 消耗自动上报
+
 AGENT_META: dict[str, dict] = {
-    "parse": {
-        "name": "需求解析",
-        "description": "将用户自然语言输入解析为结构化元器件规格字段",
-        "input": "raw_query (用户原始需求)",
-        "output": "parsed_spec (结构化规格，如 category/package/capacitance/temp_coeff/rated_voltage)",
-    },
-    "normalize": {
-        "name": "标准化",
-        "description": "将用户规格映射到标准字典编码",
-        "input": "parsed_spec",
-        "output": "normalized_spec (补充 std_code，字段名统一为英文)",
-    },
-    "alternatives": {
-        "name": "替代料推荐",
-        "description": "查找有依据的替代型号，输出5级分类和参数差异",
-        "input": "normalized_spec (含 part_number)",
-        "output": "alternatives[] (替代列表，含 level/confidence/diff_items)",
-    },
-    "match": {
-        "name": "供应商匹配",
-        "description": "匹配经营该品类的候选供应商",
-        "input": "normalized_spec + alternatives",
-        "output": "matched_suppliers[] (含匹配度/资质/品牌覆盖)",
-    },
-    "gen_rfq": {
-        "name": "询价单生成",
-        "description": "生成可编辑的结构化询价单",
-        "input": "parsed_spec + alternatives + matched_suppliers",
-        "output": "rfq_doc (询价单文本) + rfq_id",
-    },
-    "grade": {
-        "name": "线索分级",
-        "description": "根据商务字段评分，输出 A/B/C/D 线索级别",
-        "input": "parsed_spec (含月用量、交期、品牌偏好)",
-        "output": "lead_grade {grade, score, reasons}",
-    },
+    "parse": {"name": "需求解析", "description": "将用户自然语言输入解析为结构化元器件规格字段",
+              "input": "raw_query", "output": "parsed_spec"},
+    "normalize": {"name": "标准化", "description": "将用户规格映射到标准字典编码",
+                  "input": "parsed_spec", "output": "normalized_spec"},
+    "alternatives": {"name": "替代料推荐", "description": "查找有依据的替代型号，输出5级分类和参数差异",
+                     "input": "normalized_spec", "output": "alternatives[]"},
+    "match": {"name": "供应商匹配", "description": "匹配经营该品类的候选供应商",
+              "input": "normalized_spec + alternatives", "output": "matched_suppliers[]"},
+    "gen_rfq": {"name": "询价单生成", "description": "生成可编辑的结构化询价单",
+                "input": "parsed_spec + alternatives + matched_suppliers", "output": "rfq_doc"},
+    "grade": {"name": "线索分级", "description": "根据商务字段评分，输出 A/B/C/D",
+              "input": "parsed_spec", "output": "lead_grade"},
 }
 
-# ============================================================
-# Supervisor LLM 路由
-# 主 Agent 用 LLM 决定调用哪个子 Agent
-# ============================================================
-SUPERVISOR_SYSTEM_PROMPT = """你是电子元器件寻源系统的主调度 Agent。你的工作是分析当前任务进度，决定下一步调用哪个子 Agent。
+# 用 PromptTemplate 替代字符串 format
+SUPERVISOR_PROMPT = PromptTemplate.from_template("""你是电子元器件寻源系统的主调度 Agent。
 
 ## 可用子 Agent
-
 {agent_meta}
 
 ## 当前 State
-
 - raw_query: {raw_query}
-- parsed_spec: {parsed_spec_status}  (已结构化规格)
-- normalized_spec: {normalized_spec_status}  (已标准化)
-- alternatives: {alternatives_status}  (替代料)
-- matched_suppliers: {suppliers_status}  (匹配供应商)
-- rfq_doc: {rfq_doc_status}  (询价单)
-- lead_grade: {grade_status}  (线索分级)
+- parsed_spec: {parsed_spec_status}
+- normalized_spec: {normalized_spec_status}
+- alternatives: {alternatives_status}
+- matched_suppliers: {suppliers_status}
+- rfq_doc: {rfq_doc_status}
+- lead_grade: {grade_status}
 - errors: {errors_status}
 
+## 用户长期记忆
+{brand_memory}
+
 ## 规则
-1. 必须按 parse → normalize → alternatives → match → gen_rfq → grade 顺序执行
-2. 只有前面的 Agent 完成后才能调用后面的
-3. 如果某个 Agent 失败，记录到 errors，允许跳过它继续
-4. 所有 Agent 都已完成 → 输出 FINISH
+1. 严格按 parse → normalize → alternatives → match → gen_rfq → grade 顺序
+2. 已完成的不再执行
+3. 失败时记录 error，允许跳过
+4. 全部完成 → 输出 FINISH
 
-## 输出格式
-只能输出以下之一（纯文本，不要 JSON）：
-- parse
-- normalize
-- alternatives
-- match
-- gen_rfq
-- grade
-- FINISH
-"""
+## 输出
+只能输出以下之一（纯文本）：
+parse / normalize / alternatives / match / gen_rfq / grade / FINISH
+""")
 
-
-# 安全兜底 — LLM 失效时的确定性路由
 ROUTING_ORDER = ["parse", "normalize", "alternatives", "match", "gen_rfq", "grade"]
 
 
-def _check_agent_done(state: ProcureState, agent: str) -> bool:
-    """检查某个 Agent 是否已完成"""
+def _check_done(state: ProcureState, agent: str) -> bool:
     checks = {
         "parse": state.get("parsed_spec") is not None,
         "normalize": state.get("normalized_spec") is not None,
@@ -142,184 +106,152 @@ def _check_agent_done(state: ProcureState, agent: str) -> bool:
     return checks.get(agent, False)
 
 
-def _decide_next_agent_fallback(state: ProcureState) -> str:
-    """确定性兜底：找到第一个未完成的 Agent"""
-    for agent in ROUTING_ORDER:
-        if not _check_agent_done(state, agent):
-            return agent
+def _fallback(state: ProcureState) -> str:
+    for a in ROUTING_ORDER:
+        if not _check_done(state, a):
+            return a
     return "FINISH"
 
 
-def _build_supervisor_prompt(state: ProcureState) -> tuple[str, str]:
-    """构建 Supervisor Prompt"""
-    agent_lines = "\n".join(
-        f"- {key}: {meta['name']} — {meta['description']}"
-        f"  输入: {meta['input']}  输出: {meta['output']}"
-        for key, meta in AGENT_META.items()
-    )
-
-    def status(val, done_text="✅ 已完成", empty_text="⏳ 待处理"):
-        return done_text if val is not None and val != [] and val != "" else empty_text
-
-    errors_text = str(state.get("errors", [])) if state.get("errors") else "无"
-
-    prompt = SUPERVISOR_SYSTEM_PROMPT.format(
-        agent_meta=agent_lines,
-        raw_query=state.get("raw_query", "")[:100],
-        parsed_spec_status=status(state.get("parsed_spec")),
-        normalized_spec_status=status(state.get("normalized_spec")),
-        alternatives_status=status(
-            len(state.get("alternatives", [])) > 0,
-            f"✅ 已找到 {len(state.get('alternatives', []))} 个",
-            "⏳ 待处理",
-        ),
-        suppliers_status=status(
-            len(state.get("matched_suppliers", [])) > 0,
-            f"✅ 已匹配 {len(state.get('matched_suppliers', []))} 家",
-            "⏳ 待处理",
-        ),
-        rfq_doc_status=status(state.get("rfq_doc")),
-        grade_status=status(state.get("lead_grade")),
-        errors_status=errors_text,
-    )
-
-    return ("system", prompt)
+_supervisor_llm: ChatOpenAI | None = None
 
 
-# ============================================================
-# Supervisor 主节点 — LLM 控制
-# ============================================================
-_supervisor_llm = None
-
-
-def _get_supervisor_llm():
+def _get_llm() -> ChatOpenAI:
     global _supervisor_llm
     if _supervisor_llm is None:
-        from langchain_openai import ChatOpenAI
-        from ai.config import LLM_BASE_URL, DASHSCOPE_API_KEY
         _supervisor_llm = ChatOpenAI(
-            base_url=LLM_BASE_URL,
-            api_key=DASHSCOPE_API_KEY,
-            model=LLM_MODEL,
-            temperature=0,
-            max_tokens=64,
-            timeout=10,
+            base_url=LLM_BASE_URL, api_key=DASHSCOPE_API_KEY,
+            model=LLM_MODEL, temperature=0, max_tokens=64, timeout=10,
         )
     return _supervisor_llm
 
 
 async def supervisor_node(state: ProcureState) -> dict:
-    """
-    Supervisor Agent — LLM 驱动的编排决策中心
+    """Supervisor 节点：LLM 决定下一步"""
+    agent_lines = "\n".join(
+        f"- {k}: {m['name']} — {m['description']}  输入: {m['input']}  输出: {m['output']}"
+        for k, m in AGENT_META.items()
+    )
+    def s(val, done="✅ 已完成", empty="⏳ 待处理"):
+        return done if val is not None and val != [] and val != "" else empty
+    brands = state.get("user_brand_pref", [])
+    brand_line = f"该用户常用品牌: {brands}" if brands else "暂无长期记忆"
 
-    流程:
-      1. 调用 LLM 分析当前 State，决定下一步调用哪个子 Agent
-      2. LLM 失败时降级到确定性兜底
-      3. 写入 state["next_agent"]
-    """
-    log = AgentLogger("supervisor", thread_id=state.get("thread_id", ""))
-    log.start(state)
-    next_agent = "FINISH"
+    prompt = SUPERVISOR_PROMPT.format(
+        agent_meta=agent_lines,
+        raw_query=str(state.get("raw_query", ""))[:100],
+        parsed_spec_status=s(state.get("parsed_spec")),
+        normalized_spec_status=s(state.get("normalized_spec")),
+        alternatives_status=s(len(state.get("alternatives", [])) > 0, f"✅ 已找到 {len(state.get('alternatives', []))} 个"),
+        suppliers_status=s(len(state.get("matched_suppliers", [])) > 0, f"✅ 已匹配 {len(state.get('matched_suppliers', []))} 家"),
+        rfq_doc_status=s(state.get("rfq_doc")),
+        grade_status=s(state.get("lead_grade")),
+        errors_status=str(state.get("errors", [])) if state.get("errors") else "无",
+        brand_memory=brand_line,
+    )
 
+    llm = _get_llm()
     try:
-        _, prompt_text = _build_supervisor_prompt(state)
-        llm = _get_supervisor_llm()
-        messages = [
-            ("system", prompt_text),
-            ("human", "当前任务进度如上，下一步调用哪个 Agent？"),
-        ]
-        response = await llm.ainvoke(messages)
-        decision = response.content.strip().upper().replace(".", "").strip()
-
-        valid_agents = {"PARSE", "NORMALIZE", "ALTERNATIVES", "MATCH", "GEN_RFQ", "GRADE", "FINISH"}
-        if decision in valid_agents:
-            next_agent = decision.lower() if decision != "FINISH" else "FINISH"
-        else:
-            next_agent = _decide_next_agent_fallback(state)
-
+        resp = await llm.ainvoke([
+            ("human", prompt + "\n\n下一步调用哪个 Agent？"),
+        ])
+        decision = resp.content.strip().upper().replace(".", "").strip()
+        valid = {"PARSE", "NORMALIZE", "ALTERNATIVES", "MATCH", "GEN_RFQ", "GRADE", "FINISH"}
+        if decision in valid:
+            return {"next_agent": decision.lower() if decision != "FINISH" else "FINISH"}
     except Exception:
-        next_agent = _decide_next_agent_fallback(state)
-
-    log.end(state)
-    return {"next_agent": next_agent}
+        pass
+    return {"next_agent": _fallback(state)}
 
 
 # ============================================================
-# LangGraph 图构建
+# 记忆 Store 节点
 # ============================================================
-def build_supervised_graph() -> StateGraph:
-    """
-    构建 Supervisor 编排图
+async def memory_inject_node(state: ProcureState, runtime: Any) -> dict:
+    uid = state.get("user_id")
+    if not uid or not runtime.store:
+        return {}
+    result = {}
+    for key in ("brand_pref", "settings"):
+        item = runtime.store.get((uid, "preferences"), key)
+        if item:
+            sk = f"user_{key}" if key == "brand_pref" else "user_settings"
+            result[sk] = item.value
+    return result
 
-    图结构:
-      supervisor ──conditional──→ parse/normalize/.../FINISH
-          ▲                            │
-          └──────── all agents ─────────┘
-          (每个子 Agent 执行完回到 supervisor)
 
-    优势:
-      - 所有路由决策集中在 supervisor_node
-      - 新增/删除 Agent 只需改 ROUTING_ORDER + AGENT_META
-      - 错误隔离: 每个子 Agent 独立 try/except
-    """
+async def memory_save_node(state: ProcureState, runtime: Any) -> dict:
+    uid = state.get("user_id")
+    if not uid or not runtime.store:
+        return {}
+    parsed = state.get("parsed_spec") or {}
+    pn = parsed.get("part_number", "")
+
+    hi = runtime.store.get((uid, "preferences"), "part_history")
+    parts = list(hi.value) if hi else []
+    if pn:
+        for p in parts:
+            if p.get("part_number") == pn:
+                p["time"] = datetime.utcnow().isoformat(); break
+        else:
+            parts.append({"part_number": pn, "brand": parsed.get("brand", ""),
+                          "time": datetime.now().isoformat()})
+        runtime.store.put((uid, "preferences"), "part_history", parts[-100:])
+
+    if parsed.get("brand"):
+        pi = runtime.store.get((uid, "preferences"), "brand_pref")
+        brands = set(pi.value) if pi else set()
+        brands.add(parsed["brand"])
+        runtime.store.put((uid, "preferences"), "brand_pref", sorted(brands))
+    return {}
+
+
+# ============================================================
+# 构建图
+# ============================================================
+def build_supervised_graph(use_postgres: bool = False) -> StateGraph:
     workflow = StateGraph(ProcureState)
-
-    # 添加所有节点
+    workflow.add_node("memory_inject", memory_inject_node)
     workflow.add_node("supervisor", supervisor_node)
-    workflow.add_node("parse", parse_agent)
-    workflow.add_node("normalize", normalize_agent)
-    workflow.add_node("alternatives", alternatives_agent)
-    workflow.add_node("match", match_agent)
-    workflow.add_node("gen_rfq", gen_rfq_agent)
-    workflow.add_node("grade", grade_agent)
+    for name in ["parse", "normalize", "alternatives", "match", "gen_rfq", "grade"]:
+        workflow.add_node(name, globals()[f"{name}_agent"])
+    workflow.add_node("memory_save", memory_save_node)
 
-    # Supervisor → 路由到子 Agent (或结束)
+    workflow.add_edge(START, "memory_inject")
+    workflow.add_edge("memory_inject", "supervisor")
+
     workflow.add_conditional_edges(
         "supervisor",
         lambda s: s.get("next_agent", "parse"),
-        {
-            "parse": "parse",
-            "normalize": "normalize",
-            "alternatives": "alternatives",
-            "match": "match",
-            "gen_rfq": "gen_rfq",
-            "grade": "grade",
-            "FINISH": END,
-        },
+        {a: a for a in ROUTING_ORDER} | {"FINISH": "memory_save"},
     )
+    for a in ROUTING_ORDER:
+        workflow.add_edge(a, "supervisor")
+    workflow.add_edge("memory_save", END)
 
-    # 所有子 Agent 执行完毕后回到 Supervisor
-    for agent in ["parse", "normalize", "alternatives", "match", "gen_rfq", "grade"]:
-        workflow.add_edge(agent, "supervisor")
+    if use_postgres and POSTGRESQL_URL:
+        try:
+            from langgraph.checkpoint.postgres import PostgresSaver
+            checkpointer = PostgresSaver.from_conn_string(POSTGRESQL_URL)
+        except Exception:
+            checkpointer = InMemorySaver()
+    else:
+        checkpointer = InMemorySaver()
 
-    # 入口
-    workflow.set_entry_point("supervisor")
-
-    checkpointer = InMemorySaver()
-    return workflow.compile(checkpointer=checkpointer)
+    return workflow.compile(checkpointer=checkpointer, store=InMemoryStore())
 
 
 # ============================================================
 # State 初始化
 # ============================================================
-def init_state(
-    raw_query: str,
-    thread_id: str | None = None,
-) -> ProcureState:
-    """初始化 Graph State"""
+def init_state(raw_query: str, user_id: str = "", thread_id: str | None = None) -> ProcureState:
     return ProcureState(
         thread_id=thread_id or uuid.uuid4().hex[:12],
-        raw_query=raw_query,
-        parsed_spec=None,
-        normalized_spec=None,
-        alternatives=[],
-        matched_suppliers=[],
-        rfq_doc=None,
-        rfq_id=None,
-        lead_grade=None,
-        errors=[],
-        started_at=datetime.now().isoformat(),
-        completed_at=None,
+        raw_query=raw_query, parsed_spec=None, normalized_spec=None,
+        alternatives=[], matched_suppliers=[], rfq_doc=None, rfq_id=None,
+        lead_grade=None, errors=[], next_agent="parse",
+        user_id=user_id or None,
+        started_at=datetime.now().isoformat(), completed_at=None,
     )
 
 
@@ -327,159 +259,59 @@ def init_state(
 # SSE 流式执行
 # ============================================================
 async def run_procure_stream(
-    raw_query: str = "",
-    thread_id: str | None = None,
-    confirmed_spec: dict | None = None,
-    phase: str = "spec",
+    raw_query: str = "", thread_id: str | None = None,
+    confirmed_spec: dict | None = None, phase: str = "spec", user_id: str = "",
 ) -> AsyncGenerator[str, None]:
-    """
-    执行寻源流程，SSE 流式推送
-
-    原理:
-      初始化 State → 运行 LangGraph 图 (supervisor 循环路由) → SSE 推送结果
-
-    参数:
-      raw_query: 用户原始需求 (phase=spec 时必填)
-      thread_id: 会话 ID
-      confirmed_spec: 用户确认后的规格 (phase=match 时必填)
-      phase: "spec" (第一阶段 parse+normalize) 或 "match" (第二阶段 alternatives+match+gen_rfq+grade)
-    """
-    # 根据阶段确定运行的 Agent
     if phase == "spec":
-        agent_keys = ["parse", "normalize"]
-        state = init_state(raw_query, thread_id)
+        state = init_state(raw_query, user_id, thread_id)
     else:
-        agent_keys = ["alternatives", "match", "gen_rfq", "grade"]
-        state = _load_or_init_state(raw_query, thread_id, confirmed_spec)
+        state = init_state(raw_query, user_id, thread_id)
+        if confirmed_spec:
+            state["parsed_spec"] = state["normalized_spec"] = confirmed_spec
 
-    # ---- 注入用户长期记忆 ----
-    state = await inject_user_memory(state)
+    # LangSmith 通过环境变量自动 trace，无需代码
 
-    app = build_supervised_graph()
-    config_key = f"{state['thread_id']}_{phase}"
-    config = {"configurable": {"thread_id": config_key}}
-
-    # 追踪日志
+    agent_keys = set(ROUTING_ORDER)
+    graph = build_supervised_graph()
+    config = {"configurable": {"thread_id": state["thread_id"]}}
     trace = TraceLogger(state["thread_id"], phase)
     trace.begin(state.get("raw_query", ""))
+    yield _sse("start", {"thread_id": state["thread_id"]})
 
-    # SSE: start
-    yield _sse("start", {
-        "thread_id": state["thread_id"],
-        "rfq_id": state.get("rfq_id"),
-    })
+    try:
+        async for event in graph.astream(state, config, stream_mode="updates"):
+            for node_name, node_output in event.items():
+                if node_name in agent_keys:
+                    yield _sse("progress", {"agent": node_name, "status": "done",
+                                            "result": _result(state, node_output, node_name)})
+                elif node_name == "supervisor" and node_output.get("next_agent") in agent_keys:
+                    yield _sse("progress", {"agent": node_output["next_agent"], "status": "running"})
+                if isinstance(node_output, dict):
+                    state.update(node_output)
+    except Exception as e:
+        state.setdefault("errors", []).append(f"[graph] {str(e)}")
 
-    # ---- 逐 Agent 执行 ----
-    for agent_key in agent_keys:
-        yield _sse("progress", {"agent": agent_key, "status": "running"})
-
-        try:
-            state = await _agent_fn(agent_key)(state)
-            state["next_agent"] = _decide_next_agent_fallback(state)
-
-            yield _sse("progress", {
-                "agent": agent_key,
-                "status": "done",
-                "result": _get_result(state, agent_key),
-            })
-
-        except Exception as e:
-            state["errors"].append(f"[{agent_key}] {str(e)}")
-            yield _sse("error", {"agent": agent_key, "message": str(e)[:200]})
-
-    state["completed_at"] = datetime.now().isoformat()
-
-    # ---- 保存到用户记忆 ----
-    user_id = state.get("user_id")
-    if user_id and phase == "spec":
-        parsed = state.get("parsed_spec") or {}
-        await save_search_to_memory(user_id, parsed.get("part_number", ""), state.get("raw_query", ""))
-        if parsed.get("part_number"):
-            await save_part_to_memory(user_id, parsed.get("part_number", ""),
-                                      parsed.get("brand", ""), "parse")
-
-    # 结束追踪
     trace.end(state)
-
-    # SSE: result
     yield _sse("result", {
-        "state": {
-            "thread_id": state["thread_id"],
-            "raw_query": state["raw_query"],
-            "parsed_spec": state["parsed_spec"],
-            "normalized_spec": state["normalized_spec"],
-            "alternatives": state["alternatives"],
-            "matched_suppliers": state["matched_suppliers"],
-            "rfq_doc": state["rfq_doc"],
-            "rfq_id": state["rfq_id"],
-            "lead_grade": state["lead_grade"],
-            "errors": state["errors"],
-        },
+        "state": {k: state.get(k) for k in [
+            "thread_id", "raw_query", "parsed_spec", "normalized_spec",
+            "alternatives", "matched_suppliers", "rfq_doc", "rfq_id",
+            "lead_grade", "errors",
+        ]}
     })
-
-    # SSE: end
     yield _sse("end", {})
 
 
-def _agent_fn(agent_key: str):
-    """获取子 Agent 的调用函数"""
-    mapping = {
-        "parse": parse_agent,
-        "normalize": normalize_agent,
-        "alternatives": alternatives_agent,
-        "match": match_agent,
-        "gen_rfq": gen_rfq_agent,
-        "grade": grade_agent,
-    }
-    return mapping[agent_key]
+def _result(bs: dict, no: dict, agent: str) -> Any:
+    m = {"parse": "parsed_spec", "normalize": "normalized_spec", "alternatives": "alternatives",
+         "match": "matched_suppliers", "gen_rfq": "rfq_doc", "grade": "lead_grade"}
+    return no.get(m.get(agent, ""), bs.get(m.get(agent, "")))
 
 
-def _get_result(state: ProcureState, agent_key: str):
-    """获取指定 Agent 的输出"""
-    mapping = {
-        "parse": state.get("parsed_spec"),
-        "normalize": state.get("normalized_spec"),
-        "alternatives": state.get("alternatives"),
-        "match": state.get("matched_suppliers"),
-        "gen_rfq": state.get("rfq_doc"),
-        "grade": state.get("lead_grade"),
-    }
-    return mapping.get(agent_key)
+def _sse(et: str, data: dict) -> str:
+    return f"data: {json.dumps({'type': et, **data}, ensure_ascii=False)}\n\n"
 
 
-def _load_or_init_state(
-    raw_query: str,
-    thread_id: str | None,
-    confirmed_spec: dict | None,
-) -> ProcureState:
-    """第二阶段：恢复或新建 state"""
-    if confirmed_spec:
-        return ProcureState(
-            thread_id=thread_id or uuid.uuid4().hex[:12],
-            raw_query=raw_query,
-            parsed_spec=confirmed_spec,
-            normalized_spec=confirmed_spec,
-            alternatives=[],
-            matched_suppliers=[],
-            rfq_doc=None,
-            rfq_id=None,
-            lead_grade=None,
-            errors=[],
-            started_at=datetime.now().isoformat(),
-            completed_at=None,
-        )
-    return init_state(raw_query, thread_id)
-
-
-def _sse(event_type: str, data: dict) -> str:
-    """格式化 SSE 事件"""
-    payload = {"type": event_type, **data}
-    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-
-
-# ============================================================
-# 全局图实例
-# ============================================================
 _graph: StateGraph | None = None
 
 
@@ -488,10 +320,3 @@ def get_graph() -> StateGraph:
     if _graph is None:
         _graph = build_supervised_graph()
     return _graph
-
-
-# 启动时确保 memory 表存在（不阻塞应用）
-try:
-    ensure_table()
-except Exception:
-    pass
