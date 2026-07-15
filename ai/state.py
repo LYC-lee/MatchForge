@@ -101,6 +101,9 @@ class ProcureState(TypedDict):
     thread_id: str
     user_id: Optional[str]              # 用户标识，记忆用
 
+    # ── 执行追踪（防 supervisor 路由循环）──
+    _attempted_agents: list[str]          # 已尝试执行的 Agent 列表
+
     # ── 业务字段 ──
     raw_query: str
     parsed_spec: Optional[dict]

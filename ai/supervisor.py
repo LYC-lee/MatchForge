@@ -146,17 +146,9 @@ def get_supervisor_chain():
 
 # ── 状态检查辅助 ──────────────────────────────────────────────────────
 def _check_done(state: dict, agent: str) -> bool:
-    """检查指定 Agent 是否已完成。"""
-    checks = {
-        "chat": state.get("chat_response") is not None,
-        "parse": state.get("parsed_spec") is not None,
-        "normalize": state.get("normalized_spec") is not None,
-        "alternatives": len(state.get("alternatives", [])) > 0,
-        "match": len(state.get("matched_suppliers", [])) > 0,
-        "gen_rfq": state.get("rfq_doc") is not None,
-        "grade": state.get("lead_grade") is not None,
-    }
-    return checks.get(agent, False)
+    """检查指定 Agent 是否已完成（已执行过即算完成，不要求非空结果）。"""
+    attempted = state.get("_attempted_agents", [])
+    return agent in attempted
 
 
 def _build_supervisor_prompt(state: dict) -> str:
