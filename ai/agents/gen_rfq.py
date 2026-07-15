@@ -5,6 +5,8 @@ Agent ⑤ — 询价单生成
 输出: rfq_doc, rfq_id
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
 from ai.state import ProcureState
@@ -65,3 +67,7 @@ async def gen_rfq_agent(state: ProcureState) -> ProcureState:
         state["rfq_id"] = rfq_id
         log.fail(str(e)[:200])
     return state
+
+
+# ecs_assistant 风格别名
+process = gen_rfq_agent

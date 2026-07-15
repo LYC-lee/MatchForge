@@ -3,12 +3,15 @@ Milvus 向量检索工具
 供应商产品向量召回
 """
 
+from __future__ import annotations
+
 from pymilvus import connections, Collection
+
 from ai.config import MILVUS_HOST, MILVUS_PORT, MILVUS_COLLECTION_PRODUCTS
 
 
 def connect_milvus():
-    """连接 Milvus"""
+    """连接 Milvus。"""
     connections.connect(
         alias="default",
         host=MILVUS_HOST,
@@ -21,15 +24,15 @@ def search_products(
     top_k: int = 20,
     category_filter: str | None = None,
 ) -> list[dict]:
-    """
-    向量检索候选产品
+    """向量检索候选产品。
 
-    参数:
-      embedding: 规格向量
-      top_k: 返回数量
-      category_filter: 品类过滤 (可选)
+    Args:
+        embedding: 规格向量
+        top_k: 返回数量
+        category_filter: 品类过滤 (可选)
 
-    返回: [{product_id, score, category, brand, part_number}, ...]
+    Returns:
+        [{product_id, score, category, brand, part_number}, ...]
     """
     connect_milvus()
     collection = Collection(MILVUS_COLLECTION_PRODUCTS)

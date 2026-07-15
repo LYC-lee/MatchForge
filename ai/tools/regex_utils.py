@@ -3,6 +3,8 @@
 从用户输入中识别常见元器件型号 pattern
 """
 
+from __future__ import annotations
+
 import re
 from typing import Optional
 
@@ -62,8 +64,3 @@ def validate_temp_coeff(tc: str) -> bool:
     """校验温度系数是否为合法值"""
     valid = {"X5R", "X7R", "X8R", "X8L", "C0G", "NP0", "Y5V", "Z5U", "X6S", "X7S"}
     return tc.strip().upper() in valid
-
-
-def validate_capacitance_unit(val: str) -> bool:
-    """校验容值是否包含合法单位"""
-    return bool(re.search(r'(pF|nF|uF|μF|F)$', val.strip(), re.IGNORECASE))

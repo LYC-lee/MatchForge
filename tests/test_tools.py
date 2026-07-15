@@ -70,12 +70,12 @@ class TestNeo4jClient:
 class TestMysqlClient:
     def test_lookup_std_code_not_found(self):
         """字典未命中时返回 None"""
-        from ai.tools.mysql_client import lookup_std_code
+        from ai.tools.mysql_client import lookup_std_code_raw
         with patch("ai.tools.mysql_client.get_engine") as mock_engine:
             mock_conn = MagicMock()
             mock_conn.execute.return_value.fetchone.return_value = None
             mock_engine.return_value.connect.return_value.__enter__.return_value = mock_conn
-            result = lookup_std_code({"category": "MLCC"})
+            result = lookup_std_code_raw({"category": "MLCC"})
             assert result is None
 
 

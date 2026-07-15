@@ -216,20 +216,6 @@ def get_recent_logs(n: int = 10) -> list[dict]:
     return logs[-n:]
 
 
-def get_thread_trace(tid: str) -> list[dict]:
-    traces = []
-    try:
-        with open(TRACE_LOG_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.strip():
-                    t = json.loads(line)
-                    if t.get("thread_id") == tid:
-                        traces.append(t)
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
-    return traces
-
-
 def print_agent_summary(n: int = 20):
     logs = get_recent_logs(n)
     if not logs:

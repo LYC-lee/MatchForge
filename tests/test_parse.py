@@ -2,10 +2,11 @@
 测试 Agent ① — 需求解析
 """
 
+from __future__ import annotations
+
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 from ai.agents.parse import parse_agent
-from ai.state import ProcureState
 
 
 @pytest.mark.asyncio
@@ -20,7 +21,7 @@ async def test_parse_agent_success(sample_state):
     mock_llm = MagicMock()
     mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
-    with patch("ai.agents.parse._get_llm", return_value=mock_llm):
+    with patch("ai.base_agent.get_agent_llm", return_value=mock_llm):
         result = await parse_agent(sample_state)
 
     assert result["parsed_spec"] is not None
@@ -47,7 +48,7 @@ async def test_parse_agent_json_decode_error(sample_state):
     mock_llm = MagicMock()
     mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
-    with patch("ai.agents.parse._get_llm", return_value=mock_llm):
+    with patch("ai.base_agent.get_agent_llm", return_value=mock_llm):
         result = await parse_agent(sample_state)
 
     assert result["parsed_spec"] is None
@@ -62,10 +63,9 @@ async def test_parse_agent_validate_package(sample_state):
     mock_llm = MagicMock()
     mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
-    with patch("ai.agents.parse._get_llm", return_value=mock_llm):
+    with patch("ai.base_agent.get_agent_llm", return_value=mock_llm):
         result = await parse_agent(sample_state)
 
-    # INVALID 不在合法封装列表，应被过滤
     assert result["parsed_spec"] is not None
     assert "package" not in result["parsed_spec"]
     assert result["parsed_spec"]["capacitance"] == "10uF"
@@ -79,7 +79,7 @@ async def test_parse_agent_missing_critical_fields(sample_state):
     mock_llm = MagicMock()
     mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
-    with patch("ai.agents.parse._get_llm", return_value=mock_llm):
+    with patch("ai.base_agent.get_agent_llm", return_value=mock_llm):
         result = await parse_agent(sample_state)
 
     assert result["parsed_spec"] is not None

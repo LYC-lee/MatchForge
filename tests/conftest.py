@@ -2,6 +2,8 @@
 Agent 测试 — 所有的外部依赖 (LLM / MySQL / Neo4j / Milvus) 全部 mock
 """
 
+from __future__ import annotations
+
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime
@@ -14,28 +16,26 @@ from datetime import datetime
 @pytest.fixture(autouse=True)
 def mock_external_deps():
     """全局 mock — 所有测试自动应用"""
+    mock_llm = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.content = '{"category": "MLCC", "package": "0805", "capacitance": "10uF", "temp_coeff": "X7R", "rated_voltage": "50V", "tolerance": "±10%"}'
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
     patches = [
         # 不实际连接任何外部服务
         patch("ai.tools.mysql_client.get_engine"),
         patch("ai.tools.neo4j_client.get_driver"),
         patch("ai.tools.milvus_client.connect_milvus"),
-        # 不实际调 LLM
-        patch("ai.agents.parse.ChatOpenAI"),
-        patch("ai.agents.alternatives.ChatOpenAI"),
+        # 不实际调 LLM — 各 Agent 统一用 base_agent.get_agent_llm
+        patch("ai.base_agent.get_agent_llm", return_value=mock_llm),
+        # supervisor 有自己的 LLM 工厂
+        patch("ai.supervisor.get_supervisor_llm", return_value=mock_llm),
     ]
     for p in patches:
         p.start()
     yield
     for p in patches:
         p.stop()
-
-
-@pytest.fixture
-def mock_llm_response():
-    """mock LLM 返回固定 JSON"""
-    mock_llm = MagicMock()
-    mock_llm.content = '{"category": "MLCC", "package": "0805", "capacitance": "10uF", "temp_coeff": "X7R", "rated_voltage": "50V", "tolerance": "±10%"}'
-    return mock_llm
 
 
 @pytest.fixture
@@ -69,18 +69,22 @@ def sample_normalized_spec(sample_parsed_spec) -> dict:
 
 @pytest.fixture
 def sample_state(sample_raw_query) -> dict:
-    from ai.state import ProcureState
-    return ProcureState(
-        thread_id="test-001",
-        raw_query=sample_raw_query,
-        parsed_spec=None,
-        normalized_spec=None,
-        alternatives=[],
-        matched_suppliers=[],
-        rfq_doc=None,
-        rfq_id=None,
-        lead_grade=None,
-        errors=[],
-        started_at=datetime.now().isoformat(),
-        completed_at=None,
-    )
+    return {
+        "messages": [],
+        "thread_id": "test-001",
+        "raw_query": sample_raw_query,
+        "parsed_spec": None,
+        "normalized_spec": None,
+        "alternatives": [],
+        "matched_suppliers": [],
+        "rfq_doc": None,
+        "rfq_id": None,
+        "lead_grade": None,
+        "chat_response": None,
+        "errors": [],
+        "next_agent": "chat",
+        "route_reason": None,
+        "user_id": "test-user",
+        "started_at": datetime.now().isoformat(),
+        "completed_at": None,
+    }

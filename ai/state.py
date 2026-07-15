@@ -2,10 +2,12 @@
 MatchForge Graph State 定义
 与前端 types/procure.ts 严格对齐
 
-使用 reducer 使 graph 循环时列表字段正确追加而非覆盖
+使用 LangGraph add_messages reducer 保证消息列表正确追加
 """
 
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, Any, Annotated
+
+from langgraph.graph import add_messages
 
 
 class SpecField(TypedDict):
@@ -80,13 +82,26 @@ class ProcureState(TypedDict):
     """
     Graph State — 6 个智能体间的共享状态
 
-    带 reducer 的字段:
+    核心字段:
+      - messages: 使用 add_messages reducer 的对话历史（LangGraph 标准）
+      - next_agent: supervisor 路由目标，子 Agent 完成后设为 None
+      - route_reason: supervisor 路由理由，调试/日志追踪
+
+    业务字段（带 reducer 的列表字段在 graph 循环时正确追加）:
       - alternatives:    每次返回 append，不覆盖
       - matched_suppliers: 同上
       - errors:          每次返回追加
-      - next_agent:      总是覆盖
     """
+    # ── LangGraph 标准字段 ──
+    messages: Annotated[list, add_messages]
+    next_agent: str                     # supervisor 路由用
+    route_reason: str | None            # 路由理由，调试/日志
+
+    # ── 会话标识 ──
     thread_id: str
+    user_id: Optional[str]              # 用户标识，记忆用
+
+    # ── 业务字段 ──
     raw_query: str
     parsed_spec: Optional[dict]
     normalized_spec: Optional[dict]
@@ -96,8 +111,6 @@ class ProcureState(TypedDict):
     rfq_id: Optional[str]
     lead_grade: Optional[LeadGrade]
     errors: list[str]
-    next_agent: str                     # supervisor 路由用
     chat_response: Optional[str]        # 💬 聊天 Agent 回复
-    user_id: Optional[str]              # 用户标识，记忆用
     started_at: str
     completed_at: Optional[str]

@@ -17,12 +17,18 @@ load_dotenv(_project_root / ".env")
 # LLM 配置 (通义千问 DashScope / OpenAI 兼容)
 # ============================================================
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
+LLM_API_KEY = DASHSCOPE_API_KEY  # 统一命名别名，兼容 ecs_assistant 风格
 LLM_BASE_URL = os.getenv(
     "LLM_BASE_URL",
     "https://dashscope.aliyuncs.com/compatible-mode/v1",
 )
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen-max")                # 高推理: parse / alternatives
 LLM_MODEL_LIGHT = os.getenv("LLM_MODEL_LIGHT", "qwen-plus")   # 轻量: normalize / match / gen_rfq / grade
+SUPERVISOR_MODEL = os.getenv("SUPERVISOR_MODEL", "qwen-plus") # 路由专用轻量模型
+# 兼容 OpenAI SDK 自动读取 OPENAI_API_KEY
+if LLM_API_KEY and not os.environ.get("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = LLM_API_KEY
+
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-v3")
 
 # LLM 调用参数

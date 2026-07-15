@@ -5,34 +5,16 @@ Agent ① — 需求解析
 输出: parsed_spec (dict, 与前端 SpecField 格式对齐)
 """
 
+from __future__ import annotations
+
 import json
 import re
-from langchain_openai import ChatOpenAI
+
 from ai.state import ProcureState
-from ai.config import LLM_BASE_URL, DASHSCOPE_API_KEY, LLM_MODEL, LLM_TEMPERATURE, LLM_MAX_TOKENS, LLM_TIMEOUT
-from ai.tools.regex_utils import extract_part_number_with_brand, validate_package, validate_temp_coeff
+from ai import base_agent as agent_engine
+from ai.tools.regex_utils import extract_part_number_with_brand
 from ai.prompts.parse import PARSE_SYSTEM_PROMPT, PARSE_USER_TEMPLATE
 from ai.monitor import AgentLogger
-
-
-# ============================================================
-# LLM 客户端
-# ============================================================
-_llm: ChatOpenAI | None = None
-
-
-def _get_llm() -> ChatOpenAI:
-    global _llm
-    if _llm is None:
-        _llm = ChatOpenAI(
-            base_url=LLM_BASE_URL,
-            api_key=DASHSCOPE_API_KEY,
-            model=LLM_MODEL,
-            temperature=LLM_TEMPERATURE,
-            max_tokens=LLM_MAX_TOKENS,
-            timeout=LLM_TIMEOUT,
-        )
-    return _llm
 
 
 # ============================================================
@@ -44,7 +26,7 @@ VALID_CATEGORIES = {"MLCC", "钽电容", "电阻", "贴片电阻", "电感", "�
 
 
 def _validate_spec(spec: dict) -> dict:
-    """校验并清洗 LLM 输出的规格字段"""
+    """校验并清洗 LLM 输出的规格字段。"""
     cleaned = {}
     for key, val in spec.items():
         if val is None or val == "" or val == "null":
@@ -53,13 +35,12 @@ def _validate_spec(spec: dict) -> dict:
             pkg = str(val).strip()
             if pkg in VALID_PACKAGES:
                 cleaned[key] = pkg
-            # 非法封装不写入，避免误导
         elif key == "temp_coeff":
             tc = str(val).strip().upper()
             if tc in VALID_TEMP_COEFFS:
                 cleaned[key] = tc
             else:
-                cleaned[key] = str(val).strip()  # 保留但标注低置信
+                cleaned[key] = str(val).strip()
         elif key == "category":
             cat = str(val).strip()
             cleaned[key] = cat if cat in VALID_CATEGORIES else cat
@@ -87,6 +68,7 @@ def _validate_spec(spec: dict) -> dict:
 # 核心 Agent
 # ============================================================
 async def parse_agent(state: ProcureState) -> ProcureState:
+    """需求解析 Agent — 正则前置 + LLM 槽位提取 + 规则校验。"""
     log = AgentLogger("parse", thread_id=state.get("thread_id", ""))
     raw_query = state.get("raw_query", "")
 
@@ -99,7 +81,8 @@ async def parse_agent(state: ProcureState) -> ProcureState:
 
     try:
         part_number, brand_hint = extract_part_number_with_brand(raw_query)
-        llm = _get_llm()
+
+        llm = agent_engine.get_agent_llm(heavy=True)
         prompt = PARSE_USER_TEMPLATE.format(raw_query=raw_query)
         messages = [("system", PARSE_SYSTEM_PROMPT), ("human", prompt)]
         response = await llm.ainvoke(messages)
@@ -139,3 +122,7 @@ async def parse_agent(state: ProcureState) -> ProcureState:
         log.fail(str(e)[:200])
 
     return state
+
+
+# ecs_assistant 风格别名
+process = parse_agent

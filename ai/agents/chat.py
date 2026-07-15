@@ -7,9 +7,10 @@ Agent 💬 — 聊天对话
 使用轻量模型 qwen-plus，回复简洁专业。
 """
 
-from langchain_openai import ChatOpenAI
+from __future__ import annotations
+
 from ai.state import ProcureState
-from ai.config import LLM_BASE_URL, DASHSCOPE_API_KEY, LLM_MODEL_LIGHT
+from ai import base_agent as agent_engine
 from ai.monitor import AgentLogger
 
 CHAT_SYSTEM_PROMPT = """你是 MatchForge 智配的 AI 助手，一个电子元器件采购寻源工具。
@@ -26,23 +27,6 @@ CHAT_SYSTEM_PROMPT = """你是 MatchForge 智配的 AI 助手，一个电子元�
 """
 
 
-_llm: ChatOpenAI | None = None
-
-
-def _get_llm() -> ChatOpenAI:
-    global _llm
-    if _llm is None:
-        _llm = ChatOpenAI(
-            base_url=LLM_BASE_URL,
-            api_key=DASHSCOPE_API_KEY,
-            model=LLM_MODEL_LIGHT,
-            temperature=0.7,
-            max_tokens=512,
-            timeout=15,
-        )
-    return _llm
-
-
 async def chat_agent(state: ProcureState) -> ProcureState:
     """
     聊天 Agent
@@ -55,7 +39,7 @@ async def chat_agent(state: ProcureState) -> ProcureState:
     log.start(state)
 
     try:
-        llm = _get_llm()
+        llm = agent_engine.get_agent_llm(heavy=False, temperature=0.7, max_tokens=512, timeout=15)
         messages = [
             ("system", CHAT_SYSTEM_PROMPT),
             ("human", raw_query),
@@ -70,3 +54,7 @@ async def chat_agent(state: ProcureState) -> ProcureState:
         log.fail(str(e)[:200])
 
     return state
+
+
+# ecs_assistant 风格别名
+process = chat_agent

@@ -5,6 +5,8 @@ LLM 不参与评分决策，只润色文本
 输出: lead_grade { grade, score, reasons }
 """
 
+from __future__ import annotations
+
 from ai.state import ProcureState, LeadGrade
 from ai.monitor import AgentLogger
 
@@ -52,3 +54,7 @@ async def grade_agent(state: ProcureState) -> ProcureState:
         state["lead_grade"] = LeadGrade(grade="D", score=0, reasons=["评分失败"])
         log.fail(str(e)[:200])
     return state
+
+
+# ecs_assistant 风格别名
+process = grade_agent

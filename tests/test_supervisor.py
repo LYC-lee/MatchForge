@@ -1,10 +1,12 @@
 """
-测试 supervisor.py — SSE 流式推送
+测试 graph.py — SSE 流式推送
 """
 
+from __future__ import annotations
+
+import json
 import pytest
-from unittest.mock import patch, AsyncMock
-from ai.supervisor import run_procure_stream
+from ai.graph import run_procure_stream
 
 
 @pytest.mark.asyncio
@@ -16,7 +18,6 @@ async def test_run_procure_stream_spec_phase(sample_raw_query):
 
     event_types = []
     for e in events:
-        import json
         data = json.loads(e.replace("data: ", "").replace("\n\n", ""))
         event_types.append(data["type"])
 
@@ -38,7 +39,6 @@ async def test_run_procure_stream_match_phase(sample_normalized_spec):
 
     event_types = []
     for e in events:
-        import json
         data = json.loads(e.replace("data: ", "").replace("\n\n", ""))
         event_types.append(data["type"])
 
@@ -56,7 +56,6 @@ async def test_run_procure_stream_error_handling():
 
     final_data = None
     for e in events:
-        import json
         if 'data: ' in e:
             data = json.loads(e.replace("data: ", "").replace("\n\n", ""))
             if data["type"] == "result":

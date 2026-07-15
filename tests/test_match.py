@@ -21,7 +21,7 @@ async def test_match_agent_no_suppliers(sample_state, sample_normalized_spec):
     """数据库无匹配：返回空列表"""
     sample_state["normalized_spec"] = sample_normalized_spec
 
-    with patch("ai.tools.mysql_client.filter_suppliers", return_value=[]):
+    with patch("ai.tools.mysql_client.filter_suppliers_raw", return_value=[]):
         result = await match_agent(sample_state)
 
     assert result["matched_suppliers"] == []
@@ -46,7 +46,7 @@ async def test_match_agent_formatted_output(sample_state, sample_normalized_spec
         "response_speed": "",
     }]
 
-    with patch("ai.agents.match.filter_suppliers", return_value=mock_suppliers):
+    with patch("ai.agents.match.filter_suppliers_raw", return_value=mock_suppliers):
         result = await match_agent(sample_state)
 
     suppliers = result["matched_suppliers"]

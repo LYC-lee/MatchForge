@@ -4,8 +4,10 @@ Agent ② — 标准化
 输出: normalized_spec
 """
 
+from __future__ import annotations
+
 from ai.state import ProcureState
-from ai.tools.mysql_client import lookup_std_code
+from ai.tools.mysql_client import lookup_std_code_raw
 from ai.monitor import AgentLogger
 
 
@@ -19,7 +21,7 @@ async def normalize_agent(state: ProcureState) -> ProcureState:
 
     log.start(state)
     try:
-        std_result = lookup_std_code(parsed_spec)
+        std_result = lookup_std_code_raw(parsed_spec)
         normalized = dict(parsed_spec)
 
         if std_result:
@@ -49,3 +51,7 @@ async def normalize_agent(state: ProcureState) -> ProcureState:
         log.fail(str(e)[:200])
 
     return state
+
+
+# ecs_assistant 风格别名
+process = normalize_agent

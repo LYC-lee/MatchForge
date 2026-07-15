@@ -12,8 +12,10 @@ Agent ④ — 供应商匹配
 输出: matched_suppliers[]
 """
 
+from __future__ import annotations
+
 from ai.state import ProcureState
-from ai.tools.mysql_client import filter_suppliers
+from ai.tools.mysql_client import filter_suppliers_raw
 from ai.monitor import AgentLogger
 
 
@@ -44,7 +46,7 @@ async def match_agent(state: ProcureState) -> ProcureState:
         suppliers = []
         if category:
             try:
-                suppliers = filter_suppliers(category=category, brands=brands if brands else None)
+                suppliers = filter_suppliers_raw(category=category, brands=brands if brands else None)
             except Exception as e:
                 state.setdefault("errors", []).append(f"[match] MySQL 查询失败: {str(e)[:100]}")
 
@@ -132,6 +134,10 @@ async def match_agent(state: ProcureState) -> ProcureState:
         log.fail(str(e)[:200])
 
     return state
+
+
+# ecs_assistant 风格别名
+process = match_agent
 
 
 def _ensure_list(val) -> list:
