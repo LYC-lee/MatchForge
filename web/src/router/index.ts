@@ -28,6 +28,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: '产品功能' },
   },
   {
+    path: '/chat',
+    name: 'chat',
+    component: () => import('@/views/ChatView.vue'),
+    meta: { requiresAuth: true, title: '对话寻源' },
+  },
+  {
     path: '/procure/:id',
     name: 'procure',
     component: () => import('@/views/ProcureView.vue'),
@@ -81,6 +87,28 @@ const routes: RouteRecordRaw[] = [
     name: 'admin-audit',
     component: () => import('@/views/P7AdminAudit.vue'),
     meta: { requiresAuth: true, title: '运营审核' },
+  },
+
+  // ============================================================
+  // 供应商端 (MVP)
+  // ============================================================
+  {
+    path: '/supplier',
+    name: 'supplier-dashboard',
+    component: () => import('@/views/supplier/SupplierDashboard.vue'),
+    meta: { requiresAuth: true, title: '供应商工作台' },
+  },
+  {
+    path: '/supplier/products',
+    name: 'supplier-products',
+    component: () => import('@/views/supplier/SupplierProducts.vue'),
+    meta: { requiresAuth: true, title: '产品管理' },
+  },
+  {
+    path: '/supplier/leads',
+    name: 'supplier-leads',
+    component: () => import('@/views/supplier/SupplierLeads.vue'),
+    meta: { requiresAuth: true, title: '线索管理' },
   },
 ]
 

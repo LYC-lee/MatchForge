@@ -8,8 +8,13 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const pageTitle = computed(() => {
-  if (route.name === 'history') return '历史记录'
+  if (route.name === 'chat') return '对话寻源'
   if (route.name === 'procure') return '寻源工作流'
+  if (route.name === 'history') return '历史记录'
+  if (route.name === 'supplier-dashboard') return '供应商工作台'
+  if (route.name === 'supplier-products') return '产品管理'
+  if (route.name === 'supplier-leads') return '线索管理'
+  if (route.name === 'admin-audit') return '运营审核'
   return '产品功能'
 })
 
@@ -32,9 +37,13 @@ function logout() {
     </div>
 
     <nav class="sidebar__nav" aria-label="主导航">
+      <RouterLink to="/chat" class="nav__link">
+        <span class="nav__icon">💬</span>
+        <span>对话寻源</span>
+      </RouterLink>
       <RouterLink to="/app" class="nav__link">
         <span class="nav__icon">⌘</span>
-        <span>AI 寻源</span>
+        <span>工作流寻源</span>
       </RouterLink>
       <RouterLink to="/history" class="nav__link">
         <span class="nav__icon">◷</span>
@@ -47,13 +56,27 @@ function logout() {
     </nav>
 
     <div class="sidebar__section">
-      <p class="sidebar__label">Spike 范围</p>
-      <div class="scope-list">
-        <span>规格解析</span>
-        <span>替代料推荐</span>
-        <span>供应商能力匹配</span>
-        <span>RFQ 生成</span>
-      </div>
+      <p class="sidebar__label">供应商端</p>
+      <RouterLink to="/supplier" class="nav__link">
+        <span class="nav__icon">📊</span>
+        <span>供应商工作台</span>
+      </RouterLink>
+      <RouterLink to="/supplier/products" class="nav__link">
+        <span class="nav__icon">📦</span>
+        <span>产品管理</span>
+      </RouterLink>
+      <RouterLink to="/supplier/leads" class="nav__link">
+        <span class="nav__icon">📋</span>
+        <span>线索管理</span>
+      </RouterLink>
+    </div>
+
+    <div class="sidebar__section">
+      <p class="sidebar__label">运营</p>
+      <RouterLink to="/admin/audit" class="nav__link">
+        <span class="nav__icon">✓</span>
+        <span>审核管理</span>
+      </RouterLink>
     </div>
 
     <div class="sidebar__notice">
