@@ -69,31 +69,25 @@ async def test_memory_save_part_history():
 
 
 def test_fallback_routing():
-    """fallback 路由：chat 优先，完成后才到 parse"""
-    state = {"chat_response": None, "parsed_spec": None, "normalized_spec": None,
-             "alternatives": [], "matched_suppliers": [],
-             "rfq_doc": None, "lead_grade": None}
+    """fallback 路由：基于 _attempted_agents 判断"""
+    state = {"_attempted_agents": []}
     assert _ordered_fallback(state) == "chat"
-    state["chat_response"] = "hello"
-    state["parsed_spec"] = None
+    state["_attempted_agents"] = ["chat"]
     assert _ordered_fallback(state) == "parse"
-    state["parsed_spec"] = {}
+    state["_attempted_agents"] = ["chat", "parse"]
     assert _ordered_fallback(state) == "normalize"
 
 
 def test_fallback_finish():
     """全部完成 -> FINISH"""
-    state = {"chat_response": "hi", "parsed_spec": {}, "normalized_spec": {},
-             "alternatives": [{}], "matched_suppliers": [{}],
-             "rfq_doc": "", "lead_grade": {}}
+    state = {"_attempted_agents": ["chat", "parse", "normalize", "alternatives",
+                                   "match", "gen_rfq", "grade"]}
     assert _ordered_fallback(state) == "FINISH"
 
 
 def test_check_done():
-    """_check_done 识别各字段"""
-    state = {"chat_response": "hi", "parsed_spec": {}, "normalized_spec": None,
-             "alternatives": [], "matched_suppliers": [],
-             "rfq_doc": None, "lead_grade": None}
+    """_check_done 基于 _attempted_agents 判断"""
+    state = {"_attempted_agents": ["chat", "parse"]}
     assert _check_done(state, "chat") is True
     assert _check_done(state, "parse") is True
     assert _check_done(state, "normalize") is False

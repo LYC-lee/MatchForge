@@ -44,57 +44,50 @@ class TestFallbackExtract:
 
 
 class TestCheckDone:
-    """_check_done：各 Agent 完成状态判定"""
+    """_check_done：基于 _attempted_agents 判定"""
 
     def test_chat_done(self):
-        assert _check_done({"chat_response": "hello"}, "chat") is True
-        assert _check_done({"chat_response": None}, "chat") is False
+        assert _check_done({"_attempted_agents": ["chat"]}, "chat") is True
+        assert _check_done({"_attempted_agents": []}, "chat") is False
 
     def test_parse_done(self):
-        assert _check_done({"parsed_spec": {}}, "parse") is True
-        assert _check_done({"parsed_spec": None}, "parse") is False
+        assert _check_done({"_attempted_agents": ["chat", "parse"]}, "parse") is True
+        assert _check_done({"_attempted_agents": ["chat"]}, "parse") is False
 
     def test_normalize_done(self):
-        assert _check_done({"normalized_spec": {}}, "normalize") is True
-        assert _check_done({"normalized_spec": None}, "normalize") is False
+        assert _check_done({"_attempted_agents": ["chat", "parse", "normalize"]}, "normalize") is True
+        assert _check_done({"_attempted_agents": ["chat", "parse"]}, "normalize") is False
 
     def test_alternatives_done(self):
-        assert _check_done({"alternatives": [{"a": 1}]}, "alternatives") is True
-        assert _check_done({"alternatives": []}, "alternatives") is False
+        assert _check_done({"_attempted_agents": ["chat", "parse", "normalize", "alternatives"]}, "alternatives") is True
+        assert _check_done({"_attempted_agents": ["chat", "parse", "normalize"]}, "alternatives") is False
 
     def test_match_done(self):
-        assert _check_done({"matched_suppliers": [{}]}, "match") is True
-        assert _check_done({"matched_suppliers": []}, "match") is False
+        assert _check_done({"_attempted_agents": ["chat", "parse", "normalize", "alternatives", "match"]}, "match") is True
+        assert _check_done({"_attempted_agents": ["chat", "parse", "normalize", "alternatives"]}, "match") is False
 
     def test_rfq_done(self):
-        assert _check_done({"rfq_doc": "..."}, "gen_rfq") is True
-        assert _check_done({"rfq_doc": None}, "gen_rfq") is False
+        assert _check_done({"_attempted_agents": ["chat", "parse", "normalize", "alternatives", "match", "gen_rfq"]}, "gen_rfq") is True
+        assert _check_done({"_attempted_agents": ["chat", "parse", "normalize", "alternatives", "match"]}, "gen_rfq") is False
 
     def test_grade_done(self):
-        assert _check_done({"lead_grade": {"grade": "A"}}, "grade") is True
-        assert _check_done({"lead_grade": None}, "grade") is False
+        assert _check_done({"_attempted_agents": ["chat", "parse", "normalize", "alternatives", "match", "gen_rfq", "grade"]}, "grade") is True
+        assert _check_done({"_attempted_agents": ["chat", "parse", "normalize", "alternatives", "match", "gen_rfq"]}, "grade") is False
 
 
 class TestOrderedFallback:
-    """_ordered_fallback：顺序兜底"""
+    """_ordered_fallback：顺序兜底（基于 _attempted_agents）"""
 
     def test_all_pending(self):
-        state = {k: None if k != "alternatives" else [] if k == "alternatives" else None
-                 for k in ["chat_response", "parsed_spec", "normalized_spec", "rfq_doc", "lead_grade"]
-                 } | {"alternatives": [], "matched_suppliers": []}
-        assert _ordered_fallback(state) == "chat"
+        assert _ordered_fallback({"_attempted_agents": []}) == "chat"
 
     def test_chat_done_next_parse(self):
-        state = {"chat_response": "hi", "parsed_spec": None, "normalized_spec": None,
-                 "alternatives": [], "matched_suppliers": [],
-                 "rfq_doc": None, "lead_grade": None}
-        assert _ordered_fallback(state) == "parse"
+        assert _ordered_fallback({"_attempted_agents": ["chat"]}) == "parse"
 
     def test_all_done_finish(self):
-        state = {"chat_response": "hi", "parsed_spec": {}, "normalized_spec": {},
-                 "alternatives": [{}], "matched_suppliers": [{}],
-                 "rfq_doc": "", "lead_grade": {}}
-        assert _ordered_fallback(state) == "FINISH"
+        assert _ordered_fallback({"_attempted_agents": [
+            "chat", "parse", "normalize", "alternatives", "match", "gen_rfq", "grade"
+        ]}) == "FINISH"
 
 
 class TestRouteLevel1Structured:
