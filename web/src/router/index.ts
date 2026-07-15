@@ -90,6 +90,28 @@ const routes: RouteRecordRaw[] = [
   },
 
   // ============================================================
+  // 企业私域知识库 (Company-Level RAG)
+  // ============================================================
+  {
+    path: '/company-assistant',
+    name: 'company-assistant',
+    component: () => import('@/views/CompanyAssistant.vue'),
+    meta: { requiresAuth: true, title: '企业 AI 助手' },
+  },
+  {
+    path: '/company-chat',
+    name: 'company-chat',
+    component: () => import('@/views/CompanyChat.vue'),
+    meta: { requiresAuth: true, title: '企业问答' },
+  },
+  {
+    path: '/admin/knowledge',
+    name: 'admin-knowledge',
+    component: () => import('@/views/AdminKnowledge.vue'),
+    meta: { requiresAuth: true, title: '知识库管理' },
+  },
+
+  // ============================================================
   // 供应商端 (MVP)
   // ============================================================
   {
