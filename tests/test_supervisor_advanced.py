@@ -12,7 +12,6 @@ from datetime import datetime
 
 
 class FakeStore:
-    """模拟 LangGraph Store"""
     def __init__(self):
         self._data = {}
 
@@ -33,7 +32,6 @@ class FakeRuntime:
 
 @pytest.mark.asyncio
 async def test_memory_inject_with_brands():
-    """memory_inject_node 注入品牌偏好"""
     from ai.supervisor import memory_inject_node
     state = {"user_id": "test-user"}
     runtime = FakeRuntime()
@@ -44,7 +42,6 @@ async def test_memory_inject_with_brands():
 
 @pytest.mark.asyncio
 async def test_memory_inject_no_user():
-    """无 user_id 时不注入"""
     from ai.supervisor import memory_inject_node
     result = await memory_inject_node({"user_id": None}, FakeRuntime())
     assert result == {}
@@ -52,12 +49,10 @@ async def test_memory_inject_no_user():
 
 @pytest.mark.asyncio
 async def test_memory_save_brand():
-    """memory_save_node 保存品牌偏好"""
     from ai.supervisor import memory_save_node
     state = {"user_id": "test-user", "parsed_spec": {"part_number": "TMK212BJ105KG-T", "brand": "YAGEO"}}
     runtime = FakeRuntime()
     await memory_save_node(state, runtime)
-    # 验证品牌已保存
     item = runtime.store.get(("test-user", "preferences"), "brand_pref")
     assert item is not None
     assert "YAGEO" in item.value
@@ -65,7 +60,6 @@ async def test_memory_save_brand():
 
 @pytest.mark.asyncio
 async def test_memory_save_part_history():
-    """memory_save_node 保存型号历史"""
     from ai.supervisor import memory_save_node
     state = {"user_id": "test-user", "parsed_spec": {"part_number": "GRM188R61A106KE69D", "brand": "Murata"}}
     runtime = FakeRuntime()
@@ -77,10 +71,13 @@ async def test_memory_save_part_history():
 
 
 def test_fallback_routing():
-    """fallback 路由按顺序返回未完成的 Agent"""
-    state = {"parsed_spec": None, "normalized_spec": None,
+    """fallback 路由：chat 优先，完成后才到 parse"""
+    state = {"chat_response": None, "parsed_spec": None, "normalized_spec": None,
              "alternatives": [], "matched_suppliers": [],
              "rfq_doc": None, "lead_grade": None}
+    assert _fallback(state) == "chat"
+    state["chat_response"] = "hello"
+    state["parsed_spec"] = None
     assert _fallback(state) == "parse"
     state["parsed_spec"] = {}
     assert _fallback(state) == "normalize"
@@ -88,7 +85,7 @@ def test_fallback_routing():
 
 def test_fallback_finish():
     """全部完成 -> FINISH"""
-    state = {"parsed_spec": {}, "normalized_spec": {},
+    state = {"chat_response": "hi", "parsed_spec": {}, "normalized_spec": {},
              "alternatives": [{}], "matched_suppliers": [{}],
              "rfq_doc": "", "lead_grade": {}}
     assert _fallback(state) == "FINISH"
@@ -96,24 +93,23 @@ def test_fallback_finish():
 
 def test_check_done():
     """_check_done 识别各字段"""
-    state = {"parsed_spec": {}, "normalized_spec": None,
+    state = {"chat_response": "hi", "parsed_spec": {}, "normalized_spec": None,
              "alternatives": [], "matched_suppliers": [],
              "rfq_doc": None, "lead_grade": None}
+    assert _check_done(state, "chat") is True
     assert _check_done(state, "parse") is True
     assert _check_done(state, "normalize") is False
 
 
 def test_build_graph():
-    """图构建不报错"""
     graph = build_supervised_graph()
     assert graph is not None
 
 
 def test_init_state():
-    """State 初始化字段完整"""
     state = init_state("test query", "user-001", "thread-001")
     assert state["raw_query"] == "test query"
     assert state["thread_id"] == "thread-001"
     assert state["user_id"] == "user-001"
     assert state["errors"] == []
-    assert state["next_agent"] == "parse"
+    assert state["next_agent"] == "chat"

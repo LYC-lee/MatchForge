@@ -2,20 +2,16 @@
 Supervisor — LangGraph 图编排（主 Agent LLM 路由）
 
 架构:
-  START → memory_inject → supervisor → parse → supervisor → normalize
+  START → memory_inject → supervisor → chat/parse → supervisor → normalize
     → supervisor → alternatives → supervisor → match → supervisor
     → gen_rfq → supervisor → grade → memory_save → END
 
 关键设计:
-  - 用 LangGraph Store 实现跨会话长期记忆
-  - LangSmith 自动 trace 所有 LangChain/LangGraph 调用
-  - PromptTemplate 模板
+  - 💬 chat Agent 处理闲聊/问候，qwen-plus 轻量模型
+  - Supervisor 用 LLM 判断用户意图，路由到 chat 或 parse
+  - LangGraph Store 跨会话长期记忆
+  - LangSmith 自动 trace
   - PostgresSaver 生产级 checkpointer
-
-LangSmith 配置 (.env):
-  LANGCHAIN_TRACING_V2=true
-  LANGCHAIN_API_KEY=ls_xxx
-  LANGCHAIN_PROJECT=MatchForge
 """
 
 import uuid
@@ -37,16 +33,12 @@ from ai.agents.alternatives import alternatives_agent
 from ai.agents.match import match_agent
 from ai.agents.gen_rfq import gen_rfq_agent
 from ai.agents.grade import grade_agent
+from ai.agents.chat import chat_agent
 from ai.monitor import TraceLogger, AgentLogger
 
-# LangSmith — 自动 trace (设环境变量即可，无需 import)
-# 在 .env 中添加：
-#   LANGCHAIN_TRACING_V2=true
-#   LANGCHAIN_API_KEY=ls_xxx
-#   LANGCHAIN_PROJECT=MatchForge
-# 所有 LLM 调用、LangGraph 节点执行、token 消耗自动上报
-
 AGENT_META: dict[str, dict] = {
+    "chat": {"name": "💬 聊天对话", "description": "回复用户的闲聊、问候、功能介绍等非寻源问题",
+             "input": "raw_query", "output": "chat_response"},
     "parse": {"name": "需求解析", "description": "将用户自然语言输入解析为结构化元器件规格字段",
               "input": "raw_query", "output": "parsed_spec"},
     "normalize": {"name": "标准化", "description": "将用户规格映射到标准字典编码",
@@ -61,14 +53,13 @@ AGENT_META: dict[str, dict] = {
               "input": "parsed_spec", "output": "lead_grade"},
 }
 
-# 用 PromptTemplate 替代字符串 format
 SUPERVISOR_PROMPT = PromptTemplate.from_template("""你是电子元器件寻源系统的主调度 Agent。
 
 ## 可用子 Agent
 {agent_meta}
 
 ## 当前 State
-- raw_query: {raw_query}
+- raw_query: "{raw_query}"
 - parsed_spec: {parsed_spec_status}
 - normalized_spec: {normalized_spec_status}
 - alternatives: {alternatives_status}
@@ -80,22 +71,24 @@ SUPERVISOR_PROMPT = PromptTemplate.from_template("""你是电子元器件寻源�
 ## 用户长期记忆
 {brand_memory}
 
-## 规则
-1. 严格按 parse → normalize → alternatives → match → gen_rfq → grade 顺序
-2. 已完成的不再执行
-3. 失败时记录 error，允许跳过
-4. 全部完成 → 输出 FINISH
+## 路由规则
+1. 如果用户是闲聊/问候/问功能 → 输出 chat
+2. 如果是寻源需求 → 按 parse → normalize → alternatives → match → gen_rfq → grade 顺序
+3. 已完成的不再执行
+4. 失败时记录 error，允许跳过
+5. 全部完成 → 输出 FINISH
 
 ## 输出
 只能输出以下之一（纯文本）：
-parse / normalize / alternatives / match / gen_rfq / grade / FINISH
+chat / parse / normalize / alternatives / match / gen_rfq / grade / FINISH
 """)
 
-ROUTING_ORDER = ["parse", "normalize", "alternatives", "match", "gen_rfq", "grade"]
+ROUTING_ORDER = ["chat", "parse", "normalize", "alternatives", "match", "gen_rfq", "grade"]
 
 
 def _check_done(state: ProcureState, agent: str) -> bool:
     checks = {
+        "chat": state.get("chat_response") is not None,
         "parse": state.get("parsed_spec") is not None,
         "normalize": state.get("normalized_spec") is not None,
         "alternatives": len(state.get("alternatives", [])) > 0,
@@ -127,7 +120,7 @@ def _get_llm() -> ChatOpenAI:
 
 
 async def supervisor_node(state: ProcureState) -> dict:
-    """Supervisor 节点：LLM 决定下一步"""
+    """Supervisor 节点：LLM 判断用户意图，路由到 chat 或 寻源 Agent"""
     agent_lines = "\n".join(
         f"- {k}: {m['name']} — {m['description']}  输入: {m['input']}  输出: {m['output']}"
         for k, m in AGENT_META.items()
@@ -153,10 +146,10 @@ async def supervisor_node(state: ProcureState) -> dict:
     llm = _get_llm()
     try:
         resp = await llm.ainvoke([
-            ("human", prompt + "\n\n下一步调用哪个 Agent？"),
+            ("human", prompt + "\n\n用户输入: \"" + str(state.get("raw_query", ""))[:100] + "\"\n下一步调用哪个 Agent？"),
         ])
         decision = resp.content.strip().upper().replace(".", "").strip()
-        valid = {"PARSE", "NORMALIZE", "ALTERNATIVES", "MATCH", "GEN_RFQ", "GRADE", "FINISH"}
+        valid = {"CHAT", "PARSE", "NORMALIZE", "ALTERNATIVES", "MATCH", "GEN_RFQ", "GRADE", "FINISH"}
         if decision in valid:
             return {"next_agent": decision.lower() if decision != "FINISH" else "FINISH"}
     except Exception:
@@ -186,18 +179,16 @@ async def memory_save_node(state: ProcureState, runtime: Any) -> dict:
         return {}
     parsed = state.get("parsed_spec") or {}
     pn = parsed.get("part_number", "")
-
     hi = runtime.store.get((uid, "preferences"), "part_history")
     parts = list(hi.value) if hi else []
     if pn:
         for p in parts:
             if p.get("part_number") == pn:
-                p["time"] = datetime.utcnow().isoformat(); break
+                p["time"] = datetime.now().isoformat(); break
         else:
             parts.append({"part_number": pn, "brand": parsed.get("brand", ""),
                           "time": datetime.now().isoformat()})
         runtime.store.put((uid, "preferences"), "part_history", parts[-100:])
-
     if parsed.get("brand"):
         pi = runtime.store.get((uid, "preferences"), "brand_pref")
         brands = set(pi.value) if pi else set()
@@ -213,18 +204,15 @@ def build_supervised_graph(use_postgres: bool = False) -> StateGraph:
     workflow = StateGraph(ProcureState)
     workflow.add_node("memory_inject", memory_inject_node)
     workflow.add_node("supervisor", supervisor_node)
-    for name in ["parse", "normalize", "alternatives", "match", "gen_rfq", "grade"]:
+    for name in ["chat", "parse", "normalize", "alternatives", "match", "gen_rfq", "grade"]:
         workflow.add_node(name, globals()[f"{name}_agent"])
     workflow.add_node("memory_save", memory_save_node)
 
     workflow.add_edge(START, "memory_inject")
     workflow.add_edge("memory_inject", "supervisor")
 
-    workflow.add_conditional_edges(
-        "supervisor",
-        lambda s: s.get("next_agent", "parse"),
-        {a: a for a in ROUTING_ORDER} | {"FINISH": "memory_save"},
-    )
+    route_map = {a: a for a in ROUTING_ORDER} | {"FINISH": "memory_save"}
+    workflow.add_conditional_edges("supervisor", lambda s: s.get("next_agent", "chat"), route_map)
     for a in ROUTING_ORDER:
         workflow.add_edge(a, "supervisor")
     workflow.add_edge("memory_save", END)
@@ -241,15 +229,12 @@ def build_supervised_graph(use_postgres: bool = False) -> StateGraph:
     return workflow.compile(checkpointer=checkpointer, store=InMemoryStore())
 
 
-# ============================================================
-# State 初始化
-# ============================================================
 def init_state(raw_query: str, user_id: str = "", thread_id: str | None = None) -> ProcureState:
     return ProcureState(
         thread_id=thread_id or uuid.uuid4().hex[:12],
         raw_query=raw_query, parsed_spec=None, normalized_spec=None,
         alternatives=[], matched_suppliers=[], rfq_doc=None, rfq_id=None,
-        lead_grade=None, errors=[], next_agent="parse",
+        lead_grade=None, chat_response=None, errors=[], next_agent="chat",
         user_id=user_id or None,
         started_at=datetime.now().isoformat(), completed_at=None,
     )
@@ -268,8 +253,6 @@ async def run_procure_stream(
         state = init_state(raw_query, user_id, thread_id)
         if confirmed_spec:
             state["parsed_spec"] = state["normalized_spec"] = confirmed_spec
-
-    # LangSmith 通过环境变量自动 trace，无需代码
 
     agent_keys = set(ROUTING_ORDER)
     graph = build_supervised_graph()
@@ -296,15 +279,16 @@ async def run_procure_stream(
         "state": {k: state.get(k) for k in [
             "thread_id", "raw_query", "parsed_spec", "normalized_spec",
             "alternatives", "matched_suppliers", "rfq_doc", "rfq_id",
-            "lead_grade", "errors",
+            "lead_grade", "chat_response", "errors",
         ]}
     })
     yield _sse("end", {})
 
 
 def _result(bs: dict, no: dict, agent: str) -> Any:
-    m = {"parse": "parsed_spec", "normalize": "normalized_spec", "alternatives": "alternatives",
-         "match": "matched_suppliers", "gen_rfq": "rfq_doc", "grade": "lead_grade"}
+    m = {"chat": "chat_response", "parse": "parsed_spec", "normalize": "normalized_spec",
+         "alternatives": "alternatives", "match": "matched_suppliers",
+         "gen_rfq": "rfq_doc", "grade": "lead_grade"}
     return no.get(m.get(agent, ""), bs.get(m.get(agent, "")))
 
 
