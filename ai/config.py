@@ -46,6 +46,20 @@ MYSQL_URL = (
 )
 
 # ============================================================
+# PostgreSQL 16 — 长期记忆库 (AgentMemory)
+# docker-compose: postgres:5432, user=matchforge, password=matchforge123, db=matchforge_memory
+# ============================================================
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
+POSTGRES_USER = os.getenv("POSTGRES_USER", "matchforge")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "matchforge123")
+POSTGRES_DATABASE = os.getenv("POSTGRES_DATABASE", "matchforge_memory")
+POSTGRESQL_URL = (
+    f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}"
+    f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DATABASE}"
+)
+
+# ============================================================
 # Milvus 2.4 — 向量数据库 (Standalone)
 # docker-compose: milvus:19530 (gRPC) / 9091 (health)
 # 依赖: etcd:2379 + minio:9000

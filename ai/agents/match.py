@@ -14,9 +14,11 @@ Agent ④ — 供应商匹配
 
 from ai.state import ProcureState
 from ai.tools.mysql_client import filter_suppliers
+from ai.monitor import AgentLogger
 
 
 async def match_agent(state: ProcureState) -> ProcureState:
+    log = AgentLogger("match", thread_id=state.get("thread_id", ""))
     normalized_spec = state.get("normalized_spec") or {}
     alternatives = state.get("alternatives", [])
     errors = list(state.get("errors", []))
@@ -24,6 +26,8 @@ async def match_agent(state: ProcureState) -> ProcureState:
     if not normalized_spec:
         state["matched_suppliers"] = []
         return state
+
+    log.start(state)
 
     try:
         # ---- Step 1: 收集搜索条件 ----
@@ -139,11 +143,13 @@ async def match_agent(state: ProcureState) -> ProcureState:
                     pass
 
         state["matched_suppliers"] = matched
+        log.end(state)
 
     except Exception as e:
         errors.append(f"[match] {str(e)[:200]}")
         state["matched_suppliers"] = []
         state["errors"] = errors
+        log.fail(str(e)[:200])
 
     return state
 

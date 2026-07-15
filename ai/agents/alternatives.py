@@ -25,6 +25,7 @@ from ai.state import ProcureState, Alternative, ParamDiff, DiffItem
 from ai.config import LLM_BASE_URL, DASHSCOPE_API_KEY, LLM_MODEL, LLM_TEMPERATURE, LLM_MAX_TOKENS, LLM_TIMEOUT
 from ai.tools.neo4j_client import query_all_alternatives
 from ai.prompts.alternatives import ALTERNATIVES_SYSTEM_PROMPT, ALTERNATIVES_USER_TEMPLATE
+from ai.monitor import AgentLogger
 
 
 _llm: ChatOpenAI | None = None
@@ -175,12 +176,15 @@ def _safety_filter(alternatives: list[dict]) -> list[dict]:
 # 核心 Agent
 # ============================================================
 async def alternatives_agent(state: ProcureState) -> ProcureState:
+    log = AgentLogger("alternatives", thread_id=state.get("thread_id", ""))
     normalized_spec = state.get("normalized_spec") or {}
     errors = list(state.get("errors", []))
 
     if not normalized_spec:
         state["alternatives"] = []
         return state
+
+    log.start(state)
 
     try:
         all_results: list[dict] = []
@@ -252,11 +256,13 @@ async def alternatives_agent(state: ProcureState) -> ProcureState:
         # 转换为前端期望的格式
         alternatives = _format_for_frontend(all_results, normalized_spec)
         state["alternatives"] = alternatives
+        log.end(state)
 
     except Exception as e:
         errors.append(f"[alternatives] {str(e)[:200]}")
         state["alternatives"] = []
         state["errors"] = errors
+        log.fail(str(e)[:200])
 
     return state
 

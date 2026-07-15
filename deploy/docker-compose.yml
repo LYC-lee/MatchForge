@@ -161,6 +161,31 @@ services:
       - matchforge-net
 
   # ============================================================
+  # PostgreSQL 16 — 长期记忆库 (AgentMemory / 用户偏好/历史)
+  # 端口: 5432
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: matchforge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: matchforge
+      POSTGRES_PASSWORD: matchforge123
+      POSTGRES_DB: matchforge_memory
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matchforge -d matchforge_memory"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - matchforge-net
+
+  # ============================================================
   # Redis 7 — 缓存 / 会话 / 限流
   # 端口: 6379
   # ============================================================
@@ -201,6 +226,8 @@ volumes:
     name: matchforge-neo4j-import
   redis_data:
     name: matchforge-redis-data
+  postgres_data:
+    name: matchforge-postgres-data
 
 # ============================================================
 # 网络

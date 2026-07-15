@@ -11,6 +11,7 @@ LLM 不参与评分决策，只润色文本
 """
 
 from ai.state import ProcureState, LeadGrade
+from ai.monitor import AgentLogger
 
 
 def score_lead(spec: dict) -> LeadGrade:
@@ -78,16 +79,21 @@ def score_lead(spec: dict) -> LeadGrade:
 
 
 async def grade_agent(state: ProcureState) -> ProcureState:
+    log = AgentLogger("grade", thread_id=state.get("thread_id", ""))
     parsed_spec = state.get("parsed_spec") or state.get("normalized_spec") or {}
     errors = list(state.get("errors", []))
+
+    log.start(state)
 
     try:
         lead_grade = score_lead(parsed_spec)
         state["lead_grade"] = lead_grade
+        log.end(state)
 
     except Exception as e:
         errors.append(f"[grade] {str(e)[:200]}")
         state["lead_grade"] = LeadGrade(grade="D", score=0, reasons=["评分失败"])
         state["errors"] = errors
+        log.fail(str(e)[:200])
 
     return state

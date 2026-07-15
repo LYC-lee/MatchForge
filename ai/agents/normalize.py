@@ -7,9 +7,11 @@ Agent ② — 标准化
 
 from ai.state import ProcureState
 from ai.tools.mysql_client import lookup_std_code
+from ai.monitor import AgentLogger
 
 
 async def normalize_agent(state: ProcureState) -> ProcureState:
+    log = AgentLogger("normalize", thread_id=state.get("thread_id", ""))
     parsed_spec = state.get("parsed_spec")
     errors = list(state.get("errors", []))
 
@@ -17,8 +19,9 @@ async def normalize_agent(state: ProcureState) -> ProcureState:
         state["normalized_spec"] = None
         return state
 
+    log.start(state)
+
     try:
-        # ---- Step 1: 查 MySQL 标准字典 ----
         std_result = lookup_std_code(parsed_spec)
         normalized = dict(parsed_spec)
 
@@ -30,8 +33,6 @@ async def normalize_agent(state: ProcureState) -> ProcureState:
             normalized["std_code"] = None
             normalized["_mapped"] = False
 
-        # ---- Step 2: 标准化常见字段名 ----
-        # 统一中文/英文别名
         field_aliases = {
             "容值": "capacitance",
             "阻值": "resistance",
@@ -51,11 +52,12 @@ async def normalize_agent(state: ProcureState) -> ProcureState:
                 normalized[en] = normalized[cn]
 
         state["normalized_spec"] = normalized
+        log.end(state)
 
     except Exception as e:
         errors.append(f"[normalize] {str(e)[:200]}")
-        # 失败时透传原值
         state["normalized_spec"] = dict(parsed_spec) if parsed_spec else None
         state["errors"] = errors
+        log.fail(str(e)[:200])
 
     return state

@@ -13,6 +13,7 @@ Agent ⑤ — 询价单生成
 import uuid
 from datetime import datetime
 from ai.state import ProcureState
+from ai.monitor import AgentLogger
 
 
 def build_rfq_template(
@@ -67,6 +68,7 @@ RFQ-ID: {rfq_id}
 
 
 async def gen_rfq_agent(state: ProcureState) -> ProcureState:
+    log = AgentLogger("gen_rfq", thread_id=state.get("thread_id", ""))
     parsed_spec = state.get("parsed_spec") or state.get("normalized_spec") or {}
     alternatives = state.get("alternatives", [])
     matched_suppliers = state.get("matched_suppliers", [])
@@ -74,9 +76,9 @@ async def gen_rfq_agent(state: ProcureState) -> ProcureState:
     errors = list(state.get("errors", []))
 
     rfq_id = f"MF-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:4].upper()}"
+    log.start(state)
 
     try:
-        # 模板填充 — 零幻觉
         rfq_doc = build_rfq_template(
             spec=parsed_spec,
             alternatives=alternatives,
@@ -86,12 +88,13 @@ async def gen_rfq_agent(state: ProcureState) -> ProcureState:
         )
         state["rfq_doc"] = rfq_doc
         state["rfq_id"] = rfq_id
+        log.end(state)
 
     except Exception as e:
         errors.append(f"[gen_rfq] {str(e)[:200]}")
-        # 模板兜底
         state["rfq_doc"] = build_rfq_template({}, alternatives, matched_suppliers, rfq_id, raw_query)
         state["rfq_id"] = rfq_id
         state["errors"] = errors
+        log.fail(str(e)[:200])
 
     return state

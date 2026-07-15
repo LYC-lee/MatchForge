@@ -12,6 +12,7 @@ from ai.state import ProcureState
 from ai.config import LLM_BASE_URL, DASHSCOPE_API_KEY, LLM_MODEL, LLM_TEMPERATURE, LLM_MAX_TOKENS, LLM_TIMEOUT
 from ai.tools.regex_utils import extract_part_number_with_brand, validate_package, validate_temp_coeff
 from ai.prompts.parse import PARSE_SYSTEM_PROMPT, PARSE_USER_TEMPLATE
+from ai.monitor import AgentLogger
 
 
 # ============================================================
@@ -86,6 +87,7 @@ def _validate_spec(spec: dict) -> dict:
 # 核心 Agent
 # ============================================================
 async def parse_agent(state: ProcureState) -> ProcureState:
+    log = AgentLogger("parse", thread_id=state.get("thread_id", ""))
     raw_query = state.get("raw_query", "")
     errors = list(state.get("errors", []))
 
@@ -94,6 +96,8 @@ async def parse_agent(state: ProcureState) -> ProcureState:
         state["parsed_spec"] = None
         state["errors"] = errors
         return state
+
+    log.start(state)
 
     try:
         # ---- Step 1: 正则前置识别 ----
@@ -120,18 +124,15 @@ async def parse_agent(state: ProcureState) -> ProcureState:
         llm_spec = _validate_spec(llm_spec)
 
         # ---- Step 4: 合并正则 + LLM 结果 ----
-        # 正则命中的型号优先
         if part_number and "part_number" not in llm_spec:
             llm_spec["part_number"] = part_number
         if brand_hint and brand_hint != "Unknown" and "brand" not in llm_spec:
             llm_spec["brand"] = brand_hint
 
-        # 判断关键字段缺失
         critical_fields = ["part_number", "category", "package", "capacitance", "rated_voltage"]
         missing = [f for f in critical_fields if f not in llm_spec]
 
         if len(missing) >= 3 and not part_number:
-            # 型号识别失败 + 关键字段大量缺失 → 标记为低质量
             state["parsed_spec"] = llm_spec if llm_spec else None
             if not llm_spec:
                 errors.append("[parse] 未识别到有效型号或规格参数")
@@ -139,14 +140,17 @@ async def parse_agent(state: ProcureState) -> ProcureState:
             state["parsed_spec"] = llm_spec
 
         state["errors"] = errors
+        log.end(state)
 
     except json.JSONDecodeError as e:
         errors.append(f"[parse] LLM 返回格式异常: {str(e)[:100]}")
         state["parsed_spec"] = None
         state["errors"] = errors
+        log.fail(f"LLM JSON 解析失败: {str(e)[:100]}")
     except Exception as e:
         errors.append(f"[parse] {str(e)[:200]}")
         state["parsed_spec"] = None
         state["errors"] = errors
+        log.fail(str(e)[:200])
 
     return state
