@@ -19,6 +19,7 @@ def mock_external_deps():
     mock_llm = AsyncMock()
     mock_response = MagicMock()
     mock_response.content = '{"category": "MLCC", "package": "0805", "capacitance": "10uF", "temp_coeff": "X7R", "rated_voltage": "50V", "tolerance": "±10%"}'
+    mock_response.tool_calls = []  # 无工具调用，直接返回文本回复
     mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
     patches = []

@@ -59,7 +59,8 @@ class TestNeo4jClient:
             mock_session = MagicMock()
             mock_session.run.return_value = []
             mock_driver.return_value.session.return_value.__enter__.return_value = mock_session
-            result = query_all_alternatives("NONEXISTENT")
+            # @tool 装饰后需用 .invoke() 调用
+            result = query_all_alternatives.invoke({"part_number": "NONEXISTENT"})
             assert result == []
 
 

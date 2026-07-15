@@ -1,11 +1,11 @@
 """
 Agent ④ — 供应商匹配
+LLM 自主调用 MySQL 供应商查询 + 评分排序
 
 流程:
-  1. Milvus 向量召回 (按 spec 语义检索)
-  2. MySQL 规则过滤 (品类 + 品牌 + 资质)
-  3. 排序 (品牌覆盖度 + 资质等级 + 响应速度)
-  4. LLM 生成匹配解释 (可选)
+  1. LLM 自主调用 filter_suppliers 查询符合条件的供应商
+  2. LLM 根据品牌覆盖度、资质等级、响应速度进行评分排序
+  3. LLM 生成最终匹配结果
 
 红线: 供应商必须来自 DB，首期库存/交期/价格一律标"未确认"
 
@@ -14,12 +14,66 @@ Agent ④ — 供应商匹配
 
 from __future__ import annotations
 
+import json
+
 from ai.state import ProcureState
-from ai.tools.mysql_client import filter_suppliers_raw
+from ai import base_agent as agent_engine
+from ai.tools.mysql_client import filter_suppliers as filter_suppliers_tool
 from ai.monitor import AgentLogger
+
+MATCH_SYSTEM_PROMPT = """你是电子元器件供应商匹配专家。你可以查询数据库中的供应商信息，并根据用户需求进行评分排序。
+
+## 可用工具
+- filter_suppliers: 查询符合品类、品牌、地区条件的供应商列表
+  参数: category(品类), brands(品牌名称，逗号分隔), location(地区)
+
+## 工作流程
+1. 从用户提供的元器件规格中提取品类、品牌偏好、地区等信息
+2. 调用 filter_suppliers 工具查询符合条件的供应商
+3. 对供应商进行评分排序：
+   - 品牌覆盖度: 匹配的品牌数 / 需求品牌数 × 0.4
+   - 资质等级: IATF16949=3分, ISO14001=2分, ISO9001=2分, 原厂授权=3分 → 归一化 /3 × 0.3
+   - 响应速度: 24h/12h内响应 +0.2, 48h内 +0.1
+   - 数据新鲜度: 30天内更新 +0.1, 90天内 +0.05
+4. 输出排序后的匹配结果
+
+## 输出格式
+严格返回 JSON 对象，包含 matched_suppliers 数组：
+{
+  "matched_suppliers": [
+    {
+      "id": "供应商ID",
+      "name": "供应商名称",
+      "match_score": 0.0-1.0,
+      "category": "品类",
+      "region": "地区",
+      "location": "地区",
+      "categories": ["品类列表"],
+      "brands": ["品牌列表"],
+      "qualifications": ["资质列表"],
+      "moq": 最小起订量,
+      "lead_time_weeks": 交期周数,
+      "in_stock": false,
+      "response_speed": "24h/48h/72h/暂无数据",
+      "data_source": "平台数据",
+      "updated_at": "更新时间",
+      "confirmed_stock": false,
+      "confirmed_lead": false,
+      "confirmed_price": false
+    }
+  ]
+}
+
+## 红线规则
+- 供应商必须来自数据库查询结果，不得编造
+- 库存、交期、价格一律标 "未确认" (confirmed_stock/confirmed_lead/confirmed_price = false)
+- 数据超过 90 天未更新，标注 "信息可能过期"
+- 按 match_score 降序排列
+- 返回纯 JSON，不要包含 markdown 代码块标记"""
 
 
 async def match_agent(state: ProcureState) -> ProcureState:
+    """供应商匹配 Agent — LLM 自主调用 MySQL 查询 + 评分排序。"""
     log = AgentLogger("match", thread_id=state.get("thread_id", ""))
     normalized_spec = state.get("normalized_spec") or {}
     alternatives = state.get("alternatives", [])
@@ -31,97 +85,62 @@ async def match_agent(state: ProcureState) -> ProcureState:
     log.start(state)
 
     try:
-        category = normalized_spec.get("category", "")
-        brands: list[str] = []
+        # 从 alternatives 中收集品牌信息
+        brand_hints = []
         for alt in alternatives:
             b = alt.get("brand", "")
-            if b and b not in brands:
-                brands.append(b)
+            if b and b not in brand_hints:
+                brand_hints.append(b)
         brand_pref = normalized_spec.get("brand_pref", [])
         if isinstance(brand_pref, list):
             for b in brand_pref:
-                if b not in brands:
-                    brands.append(b)
+                if b not in brand_hints:
+                    brand_hints.append(b)
 
-        suppliers = []
-        if category:
-            try:
-                suppliers = filter_suppliers_raw(category=category, brands=brands if brands else None)
-            except Exception as e:
-                state.setdefault("errors", []).append(f"[match] MySQL 查询失败: {str(e)[:100]}")
+        context = {
+            "normalized_spec": normalized_spec,
+            "brand_hints": brand_hints,
+        }
 
-        qual_rank = {"IATF16949": 3, "ISO14001": 2, "ISO9001": 2, "原厂授权": 3}
+        user_msg = (
+            f"请为以下元器件需求匹配供应商：\n"
+            f"{json.dumps(context, ensure_ascii=False, indent=2)}"
+        )
 
-        def _rank(sup: dict) -> float:
-            score = 0.0
-            sup_brands = sup.get("brands", [])
-            if isinstance(sup_brands, str):
-                sup_brands = [b.strip() for b in sup_brands.split(",")]
-            if brands:
-                matched = sum(1 for b in brands if any(b.lower() in sb.lower() for sb in sup_brands))
-                score += (matched / max(len(brands), 1)) * 0.4
-            quals = sup.get("qualifications", [])
-            if isinstance(quals, str):
-                quals = [q.strip() for q in quals.split(",")]
-            max_qual = 0
-            for q in quals:
-                for k, v in qual_rank.items():
-                    if k.lower() in q.lower():
-                        max_qual = max(max_qual, v)
-            score += (max_qual / 3) * 0.3
-            resp = sup.get("response_speed", "")
-            if "24h" in resp or "12h" in resp:
-                score += 0.2
-            elif "48h" in resp:
-                score += 0.1
-            updated = sup.get("updated_at", "")
-            if updated:
-                try:
-                    from datetime import datetime
-                    days_ago = (datetime.now() - datetime.strptime(updated[:10], "%Y-%m-%d")).days
-                    if days_ago < 30:
-                        score += 0.1
-                    elif days_ago < 90:
-                        score += 0.05
-                except Exception:
-                    pass
-            return score
+        tool_state = {"messages": [{"role": "user", "content": user_msg}]}
 
-        matched = []
-        for s in suppliers:
-            s_dict = dict(s) if hasattr(s, '_mapping') else s
-            if isinstance(s_dict, dict):
-                sup_score = _rank(s_dict)
-                matched.append({
-                    "id": str(s_dict.get("id", "")),
-                    "name": s_dict.get("name", ""),
-                    "score": sup_score,
-                    "category": s_dict.get("category", category),
-                    "region": s_dict.get("location", s_dict.get("region", "")),
-                    "location": s_dict.get("location", s_dict.get("region", "")),
-                    "categories": [s_dict.get("category", category)],
-                    "brands": _ensure_list(s_dict.get("brands", [])),
-                    "qualifications": _ensure_list(s_dict.get("qualifications", [])),
-                    "moq": s_dict.get("moq", 0),
-                    "lead_time_weeks": s_dict.get("lead_time_weeks", 0),
-                    "in_stock": False,
-                    "response_speed": _get_response_speed(s_dict.get("lead_time_weeks", 0)),
-                    "data_source": s_dict.get("data_source", "平台数据"),
-                    "updated_at": s_dict.get("updated_at", ""),
-                    "confirmed_stock": False,
-                    "confirmed_lead": False,
-                    "confirmed_price": False,
-                    "match_score": round(sup_score, 2),
-                })
+        result = await agent_engine.run_tool_agent(
+            state=tool_state,
+            system_prompt=MATCH_SYSTEM_PROMPT,
+            tools=[filter_suppliers_tool],
+            max_tool_rounds=3,
+            heavy=False,
+        )
 
-        matched.sort(key=lambda x: x["match_score"], reverse=True)
+        content = result["messages"][0].content
+        parsed = agent_engine.parse_json_from_llm(content)
+
+        if parsed and isinstance(parsed, dict) and "matched_suppliers" in parsed:
+            matched = parsed["matched_suppliers"]
+        elif parsed and isinstance(parsed, list):
+            matched = parsed
+        else:
+            matched = []
+
+        # 后处理：确保字段完整性
         for m in matched:
-            if m["updated_at"]:
+            m.setdefault("confirmed_stock", False)
+            m.setdefault("confirmed_lead", False)
+            m.setdefault("confirmed_price", False)
+            m.setdefault("in_stock", False)
+            if m.get("updated_at"):
                 try:
                     from datetime import datetime
-                    days_ago = (datetime.now() - datetime.strptime(m["updated_at"][:10], "%Y-%m-%d")).days
+                    days_ago = (datetime.now() - datetime.strptime(
+                        str(m["updated_at"])[:10], "%Y-%m-%d"
+                    )).days
                     if days_ago > 90:
-                        m["data_source"] += " (信息可能过期)"
+                        m["data_source"] = m.get("data_source", "平台数据") + " (信息可能过期)"
                 except Exception:
                     pass
 
@@ -138,22 +157,3 @@ async def match_agent(state: ProcureState) -> ProcureState:
 
 # ecs_assistant 风格别名
 process = match_agent
-
-
-def _ensure_list(val) -> list:
-    if isinstance(val, list):
-        return val
-    if isinstance(val, str):
-        return [x.strip() for x in val.split(",") if x.strip()]
-    return []
-
-
-def _get_response_speed(lead_time_weeks: int) -> str:
-    if lead_time_weeks <= 0:
-        return "暂无数据"
-    elif lead_time_weeks <= 1:
-        return "24h 内首次响应"
-    elif lead_time_weeks <= 2:
-        return "48h 内首次响应"
-    else:
-        return "72h 内首次响应"

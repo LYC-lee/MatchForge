@@ -1,12 +1,6 @@
 """
 Agent ③ — 替代料推荐 ★核心
-
-流程:
-  1. Neo4j 图查询 (首选) — 人工核验的替代关系
-  2. LLM 推理 (次选) — 参数兼容性推理
-  3. 参数差异比对 — 逐项标注 match/diff/risk
-  4. 5级分类 (L1-L5) + 安全红线过滤
-  5. 排序 + 审核分流
+LLM 自主调用 Neo4j 图查询 + 知识推理 + 5级分类
 
 安全红线:
   - 额定电压降低 → 不推荐
@@ -25,121 +19,144 @@ from datetime import datetime
 
 from ai.state import ProcureState, ParamDiff, DiffItem
 from ai import base_agent as agent_engine
-from ai.tools.neo4j_client import query_all_alternatives
-from ai.prompts.alternatives import ALTERNATIVES_SYSTEM_PROMPT, ALTERNATIVES_USER_TEMPLATE
+from ai.tools.neo4j_client import (
+    query_all_alternatives,
+    query_direct_equivalents,
+    query_transitive_equivalents,
+    query_cross_refs,
+)
 from ai.monitor import AgentLogger
 
+ALTERNATIVES_SYSTEM_PROMPT = """你是电子元器件替代料推荐专家。你可以使用 Neo4j 知识图谱工具查询替代关系，并结合参数兼容性推理给出推荐。
 
-# ============================================================
-# 参数差异比对
-# ============================================================
-CRITICAL_PARAMS = [
-    ("package", "封装"),
-    ("capacitance", "容值"),
-    ("rated_voltage", "额定电压"),
-    ("temp_coeff", "温度系数"),
-    ("tolerance", "容差"),
-    ("temp_range", "温度范围"),
-]
+## 可用工具
+- query_all_alternatives: 查询所有替代关系（直接+传递+交叉引用），是首选工具
+- query_direct_equivalents: 查询直接等效关系（1跳，经人工核验）
+- query_transitive_equivalents: 查询传递等效关系（2跳）
+- query_cross_refs: 查询交叉引用关系
 
+## 工作流程
+1. 如果有型号 part_number，先调用 query_all_alternatives 从知识图谱查询
+2. 如果图查询结果不足（少于3个），基于参数兼容性推理补充替代型号
+3. 对每个替代型号，逐项比对参数差异（封装/容值/额定电压/温度系数/容差/温度范围）
+4. 按5级分类标注每个替代型号
+5. 按安全红线过滤不安全的替代
+6. 按 L1→L2→L3→L4→L5 排序，同级按置信度降序
 
-def _compare_params(original: dict, alternative: dict) -> list[ParamDiff]:
-    """逐项比对原型号 vs 替代型号，标注 match/diff/risk。"""
-    diffs: list[ParamDiff] = []
-    for key, label in CRITICAL_PARAMS:
-        orig_val = str(original.get(key, "")) if original.get(key) else ""
-        alt_val = str(alternative.get(key, "")) if alternative.get(key) else ""
+## 替代等级判定
+- L1 (完全等效): 关键参数(封装/容值/额定电压/温度系数/容差)全部一致
+- L2 (向上兼容): 替代参数优于原型号(如额定电压更高、温度范围更宽)
+- L3 (需工程确认): 主体兼容，个别参数有差异需工程师评估
+- L4 (封装不兼容): 电气兼容但物理尺寸/引脚不同，需改板
+- L5 (仅供参考): 信息不足或弱关联，不建议直接替换
 
-        if not orig_val or not alt_val:
-            diffs.append(ParamDiff(
-                field=label, original=orig_val or "未知", alternative=alt_val or "未知",
-                status="diff", note="参数缺失",
-            ))
-            continue
+## 安全红线 (严格执行)
+1. 额定电压降低 → 不推荐
+2. 封装不同 → 不推荐（除非有明确桥接方案）
+3. 温度系数跨级太大 (如 C0G→Y5V) → 不推荐
+4. 置信度 < 0.5 且无核验 → 不推荐
+5. 替代型号已停产/EOL → 不推荐
 
-        if orig_val == alt_val:
-            diffs.append(ParamDiff(field=label, original=orig_val, alternative=alt_val, status="match", note=""))
-        else:
-            status = _judge_risk(key, orig_val, alt_val)
-            diffs.append(ParamDiff(field=label, original=orig_val, alternative=alt_val, status=status, note=""))
+## 输出格式
+严格返回 JSON 对象，包含 alternatives 数组：
+{
+  "alternatives": [
+    {
+      "part": "替代型号",
+      "brand": "品牌",
+      "package": "封装",
+      "capacitance": "容值",
+      "temp_coeff": "温度系数",
+      "rated_voltage": "额定电压",
+      "tolerance": "容差",
+      "temp_range": "温度范围",
+      "lifecycle": "生命周期",
+      "level": "L1/L2/L3/L4/L5",
+      "confidence": 0.0-1.0,
+      "source": "Neo4j:xxx 或 llm_inferred",
+      "verified": true/false,
+      "reason": "推荐依据",
+      "specs": {},
+      "diff_items": [
+        {"param": "参数名", "original": "原值", "alternative": "替代值", "type": "match|diff|risk"}
+      ]
+    }
+  ]
+}
 
-    return diffs
-
-
-def _judge_risk(key: str, orig: str, alt: str) -> str:
-    """判定差异是 diff 还是 risk。"""
-    if key == "package":
-        return "risk"
-    if key == "rated_voltage":
-        try:
-            o = float(re.sub(r"[^0-9.]", "", orig))
-            a = float(re.sub(r"[^0-9.]", "", alt))
-            return "risk" if a < o else "diff"
-        except ValueError:
-            return "diff"
-    if key == "temp_coeff":
-        high_stability = {"C0G", "NP0", "X8R", "X8L"}
-        low_stability = {"Y5V", "Z5U"}
-        if orig.upper() in high_stability and alt.upper() in low_stability:
-            return "risk"
-        return "diff"
-    if key == "capacitance":
-        return "risk"
-    return "diff"
-
-
-# ============================================================
-# 5级分类
-# ============================================================
-def _classify_level(diffs: list[ParamDiff], confidence: float, verified: bool) -> str:
-    """根据差异列表 + 置信度 + 核验状态判定 L1-L5。"""
-    risk_count = sum(1 for d in diffs if d["status"] == "risk")
-    diff_count = sum(1 for d in diffs if d["status"] == "diff")
-
-    if risk_count == 0 and diff_count == 0:
-        return "L1"
-    if confidence < 0.5 and not verified:
-        return "L5"
-
-    has_pkg_risk = any(d["field"] == "封装" and d["status"] == "risk" for d in diffs)
-    if has_pkg_risk:
-        return "L4"
-    if confidence < 0.7 and not verified:
-        return "L4"
-    if risk_count >= 1:
-        return "L3"
-    if diff_count > 0:
-        return "L2"
-
-    return "L3"
+## 规则
+- 图查询结果标记 verified=true, source="Neo4j:xxx"
+- LLM 推理结果标记 verified=false, source="llm_inferred"
+- 每个替代必须包含完整的 diff_items 参数差异比对
+- 返回纯 JSON，不要包含 markdown 代码块标记"""
 
 
-# ============================================================
-# 安全红线过滤
-# ============================================================
-def _safety_filter(alternatives: list[dict]) -> list[dict]:
-    """过滤掉明显不安全的替代。"""
-    safe = []
-    for alt in alternatives:
-        if alt.get("confidence", 0) < 0.5 and not alt.get("verified", False):
-            continue
-        if alt.get("lifecycle", "") in ("停产", "EOL", "Obsolete"):
-            continue
-        diffs = alt.get("diffs", [])
-        has_voltage_risk = any(
-            d["field"] == "额定电压" and d["status"] == "risk" for d in diffs
+async def alternatives_agent(state: ProcureState) -> ProcureState:
+    """替代料推荐 Agent — LLM 自主调用 Neo4j 图查询 + 推理。"""
+    log = AgentLogger("alternatives", thread_id=state.get("thread_id", ""))
+    normalized_spec = state.get("normalized_spec") or {}
+
+    if not normalized_spec:
+        state["alternatives"] = []
+        return state
+
+    log.start(state)
+
+    try:
+        neo4j_tools = [
+            query_all_alternatives,
+            query_direct_equivalents,
+            query_transitive_equivalents,
+            query_cross_refs,
+        ]
+
+        user_msg = (
+            f"请为以下元器件规格查找替代型号：\n"
+            f"{json.dumps(normalized_spec, ensure_ascii=False, indent=2)}"
         )
-        if has_voltage_risk and not alt.get("verified", False):
-            continue
-        safe.append(alt)
-    return safe
+
+        tool_state = {"messages": [{"role": "user", "content": user_msg}]}
+
+        result = await agent_engine.run_tool_agent(
+            state=tool_state,
+            system_prompt=ALTERNATIVES_SYSTEM_PROMPT,
+            tools=neo4j_tools,
+            max_tool_rounds=5,
+            heavy=True,
+        )
+
+        content = result["messages"][0].content
+        parsed = agent_engine.parse_json_from_llm(content)
+
+        if parsed and isinstance(parsed, dict) and "alternatives" in parsed:
+            alternatives = parsed["alternatives"]
+        elif parsed and isinstance(parsed, list):
+            alternatives = parsed
+        else:
+            alternatives = []
+
+        # 后处理：为前端格式化
+        formatted = _format_for_frontend(alternatives, normalized_spec)
+        state["alternatives"] = formatted
+        log.end(state)
+
+    except Exception as e:
+        state.setdefault("errors", []).append(f"[alternatives] {str(e)[:200]}")
+        state["alternatives"] = []
+        log.fail(str(e)[:200])
+
+    return state
+
+
+# ecs_assistant 风格别名
+process = alternatives_agent
 
 
 # ============================================================
 # 前端格式转换
 # ============================================================
 def _format_for_frontend(results: list[dict], spec: dict) -> list[dict]:
-    """将内部格式转为前端 Alternative 接口。"""
+    """将 LLM 输出转为前端 Alternative 接口格式。"""
     formatted = []
     for r in results:
         key_params = {}
@@ -148,12 +165,12 @@ def _format_for_frontend(results: list[dict], spec: dict) -> list[dict]:
                 key_params[param_key] = str(r[param_key])
 
         diff_items: list[DiffItem] = []
-        for d in r.get("diffs", []):
+        for d in r.get("diff_items", r.get("diffs", [])):
             diff_items.append(DiffItem(
-                param=d["field"],
-                original=d["original"],
-                alternative=d["alternative"],
-                type=d["status"],
+                param=d.get("param", d.get("field", "")),
+                original=d.get("original", ""),
+                alternative=d.get("alternative", ""),
+                type=d.get("type", "diff"),
             ))
 
         formatted.append({
@@ -167,7 +184,7 @@ def _format_for_frontend(results: list[dict], spec: dict) -> list[dict]:
             "verified": r.get("verified", False),
             "source": r.get("source", "未知来源"),
             "updated_at": r.get("updated_at", ""),
-            "diffs": r.get("diffs", []),
+            "diffs": r.get("diff_items", r.get("diffs", [])),
             "diff_items": diff_items,
             "specs": r.get("specs", {}),
             "reason": r.get("reason", r.get("note", "参数匹配")),
@@ -175,98 +192,3 @@ def _format_for_frontend(results: list[dict], spec: dict) -> list[dict]:
         })
 
     return formatted
-
-
-# ============================================================
-# 核心 Agent
-# ============================================================
-async def alternatives_agent(state: ProcureState) -> ProcureState:
-    """替代料推荐 Agent — Neo4j 图查询 + LLM 推理 + 5级分类。"""
-    log = AgentLogger("alternatives", thread_id=state.get("thread_id", ""))
-    normalized_spec = state.get("normalized_spec") or {}
-
-    if not normalized_spec:
-        state["alternatives"] = []
-        return state
-
-    log.start(state)
-
-    try:
-        all_results: list[dict] = []
-
-        part_number = normalized_spec.get("part_number", "")
-        if part_number:
-            try:
-                neo4j_results = query_all_alternatives(part_number)
-                for row in neo4j_results:
-                    alt = dict(row)
-                    alt["source"] = f"Neo4j:{alt.get('source', '图关系')}"
-                    alt["verified"] = alt.get("verified", True)
-                    alt["level"] = alt.get("level", "L2")
-                    alt["updated_at"] = alt.get("updated_at", datetime.now().strftime("%Y-%m-%d"))
-                    alt["diffs"] = _compare_params(normalized_spec, alt)
-                    alt["level"] = _classify_level(
-                        alt["diffs"], alt.get("confidence", 0.9), alt.get("verified", True)
-                    )
-                    all_results.append(alt)
-            except Exception as e:
-                state.setdefault("errors", []).append(f"[alternatives] Neo4j 查询失败: {str(e)[:100]}")
-
-        # ---- Step 2: LLM 推理补充 ----
-        if len(all_results) < 3:
-            try:
-                llm = agent_engine.get_agent_llm(heavy=True)
-                prompt = ALTERNATIVES_USER_TEMPLATE.format(
-                    original_spec=json.dumps(normalized_spec, ensure_ascii=False, indent=2)
-                )
-                messages = [
-                    ("system", ALTERNATIVES_SYSTEM_PROMPT),
-                    ("human", prompt),
-                ]
-                response = await llm.ainvoke(messages)
-                content = response.content.strip()
-
-                if content.startswith("```"):
-                    content = re.sub(r"^```(?:json)?\s*", "", content)
-                    content = re.sub(r"\s*```$", "", content)
-
-                llm_results = json.loads(content)
-                if isinstance(llm_results, dict):
-                    llm_results = [llm_results]
-
-                for alt in llm_results:
-                    alt["source"] = "llm_inferred"
-                    alt["verified"] = False
-                    alt["updated_at"] = datetime.now().strftime("%Y-%m-%d")
-                    alt["diffs"] = _compare_params(normalized_spec, alt)
-                    alt["level"] = _classify_level(
-                        alt["diffs"], alt.get("confidence", 0.6), False
-                    )
-                    all_results.append(alt)
-            except Exception as e:
-                state.setdefault("errors", []).append(f"[alternatives] LLM 推理失败: {str(e)[:100]}")
-
-        # ---- Step 3 & 4: 安全过滤 + 5级分类 ----
-        all_results = _safety_filter(all_results)
-
-        # ---- Step 5: 排序 (L1→L2→L3→L4→L5, 同等级置信度降序) ----
-        level_order = {"L1": 0, "L2": 1, "L3": 2, "L4": 3, "L5": 4}
-        all_results.sort(key=lambda x: (
-            level_order.get(x.get("level", "L5"), 5),
-            -x.get("confidence", 0),
-        ))
-
-        alternatives = _format_for_frontend(all_results, normalized_spec)
-        state["alternatives"] = alternatives
-        log.end(state)
-
-    except Exception as e:
-        state.setdefault("errors", []).append(f"[alternatives] {str(e)[:200]}")
-        state["alternatives"] = []
-        log.fail(str(e)[:200])
-
-    return state
-
-
-# ecs_assistant 风格别名
-process = alternatives_agent
