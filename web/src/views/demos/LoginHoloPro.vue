@@ -36,19 +36,23 @@ let animId = 0
 onMounted(() => {
   const canvas = document.getElementById('holoCanvas') as HTMLCanvasElement | null
   if (!canvas) return
-  const ctx = canvas.getContext('2d')!
+  const canvasEl = canvas
+  const canvasParent = canvasEl.parentElement
+  if (!canvasParent) return
+  const parentEl: HTMLElement = canvasParent
+  const ctx = canvasEl.getContext('2d')!
   let W = 0, H = 0
 
   function resize() {
-    const r = canvas.parentElement!.getBoundingClientRect()
+    const r = parentEl.getBoundingClientRect()
     const dpr = Math.min(devicePixelRatio || 1, 2)
-    canvas.width = r.width * dpr; canvas.height = r.height * dpr
-    canvas.style.width = r.width + 'px'; canvas.style.height = r.height + 'px'
+    canvasEl.width = r.width * dpr; canvasEl.height = r.height * dpr
+    canvasEl.style.width = r.width + 'px'; canvasEl.style.height = r.height + 'px'
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); W = r.width; H = r.height
   }
   resize()
   const ro = new ResizeObserver(resize)
-  ro.observe(canvas.parentElement!)
+  ro.observe(parentEl)
 
   const toR = (d: number) => d * Math.PI / 180
   const proj = (lat: number, lng: number) => {

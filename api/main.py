@@ -1,12 +1,15 @@
 """
 MatchForge API 主入口 (FastAPI)
-寻源 Agent 接口
+寻源 Agent + 知识库 + 企业驾驶舱上下文 + 上下游协同
 
 路由:
-  /api/v1/procure/stream  — SSE 流式多 Agent 寻源
-  /api/v1/procure/spec    — 解析 + 标准化
-  /api/v1/procure/match   — 替代料 + 供应商匹配
-  /api/v1/procure/health  — Agent 状态检查
+  /api/v1/procure/*              - SSE 流式多 Agent 寻源 / 解析 / 匹配
+  /api/v1/auth/*                 - 登录 / 当前用户
+  /api/v1/companies/*            - 公司 / 知识 / 产品 / 上下游关系 / 协同问答
+  /api/v1/chat/*                 - 单公司 RAG / 多公司比较 / Trace
+  /api/v1/admin/kb/*             - 知识库管理 (生成 / 增量 / 重建 / 任务 / 统计)
+  /api/v1/enterprise-context/*   - 当前企业驾驶舱上下文
+  /api/v1/health                 - 健康检查
 """
 
 from __future__ import annotations
@@ -37,10 +40,37 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    from api.routers import procure
+    # 确保知识库表 (含 kb_company_relationships) 已创建 (幂等)。
+    # SQLite 自动建表; MySQL 需先执行 database/migrations/02_kb_schema.sql。
+    from kb.db import init_db
+
+    init_db()
+
+    from api.routers import (
+        auth,
+        chat,
+        companies,
+        enterprise_context,
+        kb_admin,
+        relationships,
+    )
 
     api_prefix = "/api/v1"
-    app.include_router(procure.router, prefix=api_prefix)
+    # procure 依赖 langgraph; 未安装时优雅降级, 其余路由不受影响。
+    # 生产环境安装 langgraph 后 procure 自动恢复 (保留现有寻源接口)。
+    try:
+        from api.routers import procure as _procure_mod
+
+        app.include_router(_procure_mod.router, prefix=api_prefix)
+    except ImportError as e:
+        logger.warning("procure 路由不可用 (缺少依赖 langgraph?): %s", e)
+
+    app.include_router(auth.router, prefix=api_prefix)
+    app.include_router(companies.router, prefix=api_prefix)
+    app.include_router(relationships.router, prefix=api_prefix)
+    app.include_router(chat.router, prefix=api_prefix)
+    app.include_router(kb_admin.router, prefix=api_prefix)
+    app.include_router(enterprise_context.router, prefix=api_prefix)
 
     @app.get("/api/v1/health")
     def health():

@@ -7,14 +7,14 @@
   --bg-elevated: #1e2230;
 
   /* ===== 边框 ===== */
-  --border-subtle: #1f2330;
-  --border-default: #2a2f3e;
-  --border-strong: #3a4154;
+  --border-subtle: #2b3140;
+  --border-default: #384052;
+  --border-strong: #4b556b;
 
   /* ===== 文本 ===== */
   --text-primary: #e7e9ee;
-  --text-secondary: #9aa0b0;
-  --text-tertiary: #626978;
+  --text-secondary: #c4cad6;
+  --text-tertiary: #a3adbf;
 
   /* ===== 主色 靛蓝 ===== */
   --accent: #6366f1;

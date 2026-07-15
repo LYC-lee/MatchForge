@@ -290,3 +290,38 @@ class CompanyCache(Base):
     last_generated_at = Column(DateTime, nullable=True)
     source_hash = Column(String(64), nullable=True, comment="源数据哈希, 增量判断")
     updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+
+# ============================================================
+# 9. CompanyRelationship -- 企业上下游关系 (驾驶舱产业链协同)
+#    轻量关系表, 复用 KB 数据库 (本阶段不切换 pc_industry 全 ORM)。
+#
+#  语义: source_company_id 对 target_company_id 持有 [direction] 关系。
+#    direction=upstream   -> target 是 source 的上游 (source 向 target 采购)
+#    direction=downstream -> target 是 source 的下游 (source 向 target 供货)
+#    direction=support    -> target 向 source 提供支撑服务 (物流/检测/认证)
+#  每条货物上下游边建议存两行 (双向视角), 保证 /upstream /downstream 各自可查。
+# ============================================================
+class CompanyRelationship(Base):
+    __tablename__ = "kb_company_relationships"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    source_company_id = Column(BigInteger, nullable=False, index=True, comment="关系发起方公司ID")
+    target_company_id = Column(BigInteger, nullable=False, index=True, comment="关系对方公司ID")
+    relationship_type = Column(String(40), nullable=False,
+                               comment="supply|service|channel|...")
+    direction = Column(String(20), nullable=False,
+                       comment="upstream|downstream|support")
+    product_scope = Column(Text, nullable=True, comment="JSON 数组: 涉及产品/品类")
+    business_scope = Column(Text, nullable=True, comment="JSON 数组: 涉及业务范围")
+    confidence_level = Column(String(30), nullable=False, default="manual")
+    status = Column(String(20), nullable=False, default="active",
+                    comment="active|inactive|pending")
+    created_at = Column(DateTime, nullable=False, default=_now)
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("idx_rel_source_target", "source_company_id", "target_company_id", "direction"),
+        Index("idx_rel_direction", "direction"),
+        Index("idx_rel_target", "target_company_id"),
+    )

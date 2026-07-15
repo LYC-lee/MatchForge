@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -42,19 +42,24 @@ function switchAccount() {
 }
 
 // ── 全息投影动画 ──
+let animId = 0
 onMounted(() => {
   const c = document.getElementById('holoCanvas') as HTMLCanvasElement | null
   if (!c) return
-  const ctx = c.getContext('2d')!
+  const canvasEl = c
+  const canvasParent = canvasEl.parentElement
+  if (!canvasParent) return
+  const parentEl: HTMLElement = canvasParent
+  const ctx = canvasEl.getContext('2d')!
   let W = 0, H = 0
 
   function resize() {
-    const r = c.parentElement!.getBoundingClientRect()
+    const r = parentEl.getBoundingClientRect()
     const dpr = devicePixelRatio || 1
-    c.width = r.width * dpr
-    c.height = r.height * dpr
-    c.style.width = r.width + 'px'
-    c.style.height = r.height + 'px'
+    canvasEl.width = r.width * dpr
+    canvasEl.height = r.height * dpr
+    canvasEl.style.width = r.width + 'px'
+    canvasEl.style.height = r.height + 'px'
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     W = r.width; H = r.height
   }
@@ -114,7 +119,7 @@ onMounted(() => {
       if (this.delay > 0) { this.delay--; return }
       this.p += this.spd; if (this.p > 1) { this.p = 0; this.delay = Math.random() * 80 }
     }
-    draw(time: number) {
+    draw(_time: number) {
       if (this.delay > 0) return
       const p1 = proj(this.f.lat, this.f.lng), p2 = proj(this.t.lat, this.t.lng)
       if (!p1 || !p2) return
@@ -137,7 +142,6 @@ onMounted(() => {
   for (let i = 0; i < 20; i++) plist.push(new Pt())
 
   // 动画
-  let animId = 0
   function draw(t: number) {
     const time = t * 0.001
     ctx.clearRect(0, 0, W, H)
@@ -229,6 +233,8 @@ onMounted(() => {
   }
   animId = requestAnimationFrame(draw)
 })
+
+onUnmounted(() => { cancelAnimationFrame(animId) })
 </script>
 
 <template>

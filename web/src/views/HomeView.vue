@@ -1,383 +1,369 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useProcureStore } from '@/stores/procure'
-import { useHistory } from '@/composables/useHistory'
-import QueryInput from '@/components/procure/QueryInput.vue'
+import { useRouter } from 'vue-router'
+import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { riskRank, type RiskLevel } from '@/mock/enterpriseContext'
 
 const router = useRouter()
-const route = useRoute()
-const store = useProcureStore()
-const { list } = useHistory()
+const { companies, current, currentEnterpriseId, setCurrentEnterprise } = useEnterpriseContext()
 
-const initial = computed(() => (route.query.q as string) || '')
-const recent = computed(() => list().slice(0, 3))
+const topShortages = computed(() =>
+  [...current.value.shortages].sort((a, b) => riskRank(b.risk) - riskRank(a.risk)).slice(0, 4),
+)
+const atRiskProducts = computed(() => current.value.products.filter((item) => item.risk !== '低'))
 
-const features = [
-  { title: '自然语言寻源', desc: '输入型号或一句话需求,AI 自动解析规格参数,缺失字段标黄提示。' },
-  { title: '替代料推荐', desc: '知识图谱 + 规格交叉比对,L1-L5 分级、置信度与人工核验状态透明。' },
-  { title: '供应商匹配', desc: '向量检索匹配供应能力,多选供应商,按匹配度排序。' },
-  { title: '询价单生成', desc: 'LLM 流式生成可编辑 RFQ,固定模板兜底,线索分级评估。' },
-]
-
-const steps = [
-  { n: '01', title: '描述需求', desc: '输入缺货型号或自然语言采购需求' },
-  { n: '02', title: 'AI 解析匹配', desc: '6 智能体解析规格、推荐替代料、匹配供应商' },
-  { n: '03', title: '生成询价单', desc: '编辑 RFQ、标记发送、获取线索分级' },
-]
-
-function onSubmit(query: string) {
-  const id = `p-${Date.now()}`
-  store.startProcure(query)
-  router.push(`/procure/${id}`)
+function riskClass(risk: RiskLevel) {
+  return `risk risk--${risk}`
 }
 
-function reuse(q: string) {
-  router.push(`/app?q=${encodeURIComponent(q)}`)
+function goProcure(shortageCode?: string) {
+  router.push({ path: '/shortage-procurement', query: shortageCode ? { part: shortageCode } : undefined })
 }
 </script>
 
 <template>
-  <div class="home">
-    <section class="workspace-hero">
-      <div class="workspace-hero__main">
-        <div class="home__badge">AI 元器件替代料寻源 · Spike</div>
-        <h1 class="home__title">缺货、停产、降本，都从一个采购请求开始</h1>
-        <p class="home__sub">
-          按 Linear 的工作区结构拆分寻源流程：输入需求、确认规格、查看替代、匹配供应商、生成 RFQ。
-        </p>
-        <QueryInput :initial="initial" @submit="onSubmit" />
+  <div class="dashboard">
+    <section class="context-bar">
+      <div class="context-main">
+        <span class="eyebrow">当前企业经营驾驶舱</span>
+        <div class="context-title">
+          <select
+            :value="currentEnterpriseId"
+            class="enterprise-select"
+            aria-label="切换当前企业"
+            @change="setCurrentEnterprise(Number(($event.target as HTMLSelectElement).value))"
+          >
+            <option v-for="company in companies" :key="company.id" :value="company.id">
+              {{ company.name }} / {{ company.segment }}
+            </option>
+          </select>
+          <span class="role">{{ current.company.role }}</span>
+        </div>
+        <p>{{ current.company.note }}</p>
       </div>
-
-      <aside class="workspace-hero__side">
-        <div class="side-card side-card--active">
-          <span class="side-card__k">当前模式</span>
-          <b>Spike Demo</b>
-          <p>Mock SSE 已开启，可独立演示完整流程。</p>
-        </div>
-        <div class="side-card">
-          <span class="side-card__k">事实边界</span>
-          <b>能力匹配</b>
-          <p>不展示“确认有货”，所有供应商结果最终以询价回复为准。</p>
-        </div>
-        <div class="side-card">
-          <span class="side-card__k">首期留白</span>
-          <b>运营审核 / 供应商入驻</b>
-          <p>结构已预留，MVP 阶段接入真实后台。</p>
-        </div>
-      </aside>
+      <div class="context-meta">
+        <span>{{ current.company.location }}</span>
+        <span>{{ current.company.segment }}</span>
+      </div>
     </section>
 
-    <section class="home__grid">
-      <div class="home__panel home__panel--wide">
+    <section class="metrics-grid" aria-label="经营概览">
+      <div class="metric">
+        <span>待交付订单</span>
+        <b>{{ current.metrics.pendingOrders }}</b>
+        <small>{{ current.metrics.urgentOrders }} 个紧急订单</small>
+      </div>
+      <div class="metric">
+        <span>预测需求</span>
+        <b>{{ current.metrics.forecastDemand.toLocaleString() }}</b>
+        <small>未来 30 天滚动</small>
+      </div>
+      <div class="metric">
+        <span>可生产产品</span>
+        <b>{{ current.metrics.availableProducts }}</b>
+        <small>{{ current.metrics.atRiskProducts }} 个受缺件影响</small>
+      </div>
+      <div class="metric metric--risk">
+        <span>缺件风险</span>
+        <b>{{ current.metrics.shortageParts }}</b>
+        <small>需采购/替代/协同处理</small>
+      </div>
+    </section>
+
+    <section class="first-screen">
+      <div class="panel panel--orders">
         <div class="panel-head">
-          <span>Workflow</span>
-          <h2>三步完成寻源</h2>
+          <div>
+            <span class="eyebrow">订单与预测需求</span>
+            <h2>今天需要老板关注的交付</h2>
+          </div>
         </div>
-        <div class="home__steps">
-          <div v-for="s in steps" :key="s.n" class="step-card">
-            <span class="step-card__n">{{ s.n }}</span>
+        <div class="dense-table">
+          <div class="table-row table-row--head">
+            <span>类型</span>
+            <span>客户/对象</span>
+            <span>产品</span>
+            <span>数量</span>
+            <span>交期</span>
+            <span>风险</span>
+          </div>
+          <div v-for="item in current.demands" :key="item.id" class="table-row">
+            <span class="pill">{{ item.type }}</span>
+            <span>{{ item.customer }}</span>
+            <span>{{ item.product }}</span>
+            <span>{{ item.quantity.toLocaleString() }}</span>
+            <span>{{ item.due }}</span>
+            <span :class="riskClass(item.risk)">{{ item.risk }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">可生产产品</span>
+            <h2>产品齐套与产能</h2>
+          </div>
+          <RouterLink to="/products-bom" class="text-link">查看 BOM</RouterLink>
+        </div>
+        <div class="product-list">
+          <div v-for="product in current.products" :key="product.id" class="product-line">
             <div>
-              <h3 class="step-card__title">{{ s.title }}</h3>
-              <p class="step-card__desc">{{ s.desc }}</p>
+              <b>{{ product.model }}</b>
+              <span>{{ product.name }} · {{ product.capacity }}</span>
+            </div>
+            <div class="product-line__right">
+              <small>{{ product.status }}</small>
+              <span :class="riskClass(product.risk)">{{ product.risk }}</span>
             </div>
           </div>
         </div>
+        <div v-if="atRiskProducts.length" class="inline-note">
+          {{ atRiskProducts.map((item) => item.model).join('、') }} 需要结合缺件清单重新排产。
+        </div>
       </div>
 
-      <div class="home__panel">
+      <div class="panel">
         <div class="panel-head">
-          <span>Modules</span>
-          <h2>核心能力</h2>
+          <div>
+            <span class="eyebrow">缺件与风险</span>
+            <h2>影响订单的关键缺口</h2>
+          </div>
+          <button class="text-link" @click="goProcure()">进入采购</button>
         </div>
-        <div class="home__features">
-          <div v-for="f in features" :key="f.title" class="feature-card">
-            <span class="feature-card__dot" />
-            <h3 class="feature-card__title">{{ f.title }}</h3>
-            <p class="feature-card__desc">{{ f.desc }}</p>
+        <div class="shortage-list">
+          <button v-for="item in topShortages" :key="item.code" class="shortage-line" @click="goProcure(item.code)">
+            <div>
+              <b>{{ item.part }}</b>
+              <span>缺口 {{ item.gap.toLocaleString() }} · 影响 {{ item.affectedProducts.join('、') }}</span>
+            </div>
+            <span :class="riskClass(item.risk)">{{ item.risk }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <span class="eyebrow">推荐动作</span>
+            <h2>采购、生产、销售下一步</h2>
+          </div>
+        </div>
+        <div class="action-list">
+          <div v-for="action in current.actions" :key="action.id" class="action-line">
+            <span class="action-type">{{ action.category }}</span>
+            <div>
+              <b>{{ action.title }}</b>
+              <p>{{ action.detail }}</p>
+              <small v-if="action.target">建议联系：{{ action.target }}</small>
+            </div>
+            <span :class="riskClass(action.priority)">{{ action.priority }}</span>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="home__recent">
-      <div class="panel-head">
-        <span>Recents</span>
-        <h2>最近寻源</h2>
+    <section class="network-strip">
+      <div>
+        <span class="eyebrow">直接上下游</span>
+        <h2>协同问答只面向当前企业相关对象</h2>
       </div>
-      <div class="home__recent-list">
-        <button
-          v-for="r in recent"
-          :key="r.id"
-          class="home__recent-item"
-          @click="reuse(r.raw_query)"
-        >
-          <span class="home__recent-query">{{ r.raw_query }}</span>
-          <span class="home__recent-meta">
-            {{ r.created_at.slice(0, 10) }} · {{ r.state.alternatives?.length || 0 }} 个替代料
-          </span>
-        </button>
-        <div v-if="!recent.length" class="home__recent-empty">
-          还没有寻源记录，提交一个型号后这里会显示最近工作流。
-        </div>
+      <div class="relation-chips">
+        <span v-for="relation in current.relations" :key="relation.id" class="relation-chip">
+          {{ relation.direction }} · {{ relation.name }}
+        </span>
       </div>
-    </section>
-
-    <section class="home__disclaimer">
-      <p>
-        <b>声明:</b>本平台为寻源辅助工具,替代料推荐仅供参考,最终可替代性须由工程师确认;
-        供应商匹配为供应能力匹配,非实时库存/报价/交期承诺。首期不提供交易、支付与物流。
-      </p>
+      <RouterLink to="/company-chat" class="primary-link">进入上下游协同问答</RouterLink>
     </section>
   </div>
 </template>
 
 <style scoped>
-.home {
-  max-width: 1180px;
+.dashboard {
+  max-width: 1360px;
   margin: 0 auto;
-  padding: var(--space-6) var(--space-5) var(--space-6);
+  padding: var(--space-5);
 }
-.workspace-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) 320px;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-}
-.workspace-hero__main,
-.workspace-hero__side,
-.home__panel,
-.home__recent,
-.home__disclaimer {
+.context-bar,
+.panel,
+.metric,
+.network-strip {
   border: 1px solid var(--border-default);
-  border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
-    #10131b;
+  background: var(--bg-1);
+  border-radius: 8px;
 }
-.workspace-hero__main {
-  padding: clamp(28px, 5vw, 56px);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.24);
-}
-.workspace-hero__side {
+.context-bar {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-}
-.home__badge {
-  display: inline-block;
-  font-size: var(--font-size-xs);
-  color: var(--accent-hover);
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-border);
-  padding: 4px 12px;
-  border-radius: var(--radius-full);
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5);
   margin-bottom: var(--space-4);
 }
-.home__title {
-  max-width: 720px;
-  color: #f4f7ff;
-  font-size: clamp(34px, 4.8vw, 54px);
-  font-weight: 700;
-  line-height: 1.08;
-  margin-bottom: var(--space-4);
-  letter-spacing: -0.05em;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-.home__sub {
-  font-size: var(--font-size-md);
-  color: #c2c7d4;
-  max-width: 660px;
-  margin-bottom: var(--space-6);
-}
-
-.side-card {
-  padding: var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.035);
-}
-.side-card--active {
-  border-color: var(--accent-border);
-  background:
-    linear-gradient(180deg, rgba(99, 102, 241, 0.18), rgba(99, 102, 241, 0.06)),
-    rgba(255, 255, 255, 0.04);
-}
-.side-card__k,
-.panel-head span {
-  display: block;
-  color: #8d95aa;
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.side-card b {
-  display: block;
-  margin-top: var(--space-1);
-  color: #f0f3fa;
-  font-size: var(--font-size-sm);
-}
-.side-card p {
-  margin-top: var(--space-2);
-  color: #aeb5c4;
-  font-size: var(--font-size-xs);
-  line-height: 1.6;
-}
-.home__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(380px, 0.72fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-  align-items: start;
-}
-.home__panel {
-  padding: var(--space-5);
-}
-.panel-head {
-  margin-bottom: var(--space-4);
-}
-.panel-head h2 {
-  margin-top: var(--space-1);
-  color: #f1f4fb;
-  font-size: var(--font-size-lg);
-}
-
-.home__features {
-  display: grid;
-  gap: var(--space-2);
-}
-.feature-card {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.032);
-  transition: border-color var(--transition-base), background var(--transition-base);
-}
-.feature-card:hover {
-  border-color: var(--accent-border);
-  background: rgba(255, 255, 255, 0.05);
-}
-.feature-card__dot {
-  display: block;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--radius-full);
-  background: var(--gradient-accent);
-  margin-top: 2px;
-  grid-row: 1 / span 2;
-}
-.feature-card__title {
-  grid-column: 2;
-  color: #edf1f8;
-  font-size: var(--font-size-md);
-  font-weight: 600;
-  margin-bottom: 0;
-}
-.feature-card__desc {
-  grid-column: 2;
-  min-width: 0;
-  font-size: var(--font-size-sm);
-  color: #aeb5c4;
-  line-height: 1.6;
-  word-break: normal;
-  overflow-wrap: break-word;
-}
-
-.home__steps {
-  display: grid;
-  gap: var(--space-2);
-}
-.step-card {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: start;
-  padding: var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.032);
-}
-.step-card__n {
-  font-size: var(--font-size-lg);
-  font-weight: 700;
-  font-family: var(--font-mono);
-  color: var(--accent);
-  background: var(--gradient-accent);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.step-card__title {
-  color: #edf1f8;
-  font-size: var(--font-size-md);
-  font-weight: 600;
-  margin: var(--space-2) 0;
-}
-.step-card__desc {
-  font-size: var(--font-size-sm);
-  color: #aeb5c4;
-  line-height: 1.6;
-}
-
-.home__recent {
-  margin-bottom: var(--space-4);
-  padding: var(--space-5);
-}
-.home__recent-list { display: flex; flex-direction: column; gap: var(--space-2); }
-.home__recent-item {
+.context-main { min-width: 0; }
+.context-title {
   display: flex;
   align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin: 4px 0 6px;
+}
+.enterprise-select {
+  min-width: 260px;
+  max-width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  background: var(--bg-2);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+.role { color: var(--text-secondary); font-size: var(--font-size-sm); }
+.context-main p { color: var(--text-tertiary); font-size: var(--font-size-sm); }
+.context-meta { display: flex; gap: var(--space-2); align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
+.context-meta span,
+.pill,
+.relation-chip,
+.action-type {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-2);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+.eyebrow {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.metric { padding: var(--space-4); }
+.metric span,
+.metric small { display: block; color: var(--text-tertiary); font-size: var(--font-size-xs); }
+.metric b { display: block; margin: 6px 0 2px; color: var(--text-primary); font-size: var(--font-size-2xl); }
+.metric--risk b { color: var(--danger); }
+.first-screen {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(360px, 0.9fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.panel { padding: var(--space-4); min-width: 0; }
+.panel--orders { grid-row: span 2; }
+.panel-head {
+  display: flex;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: rgba(255, 255, 255, 0.032);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
-  text-align: left;
+  align-items: flex-start;
+  margin-bottom: var(--space-3);
 }
-.home__recent-item:hover { border-color: var(--accent-border); background: var(--bg-3); }
-.home__recent-query { font-size: var(--font-size-sm); color: #edf1f8; }
-.home__recent-meta { font-size: var(--font-size-xs); color: #9aa3b7; flex-shrink: 0; }
-.home__recent-empty {
-  padding: var(--space-4);
-  color: #aeb5c4;
-  border: 1px dashed var(--border-default);
-  border-radius: var(--radius-md);
+.panel-head h2 { margin-top: 3px; color: var(--text-primary); font-size: var(--font-size-lg); }
+.text-link,
+.primary-link {
+  color: var(--accent-hover);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+.dense-table { overflow-x: auto; }
+.table-row {
+  display: grid;
+  grid-template-columns: 70px 120px minmax(180px, 1fr) 82px 82px 58px;
+  gap: var(--space-3);
+  align-items: center;
+  min-width: 720px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }
-
-.home__disclaimer {
+.table-row--head {
+  padding-top: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+.product-list,
+.shortage-list,
+.action-list { display: grid; gap: var(--space-2); }
+.product-line,
+.shortage-line,
+.action-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-2);
+  text-align: left;
+}
+.product-line b,
+.shortage-line b,
+.action-line b { display: block; color: var(--text-primary); font-size: var(--font-size-sm); }
+.product-line span,
+.shortage-line span,
+.action-line p,
+.action-line small { color: var(--text-tertiary); font-size: var(--font-size-xs); line-height: 1.5; }
+.product-line__right { text-align: right; flex: 0 0 auto; }
+.product-line__right small { display: block; margin-bottom: 6px; }
+.inline-note {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid rgba(234, 179, 8, 0.25);
+  border-radius: 6px;
+  color: var(--warning);
+  background: var(--warning-soft);
+  font-size: var(--font-size-xs);
+}
+.action-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.risk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  border: 1px solid var(--border-subtle);
+}
+.risk--高 { color: var(--danger); background: var(--danger-soft); border-color: rgba(239, 68, 68, 0.35); }
+.risk--中 { color: var(--warning); background: var(--warning-soft); border-color: rgba(234, 179, 8, 0.35); }
+.risk--低 { color: var(--success); background: var(--success-soft); border-color: rgba(34, 197, 94, 0.35); }
+.network-strip {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.4fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+  margin-top: var(--space-4);
   padding: var(--space-4);
 }
-.home__disclaimer p { font-size: var(--font-size-xs); color: #aeb5c4; line-height: 1.7; }
-.home__disclaimer b { color: #f0f3fa; }
-
-@media (max-width: 768px) {
-  .workspace-hero,
-  .home__grid {
-    grid-template-columns: 1fr;
-  }
-  .workspace-hero__side {
-    order: 2;
-  }
+.network-strip h2 { color: var(--text-primary); font-size: var(--font-size-md); margin-top: 4px; }
+.relation-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.primary-link {
+  padding: 8px 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  background: var(--accent-soft);
+}
+@media (max-width: 1100px) {
+  .metrics-grid,
+  .first-screen,
+  .network-strip { grid-template-columns: 1fr; }
+  .panel--orders { grid-row: auto; }
 }
 @media (max-width: 640px) {
-  .home__title { font-size: var(--font-size-2xl); }
-  .home__recent-item { flex-direction: column; align-items: flex-start; }
-  .home {
-    padding: var(--space-4);
-  }
-  .workspace-hero__main,
-  .home__panel,
-  .home__recent,
-  .home__disclaimer {
-    padding: var(--space-4);
-  }
+  .dashboard { padding: var(--space-3); }
+  .context-bar { flex-direction: column; }
+  .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>
