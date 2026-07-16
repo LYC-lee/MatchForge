@@ -88,8 +88,8 @@ function logout() {
     </div>
 
     <div class="sidebar__notice">
-      <b>事实边界</b>
-      <p>前端 Demo 使用集中 mock 数据补足企业上下文，不改变后端接口、数据库和真实业务逻辑。</p>
+      <b>数据源</b>
+      <p>所有数据来源于后端 API，企业上下文来自 MySQL 知识库。</p>
     </div>
   </aside>
 

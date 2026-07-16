@@ -1,11 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import axios from 'axios'
 
 const SESSION_KEY = 'matchforge:session'
 const USER_KEY = 'matchforge:user'
-const USERS_KEY = 'matchforge:users'
-const FAILED_KEY = 'matchforge:failed-logins'
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000
 
 export interface AuthUser {
   name: string
@@ -14,110 +12,118 @@ export interface AuthUser {
   role?: 'buyer' | 'supplier' | 'admin'
 }
 
-interface StoredUser extends AuthUser {
-  passwordHash: string
-  salt: string
-  createdAt: string
-}
-
 interface AuthSession {
   token: string
   expiresAt: number
 }
 
-interface FailedLogin {
-  count: number
-  lockedUntil?: number
-}
-
-const DEMO_ACCOUNT = 'demo@matchforge.ai'
-const DEMO_PASSWORD = 'demo12345'
+// session 有效期 8 小时
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000
 
 export const useAuthStore = defineStore('auth', () => {
   const session = ref<AuthSession | null>(readJson<AuthSession | null>(SESSION_KEY, null))
-  const user = ref<AuthUser | null>(
-    (() => {
-      const stored = readJson<AuthUser | null>(USER_KEY, null)
-      return stored
-    })(),
-  )
+  const user = ref<AuthUser | null>(readJson<AuthUser | null>(USER_KEY, null))
 
-  seedDemoUser()
+  // 过期 session 自动清除
   if (session.value && session.value.expiresAt <= Date.now()) {
     clearSession()
   }
 
   const token = computed(() => session.value?.token || null)
-  const isAuthenticated = computed(() => !!session.value?.token && !!user.value && session.value.expiresAt > Date.now())
+  const isAuthenticated = computed(
+    () => !!session.value?.token && !!user.value && session.value.expiresAt > Date.now(),
+  )
 
-  function login(account: string, password: string): { ok: boolean; msg?: string } {
-    const normalized = normalizeAccount(account)
+  async function login(
+    account: string,
+    password: string,
+  ): Promise<{ ok: boolean; msg?: string }> {
+    const normalized = account.trim().toLowerCase()
     if (!normalized || !password.trim()) {
       return { ok: false, msg: '请输入账号和密码' }
     }
-    const failed = getFailedMap()
-    const record = failed[normalized]
-    if (record?.lockedUntil && record.lockedUntil > Date.now()) {
-      return { ok: false, msg: '登录尝试过多，请稍后再试' }
-    }
 
-    const found = getUsers().find((u) => u.account === normalized)
-    if (!found || found.passwordHash !== hashPassword(password, found.salt)) {
-      failed[normalized] = nextFailedRecord(record)
-      saveFailedMap(failed)
-      return { ok: false, msg: '账号或密码不正确' }
-    }
+    try {
+      const res = await axios.post('/api/v1/auth/login', {
+        account: normalized,
+        password: password,
+      })
 
-    delete failed[normalized]
-    saveFailedMap(failed)
-    createSession(found)
-    return { ok: true }
+      const { token: newToken, name, role, account: acc } = res.data
+      persistSession(newToken, { name, account: acc, role })
+      return { ok: true }
+    } catch (err: any) {
+      const status = err?.response?.status
+      const msg = err?.response?.data?.detail || '登录失败，请检查网络'
+      if (status === 401) return { ok: false, msg: '账号或密码不正确' }
+      return { ok: false, msg }
+    }
   }
 
-  function register(payload: {
+  async function register(payload: {
     name: string
     account: string
     password: string
     company: string
     role: AuthUser['role']
-  }): { ok: boolean; msg?: string } {
-    const account = normalizeAccount(payload.account)
+  }): Promise<{ ok: boolean; msg?: string }> {
+    const account = payload.account.trim().toLowerCase()
     if (!payload.name.trim() || !account || !payload.password.trim() || !payload.company.trim()) {
       return { ok: false, msg: '请完整填写注册信息' }
     }
-    if (!isValidEmail(account)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account)) {
       return { ok: false, msg: '请输入有效邮箱作为账号' }
     }
-    const passwordError = validatePassword(payload.password)
-    if (passwordError) {
-      return { ok: false, msg: passwordError }
+    if (payload.password.length < 8) {
+      return { ok: false, msg: '密码至少 8 位' }
     }
-    const users = getUsers()
-    if (users.some((u) => u.account === account)) {
-      return { ok: false, msg: '该账号已注册，请直接登录' }
+    if (!/[A-Za-z]/.test(payload.password) || !/\d/.test(payload.password)) {
+      return { ok: false, msg: '密码需同时包含字母和数字' }
     }
 
-    const salt = createToken(12)
-    const u: StoredUser = {
-      name: payload.name.trim(),
-      account,
-      company: payload.company.trim(),
-      role: payload.role,
-      salt,
-      passwordHash: hashPassword(payload.password, salt),
-      createdAt: new Date().toISOString(),
+    try {
+      const res = await axios.post('/api/v1/auth/register', {
+        name: payload.name.trim(),
+        account,
+        password: payload.password,
+        company: payload.company.trim(),
+        role: payload.role || 'buyer',
+      })
+
+      const { token: newToken, name, role, account: acc } = res.data
+      persistSession(newToken, { name, account: acc, company: payload.company.trim(), role })
+      return { ok: true }
+    } catch (err: any) {
+      const status = err?.response?.status
+      const msg = err?.response?.data?.detail || '注册失败，请检查网络'
+      if (status === 400) return { ok: false, msg }
+      return { ok: false, msg }
     }
-    saveUsers([...users, u])
-    createSession(u)
-    return { ok: true }
   }
 
-  function validateSession(): boolean {
-    if (!session.value || !user.value || session.value.expiresAt <= Date.now()) {
+  async function validateSession(): Promise<boolean> {
+    if (!session.value || !session.value.token || session.value.expiresAt <= Date.now()) {
       clearSession()
       return false
     }
-    return true
+    try {
+      const res = await axios.get('/api/v1/auth/me', {
+        headers: { Authorization: `Bearer ${session.value.token}` },
+      })
+      if (res.data) {
+        user.value = {
+          name: res.data.name,
+          account: res.data.account,
+          role: res.data.role,
+        }
+        localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+        return true
+      }
+      return false
+    } catch {
+      clearSession()
+      return false
+    }
   }
 
   function logout() {
@@ -131,15 +137,9 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(USER_KEY)
   }
 
-  function createSession(storedUser: StoredUser) {
-    const publicUser: AuthUser = {
-      name: storedUser.name,
-      account: storedUser.account,
-      company: storedUser.company,
-      role: storedUser.role,
-    }
+  function persistSession(newToken: string, publicUser: AuthUser) {
     const nextSession: AuthSession = {
-      token: createToken(24),
+      token: newToken,
       expiresAt: Date.now() + SESSION_TTL_MS,
     }
     session.value = nextSession
@@ -151,83 +151,11 @@ export const useAuthStore = defineStore('auth', () => {
   return { token, user, isAuthenticated, login, register, validateSession, logout }
 })
 
-function normalizeAccount(account: string) {
-  return account.trim().toLowerCase()
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-}
-
-function validatePassword(password: string) {
-  if (password.length < 8) return '密码至少 8 位'
-  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) return '密码需同时包含字母和数字'
-  return ''
-}
-
 function readJson<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
     return raw ? (JSON.parse(raw) as T) : fallback
   } catch {
     return fallback
-  }
-}
-
-function getUsers(): StoredUser[] {
-  return readJson<StoredUser[]>(USERS_KEY, [])
-}
-
-function saveUsers(users: StoredUser[]) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users))
-}
-
-function seedDemoUser() {
-  const users = getUsers()
-  if (users.some((u) => u.account === DEMO_ACCOUNT)) return
-  const salt = 'demo-salt'
-  saveUsers([
-    ...users,
-    {
-      name: 'Demo Buyer',
-      account: DEMO_ACCOUNT,
-      company: 'MatchForge Demo',
-      role: 'buyer',
-      salt,
-      passwordHash: hashPassword(DEMO_PASSWORD, salt),
-      createdAt: new Date().toISOString(),
-    },
-  ])
-}
-
-function createToken(bytes = 16) {
-  const values = new Uint8Array(bytes)
-  crypto.getRandomValues(values)
-  return Array.from(values, (v) => v.toString(16).padStart(2, '0')).join('')
-}
-
-function hashPassword(password: string, salt: string) {
-  let hash = 2166136261
-  const input = `${salt}:${password}`
-  for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i)
-    hash = Math.imul(hash, 16777619)
-  }
-  return (hash >>> 0).toString(16)
-}
-
-function getFailedMap(): Record<string, FailedLogin> {
-  return readJson<Record<string, FailedLogin>>(FAILED_KEY, {})
-}
-
-function saveFailedMap(value: Record<string, FailedLogin>) {
-  localStorage.setItem(FAILED_KEY, JSON.stringify(value))
-}
-
-function nextFailedRecord(current?: FailedLogin): FailedLogin {
-  const count = (current?.count || 0) + 1
-  return {
-    count,
-    lockedUntil: count >= 5 ? Date.now() + 5 * 60 * 1000 : undefined,
   }
 }

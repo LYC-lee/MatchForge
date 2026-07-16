@@ -34,7 +34,7 @@ from kb.chunker import (
     chunk_product_manual,
 )
 from kb.companies import collect_companies, get_company, get_companies
-from kb.config import KB_COMPANY_CONCURRENCY, KB_DEMO_MODE
+from kb.config import KB_COMPANY_CONCURRENCY
 from kb.db import session_scope
 from kb.embedder import embed_batch_async, embedder_info
 from kb.generator import (
@@ -155,7 +155,7 @@ async def generate_for_company(
                     source_hash=cur_src_hash,
                     active_version=True,
                     generation_status="completed" if not rep.issues else "partial",
-                    source_type="ai_generated_demo" if KB_DEMO_MODE else "ai_generated",
+                    source_type="ai_generated",
                     source_url=company.website,
                     source_title=company.source_name,
                     generated_by_ai=True,
@@ -221,7 +221,7 @@ async def generate_for_company(
                             business_type=c.get("business_type"),
                             text=c["text"],
                             content_hash=c["content_hash"],
-                            source_type="ai_generated_demo" if KB_DEMO_MODE else "ai_generated",
+                            source_type="ai_generated",
                             source_url=company.website,
                             source_file=None,
                             generated_by_ai=True,
@@ -241,7 +241,7 @@ async def generate_for_company(
                         "business_type": c.get("business_type"),
                         "manual_id": manual_id,
                         "text": c["text"],
-                        "source_type": "ai_generated_demo" if KB_DEMO_MODE else "ai_generated",
+                        "source_type": "ai_generated",
                     }
                     pending_vectors.append((uid, emb, meta))
                     total_chunks += 1
@@ -327,7 +327,7 @@ def _persist_products(company_id: int, lang: str, data: dict, src_hash: str, bou
                 price_confidence=pr.get("confidence"),
                 specification=json.dumps(p.get("specification", {}), ensure_ascii=False),
                 language=lang,
-                source_type="ai_generated_demo" if KB_DEMO_MODE else "ai_generated",
+                source_type="ai_generated",
                 source_hash=src_hash,
                 confidence=pr.get("confidence", 0.65),
                 generated_by_ai=True,

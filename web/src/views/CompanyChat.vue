@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
-import type { RelationCompany } from '@/mock/enterpriseContext'
+import { partnerChat } from '@/api/enterprise'
+import type { RelationCompany } from '@/types/enterprise'
 
 const { current } = useEnterpriseContext()
 const selectedId = ref<number | null>(null)
@@ -25,13 +26,6 @@ function selectRelation(id: number) {
   messages.value = []
 }
 
-function buildMockAnswer(text: string) {
-  const relation = selectedRelation.value
-  if (!relation) return '请先选择一个直接上下游企业。'
-  const scope = relation.scope.join('、')
-  return `这是 ${current.value.company.name} 与直接${relation.direction}企业 ${relation.name} 的协同问答。当前只围绕 ${scope} 等授权协同范围回答。关于“${text}”，建议先确认 ${relation.products} 的交期、责任边界和是否需要 RFQ/合同补充条款。`
-}
-
 async function send(q?: string) {
   const text = (q ?? query.value).trim()
   if (!text || sending.value || !selectedRelation.value) return
@@ -39,11 +33,21 @@ async function send(q?: string) {
   messages.value.push({ role: 'user', content: text })
   sending.value = true
   await scrollBottom()
-  window.setTimeout(async () => {
-    messages.value.push({ role: 'assistant', content: buildMockAnswer(text) })
+  try {
+    const res = await partnerChat(
+      current.value.company.id,
+      selectedRelation.value.id,
+      text,
+      mode.value,
+    )
+    const data = res.data
+    messages.value.push({ role: 'assistant', content: data.answer || '暂无回答' })
+  } catch {
+    messages.value.push({ role: 'assistant', content: '抱歉，协同问答暂时不可用，请稍后重试。' })
+  } finally {
     sending.value = false
     await scrollBottom()
-  }, 260)
+  }
 }
 
 async function scrollBottom() {

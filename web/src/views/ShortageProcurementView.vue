@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
-import type { RiskLevel } from '@/mock/enterpriseContext'
+import type { RiskLevel } from '@/types/enterprise'
 
 const route = useRoute()
 const router = useRouter()

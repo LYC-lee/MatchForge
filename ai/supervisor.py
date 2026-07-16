@@ -128,7 +128,7 @@ def get_supervisor_llm() -> ChatOpenAI:
         api_key=LLM_API_KEY,
         base_url=LLM_BASE_URL,
         temperature=0,
-        max_tokens=64,
+        max_tokens=1024,
         timeout=10,
         max_retries=2,
     )
