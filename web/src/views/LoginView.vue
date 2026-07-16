@@ -29,7 +29,7 @@ async function submit() {
       }
     }, 300)
   } else {
-    const r = await auth.loginWithApi(account.value, password.value)
+    const r = await auth.login(account.value, password.value)
     loading.value = false
     if (r.ok) {
       const redirect = (route.query.redirect as string) || '/app'
@@ -46,8 +46,9 @@ function switchAccount() { auth.logout(); account.value = ''; password.value = '
 // 全息投影动画
 let animId = 0
 onMounted(() => {
-  const canvas = document.getElementById('holoCanvas') as HTMLCanvasElement | null
-  if (!canvas) return
+  const canvasEl = document.getElementById('holoCanvas') as HTMLCanvasElement | null
+  if (!canvasEl) return
+  const canvas = canvasEl
   const ctx = canvas.getContext('2d')!
   let W = 0, H = 0
 
