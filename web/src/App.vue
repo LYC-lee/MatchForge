@@ -5,8 +5,8 @@ import AppHeader from '@/components/layout/AppHeader.vue'
 import DemoConsole from '@/components/demo/DemoConsole.vue'
 
 const route = useRoute()
-// 登录页等标记 layout: 'blank' 的路由不显示顶栏
-const showHeader = computed(() => route.meta.layout !== 'blank')
+const blankPaths = new Set(['/', '/login', '/register'])
+const showHeader = computed(() => route.meta.layout !== 'blank' && !blankPaths.has(route.path))
 </script>
 
 <template>

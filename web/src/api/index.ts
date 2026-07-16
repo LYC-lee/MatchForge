@@ -1,5 +1,6 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/auth'
+import router from '@/router'
 
 /** 正在刷新 token 的 promise（防并发） */
 let refreshPromise: Promise<boolean> | null = null
@@ -74,7 +75,9 @@ api.interceptors.response.use(
     } catch {
       // 刷新失败 -> 登出
       auth.logout()
-      window.location.href = '/login'
+      if (router.currentRoute.value.name !== 'login') {
+        router.replace({ name: 'login' })
+      }
       return Promise.reject(normalizeError(error))
     }
   },
