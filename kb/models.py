@@ -606,3 +606,232 @@ class AuditQueueItem(Base):
     __table_args__ = (
         Index("idx_audit_status_type", "status", "item_type"),
     )
+
+
+# ============================================================
+# 20. DemoScenario -- 演示场景沙盘
+#    一个 scenario_id (如 default_mvp_demo) 标识一次独立演示会话。
+#    所有演示变化 (订单/库存/RFQ/报价/事件) 都带 scenario_id,
+#    重置只删除该 scenario_id 下的演示数据, 不触碰基线业务表。
+# ============================================================
+class DemoScenario(Base):
+    __tablename__ = "demo_scenarios"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    scenario_id = Column(String(64), nullable=False, unique=True, index=True,
+                         comment="场景标识 如 default_mvp_demo")
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default="active",
+                    comment="active|archived|reset")
+    primary_company_ids = Column(Text, nullable=True,
+                                  comment="JSON 数组: 可登录主视角企业ID")
+    config_json = Column(Text, nullable=True, comment="场景配置 JSON")
+    created_at = Column(DateTime, nullable=False, default=_now)
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+
+# ============================================================
+# 21. DemoEvent -- 演示事件日志 (因果链叙事)
+#    每个动作产生一条或多条事件, parent_event_id 串联因果链。
+#    phase 标识分阶段按钮, event_type 标识事件类型。
+# ============================================================
+class DemoEvent(Base):
+    __tablename__ = "demo_events"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    scenario_id = Column(String(64), nullable=False, index=True)
+    seq = Column(Integer, nullable=False, comment="全局递增序号, 排序用")
+    phase = Column(String(40), nullable=True,
+                   comment="generate_orders|consume_inventory|recalculate_shortages|"
+                           "generate_rfq|simulate_quotes|execute_replenishment|select_alternative")
+    action_log_id = Column(BigInteger, nullable=True, index=True, comment="触发该事件的动作日志ID")
+    company_id = Column(BigInteger, nullable=False, index=True, comment="事件主体企业ID")
+    company_name = Column(String(200), nullable=True)
+    linked_company_id = Column(BigInteger, nullable=True,
+                               comment="联动企业ID (上游/下游/支撑)")
+    linked_company_name = Column(String(200), nullable=True)
+    event_type = Column(String(60), nullable=False,
+                        comment="order_created|order_demand_received|upstream_demand_forecast|"
+                                "inventory_consumed|shortage_triggered|no_direct_supplier|"
+                                "rfq_created|rfq_received|quote_received|replenishment_executed|"
+                                "order_confirmed|transport_task|alternative_selected|...")
+    title = Column(String(300), nullable=False)
+    detail = Column(Text, nullable=True)
+    payload_json = Column(Text, nullable=True, comment="结构化载荷 JSON")
+    parent_event_id = Column(BigInteger, nullable=True, comment="父事件ID (因果链)")
+    created_at = Column(DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        Index("idx_demo_event_scenario_seq", "scenario_id", "seq"),
+        Index("idx_demo_event_company", "scenario_id", "company_id"),
+    )
+
+
+# ============================================================
+# 22. DemoActionLog -- 演示动作执行日志 (审计)
+#    每次按按钮 = 一条 action_log, 记录请求/结果/产生的事件。
+# ============================================================
+class DemoActionLog(Base):
+    __tablename__ = "demo_action_logs"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    scenario_id = Column(String(64), nullable=False, index=True)
+    company_id = Column(BigInteger, nullable=False, index=True, comment="操作的主视角企业")
+    action_type = Column(String(60), nullable=False,
+                         comment="generate_orders|consume_inventory|recalculate_shortages|"
+                                 "generate_rfq|simulate_quotes|execute_replenishment|select_alternative")
+    request_json = Column(Text, nullable=True)
+    result_json = Column(Text, nullable=True, comment="动作结果摘要 JSON")
+    event_ids_json = Column(Text, nullable=True, comment="产生的事件ID列表 JSON")
+    status = Column(String(20), nullable=False, default="success",
+                    comment="success|partial|failed|no_direct_supplier")
+    message = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_now)
+
+
+# ============================================================
+# 23. DemoCompanyState -- 演示企业状态快照 (缓存)
+#    每个场景 × 企业的当前演示状态聚合 (基线 + 演示增量)。
+#    recalculate_shortages 等动作刷新本表。
+# ============================================================
+class DemoCompanyState(Base):
+    __tablename__ = "demo_company_states"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    scenario_id = Column(String(64), nullable=False, index=True)
+    company_id = Column(BigInteger, nullable=False, index=True)
+    company_name = Column(String(200), nullable=True)
+    is_primary = Column(Boolean, nullable=False, default=False,
+                        comment="是否可登录主视角企业")
+    role = Column(String(50), nullable=True)
+    chain_position = Column(String(20), nullable=True)
+    state_json = Column(Text, nullable=True,
+                        comment="聚合状态 JSON: orders/inventory/shortages/rfq 摘要")
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        UniqueConstraint("scenario_id", "company_id", name="uq_demo_state_company"),
+    )
+
+
+# ============================================================
+# 24. DemoInventoryOverride -- 演示库存增量 (消耗/补货)
+#    不修改 kb_inventory_items 基线; 演示可用库存 =
+#      baseline_on_hand - baseline_reserved - consumed_qty + replenished_qty
+# ============================================================
+class DemoInventoryOverride(Base):
+    __tablename__ = "demo_inventory_overrides"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    scenario_id = Column(String(64), nullable=False, index=True)
+    company_id = Column(BigInteger, nullable=False, index=True)
+    part_number = Column(String(120), nullable=False, index=True)
+    part_name = Column(String(200), nullable=True)
+    category_name = Column(String(120), nullable=True)
+    baseline_on_hand = Column(Integer, nullable=False, default=0)
+    baseline_reserved = Column(Integer, nullable=False, default=0)
+    safety_stock_qty = Column(Integer, nullable=False, default=0)
+    consumed_qty = Column(Integer, nullable=False, default=0, comment="演示消耗量")
+    replenished_qty = Column(Integer, nullable=False, default=0, comment="演示补货量")
+    unit = Column(String(20), nullable=False, default="个")
+    source = Column(String(40), nullable=True,
+                    comment="consume_inventory|execute_replenishment|select_alternative")
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        UniqueConstraint("scenario_id", "company_id", "part_number",
+                         name="uq_demo_inv_override"),
+    )
+
+
+# ============================================================
+# 25. DemoOrder -- 演示生成订单 (场景内, 不写入 kb_production_orders)
+# ============================================================
+class DemoOrder(Base):
+    __tablename__ = "demo_orders"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    scenario_id = Column(String(64), nullable=False, index=True)
+    company_id = Column(BigInteger, nullable=False, index=True, comment="生产方(主视角)企业")
+    product_id = Column(BigInteger, nullable=False, index=True)
+    product_name = Column(String(200), nullable=True)
+    order_number = Column(String(80), nullable=False, index=True,
+                          comment="DEMO-ORD-...")
+    customer_company_id = Column(BigInteger, nullable=True, comment="下游客户企业ID")
+    customer_company_name = Column(String(200), nullable=True)
+    quantity = Column(Integer, nullable=False)
+    due_date = Column(DateTime, nullable=True)
+    priority = Column(String(20), nullable=False, default="normal")
+    status = Column(String(20), nullable=False, default="open",
+                    comment="open|confirmed|in_progress|completed|cancelled")
+    event_id = Column(BigInteger, nullable=True, comment="关联事件ID")
+    created_at = Column(DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        Index("idx_demo_order_company_status", "company_id", "status"),
+    )
+
+
+# ============================================================
+# 26. DemoRfq -- 演示询价单 (场景内, 不写入 kb_rfqs)
+#    candidates_json 存直接关系候选供应商列表 (仅直接上下游/支撑企业)。
+# ============================================================
+class DemoRfq(Base):
+    __tablename__ = "demo_rfqs"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    scenario_id = Column(String(64), nullable=False, index=True)
+    company_id = Column(BigInteger, nullable=False, index=True, comment="买方(主视角)企业")
+    rfq_number = Column(String(64), nullable=False, index=True, comment="DEMO-RFQ-...")
+    title = Column(String(300), nullable=False)
+    part_number = Column(String(200), nullable=True, index=True)
+    part_name = Column(String(200), nullable=True)
+    quantity = Column(Integer, nullable=False, default=1)
+    unit = Column(String(20), nullable=False, default="个")
+    target_price = Column(Float, nullable=True)
+    lead_time_days = Column(Integer, nullable=True)
+    accept_alternatives = Column(Boolean, nullable=False, default=False)
+    scenario = Column(String(40), nullable=True, comment="shortage|sourcing|cost_down")
+    status = Column(String(20), nullable=False, default="draft",
+                    comment="draft|sent|quoted|closed|cancelled")
+    candidates_json = Column(Text, nullable=True,
+                             comment="JSON: [{supplier_company_id, supplier_name, direction, "
+                                     "match_score, match_reason, status}]")
+    selected_supplier_company_id = Column(BigInteger, nullable=True)
+    shortage_event_id = Column(BigInteger, nullable=True, comment="触发改 RFQ 的缺件事件ID")
+    event_id = Column(BigInteger, nullable=True, comment="RFQ 创建事件ID")
+    created_at = Column(DateTime, nullable=False, default=_now)
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("idx_demo_rfq_company_status", "company_id", "status"),
+    )
+
+
+# ============================================================
+# 27. DemoQuotation -- 演示供应商报价 (场景内, 不写入 kb_quotations)
+# ============================================================
+class DemoQuotation(Base):
+    __tablename__ = "demo_quotations"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    scenario_id = Column(String(64), nullable=False, index=True)
+    rfq_id = Column(BigInteger, nullable=False, index=True)
+    supplier_company_id = Column(BigInteger, nullable=False, index=True)
+    supplier_name = Column(String(200), nullable=True)
+    part_number = Column(String(200), nullable=True)
+    unit_price = Column(Float, nullable=False)
+    currency = Column(String(10), nullable=False, default="CNY")
+    moq = Column(Integer, nullable=True)
+    lead_time_days = Column(Integer, nullable=True)
+    stock_qty = Column(Integer, nullable=True)
+    is_in_stock = Column(Boolean, nullable=False, default=False)
+    note = Column(Text, nullable=True)
+    event_id = Column(BigInteger, nullable=True, comment="报价事件ID")
+    created_at = Column(DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        UniqueConstraint("rfq_id", "supplier_company_id", name="uq_demo_quote_supplier"),
+        Index("idx_demo_quote_rfq", "rfq_id"),
+    )
