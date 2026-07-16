@@ -139,7 +139,8 @@ export const useAuthStore = defineStore('auth', () => {
       clearSession()
       return false
     }
-    if (user.value?.is_demo) {
+    if (user.value?.is_demo || session.value.token === 'demo-token') {
+      ensureDemoUserShape()
       return true
     }
     try {
@@ -185,6 +186,23 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = publicUser
     localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession))
     localStorage.setItem(USER_KEY, JSON.stringify(publicUser))
+  }
+
+  function ensureDemoUserShape() {
+    const selected = findDemoCompany(user.value?.company_id || DEFAULT_DEMO_COMPANY_ID)
+    if (!selected) return
+    user.value = {
+      name: user.value?.name || 'Demo Buyer',
+      account: user.value?.account || 'demo@matchforge.ai',
+      role: user.value?.role || 'buyer',
+      company: selected.name,
+      company_id: selected.company_id,
+      company_name: selected.name,
+      company_role: selected.role,
+      company_segment: selected.segment_name,
+      is_demo: true,
+    }
+    localStorage.setItem(USER_KEY, JSON.stringify(user.value))
   }
 
   return { token, user, isAuthenticated, login, loginDemoCompany, register, validateSession, logout }
