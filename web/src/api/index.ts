@@ -54,6 +54,11 @@ api.interceptors.response.use(
       return Promise.reject(normalizeError(error))
     }
 
+    const auth = useAuthStore()
+    if (auth.user?.is_demo || auth.token === 'demo-token') {
+      return Promise.reject(normalizeError(error))
+    }
+
     // 标记当前请求已重试过
     originalRequest._retry = true
 
@@ -68,7 +73,6 @@ api.interceptors.response.use(
       return api(originalRequest)
     } catch {
       // 刷新失败 -> 登出
-      const auth = useAuthStore()
       auth.logout()
       window.location.href = '/login'
       return Promise.reject(normalizeError(error))
