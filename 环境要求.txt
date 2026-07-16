@@ -112,7 +112,9 @@ MinIO API/Console    9000 / 9001
 3. cd api  && pip install -r requirements.txt
             && uvicorn main:app --reload    # 后端 :8000
 4. cd web  && npm install && npm run dev    # 前端 :5173
-5. 初始化种子数据（python scripts/seed.py，待开发）
+5. 初始化种子数据:
+   python data/init_all.py                      # matchforge运营库+Neo4j+Milvus
+   python scripts/import_pc_industry_seed.py    # pc_industry事实库CSV导入
 6. 访问 http://localhost:5173
 
 ========================================
@@ -124,10 +126,16 @@ MatchForge/
 ├── .gitignore
 ├── web/               Vue 3 前端
 ├── api/               FastAPI 后端
+│   ├── db/            双库 SQLAlchemy session 工厂（matchforge + pc_industry）
+│   ├── models/        双库 ORM 模型（User/Enterprise/Part/Supplier/RFQ 等）
+│   └── routers/       路由（procure/auth/rfqs/supplier_leads/audit 等）
 ├── ai/                LangGraph（Supervisor + 6 子智能体）
 ├── data/              种子数据 / 知识库
 │   ├── suppliers/
 │   ├── alternatives/
 │   └── dictionary/
+├── database/          电脑全链路数据库（DDL/字段字典/CSV种子/Demo验证）
+├── scripts/           导入脚本（import_pc_industry_seed.py 等）
 ├── deploy/            docker-compose 及部署配置
+│   └── docker/mysql/init/  Docker MySQL 自动建表 SQL
 └── docs/              文档（PRD / 架构 / 开发文档）
