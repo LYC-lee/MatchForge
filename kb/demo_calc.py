@@ -9,6 +9,8 @@
   - 演示缺件 = (基线需求 + 演示订单需求) × BOM - 演示可用库存 (不写入 kb_shortages)。
   - RFQ 候选供应商仅限当前企业的直接上下游/支撑关系企业; 无则明确提示, 不自动建立关系。
   - 每个动作写事件日志 (demo_events), 含因果链 (parent_event_id) 与联动企业。
+  - 场景初始化/reset 时播种 4 条基线演示 RFQ+报价 (DEMO-RFQ-2026-B0*),
+    使供应商类企业(华芯/创捷/鼎云/毅诚)登录后供应商工作台即非空。
 
 router 与 seed 共用本模块, 保证口径一致。不依赖 LLM / 向量库, 纯 DB 计算。
 """
@@ -69,6 +71,27 @@ _CATEGORY_PRICE_BASELINE: dict[str, tuple[float, str]] = {
     "连接器": (3.5, "个"),
     "结构件": (70.0, "个"),
     "散热": (35.0, "个"),
+    # 芯片厂 (9001) 原材料/资源
+    "晶圆": (3000.0, "片"),
+    "光刻材料": (500.0, "瓶"),
+    "封装材料": (80.0, "片"),
+    "测试资源": (200.0, "次"),
+    # 元器件厂 (9006) 原材料
+    "陶瓷粉料": (150.0, "kg"),
+    "电极浆料": (350.0, "kg"),
+    "陶瓷基板": (60.0, "片"),
+    "基板": (45.0, "片"),
+    "辅材": (30.0, "卷"),
+    # 渠道商 (9005) 采购整机/配件
+    "整机": (2200.0, "台"),
+    "配件": (80.0, "套"),
+    "包装": (10.0, "个"),
+    # 物流商 (9004) 服务资源
+    "仓储资源": (30.0, "位"),
+    "仓储设备": (50.0, "台"),
+    "运输资源": (800.0, "台"),
+    "人力": (300.0, "人"),
+    "耗材": (6.0, "升"),
 }
 
 # segment_code -> 可供货品类关键词 (用于候选供应商匹配)
@@ -363,6 +386,52 @@ def _part_baseline_price(part_number: str | None, category_name: str | None) -> 
         return 35.0
     if "CONN" in pn:
         return 3.5
+    # ---- 芯片厂 (9001) 原材料/资源 ----
+    if "WAFER" in pn:
+        return 3000.0
+    if "PHOTORESIST" in pn:
+        return 500.0
+    if "SUBSTRATE-FCCSP" in pn or "SUBSTRATE" in pn:
+        return 80.0
+    if "TEST-FT" in pn:
+        return 200.0
+    if "BONDING-WIRE" in pn:
+        return 1200.0
+    # ---- 元器件厂 (9006) 原材料 ----
+    if "CERAMIC-POWDER" in pn:
+        return 150.0
+    if "NI-PASTE" in pn:
+        return 350.0
+    if "AG-PASTE" in pn:
+        return 800.0
+    if "CERAMIC-SUB" in pn:
+        return 60.0
+    if "BASE-SUBSTRATE" in pn:
+        return 45.0
+    if "PROTECT-FILM" in pn:
+        return 30.0
+    # ---- 渠道商 (9005) 采购整机/配件 ----
+    if pn.startswith("PC-DT-") or pn.startswith("PC-NB-"):
+        return 2200.0
+    if "ACC-MOUSE" in pn:
+        return 80.0
+    if "ACC-ADAPTER" in pn:
+        return 120.0
+    if "PACK-RETAIL" in pn:
+        return 10.0
+    # ---- 物流商 (9004) 服务资源 ----
+    if "RES-WHS-PLT" in pn:
+        return 30.0
+    if "RES-FORKLIFT" in pn:
+        return 50.0
+    if "RES-WHS-STAFF" in pn:
+        return 300.0
+    if "RES-TRUCK" in pn:
+        return 800.0
+    if "RES-DRIVER" in pn:
+        return 300.0
+    if "RES-FUEL" in pn:
+        return 6.0
     # 按品类兜底
     if category_name:
         base = _CATEGORY_PRICE_BASELINE.get(category_name)
@@ -414,6 +483,7 @@ def ensure_default_scenario(s) -> str:
         s.add(scn)
         s.flush()
     _init_company_states(s, DEFAULT_SCENARIO_ID)
+    _seed_baseline_demo_rfqs(s, DEFAULT_SCENARIO_ID)
     return DEFAULT_SCENARIO_ID
 
 
@@ -444,6 +514,123 @@ def _init_company_states(s, scenario_id: str) -> None:
         )
         s.add(st)
     s.flush()
+
+
+# ============================================================
+# 基线演示 RFQ + 报价 (让供应商类企业登录后供应商工作台即非空)
+# 仅用直接关系候选; 重置后由 reset_scenario 重新生成, 保持基线一致。
+# ============================================================
+
+# 基线 RFQ 定义: 买方对真实缺件/寻源零件发起的询价, 候选仅限直接关系供应商。
+_BASELINE_RFQS = [
+    {
+        "rfq_number": "DEMO-RFQ-2026-B01",
+        "buyer": 9003,  # 鼎云对主板PCBA缺件寻源 -> 候选创捷(9002, 直接上游)
+        "part_number": "PCBA-DY-DT-Z690", "part_name": "台式机主板PCBA",
+        "category_name": "PCBA", "quantity": 500, "unit": "片",
+        "target_price": 380.0, "lead_time_days": 14,
+        "candidates": [9002],
+    },
+    {
+        "rfq_number": "DEMO-RFQ-2026-B02",
+        "buyer": 9002,  # 创捷对芯片组缺件寻源 -> 候选华芯(9001, 直接上游)
+        "part_number": "CHIPSET-Z690", "part_name": "Z690芯片组",
+        "category_name": "半导体芯片", "quantity": 200, "unit": "颗",
+        "target_price": 450.0, "lead_time_days": 28,
+        "candidates": [9001],
+    },
+    {
+        "rfq_number": "DEMO-RFQ-2026-B03",
+        "buyer": 9002,  # 创捷对MLCC寻源(接受替代) -> 候选毅诚(9006, 直接上游)
+        "part_number": "MLCC-0805-X7R-105", "part_name": "MLCC电容 0805 1uF",
+        "category_name": "被动元件", "quantity": 100000, "unit": "颗",
+        "target_price": 0.12, "lead_time_days": 10,
+        "candidates": [9006],
+    },
+    {
+        "rfq_number": "DEMO-RFQ-2026-B04",
+        "buyer": 9005,  # 星河对整机寻源 -> 候选鼎云(9003, 直接上游)
+        "part_number": "PC-DT-DY-PRO", "part_name": "鼎云台式机整机",
+        "category_name": "整机", "quantity": 200, "unit": "台",
+        "target_price": 2200.0, "lead_time_days": 21,
+        "candidates": [9003],
+    },
+]
+
+
+def _seed_baseline_demo_rfqs(s, scenario_id: str) -> int:
+    """幂等写入基线演示 RFQ + 报价 (供应商工作台初始即非空)。
+
+    仅对直接关系候选生成; 候选供应商已模拟报价 (status=quoted)。
+    返回写入的 RFQ 数。
+    """
+    created = 0
+    for b in _BASELINE_RFQS:
+        existing = s.query(DemoRfq).filter_by(
+            scenario_id=scenario_id, rfq_number=b["rfq_number"]
+        ).first()
+        if existing:
+            continue
+        buyer = b["buyer"]
+        # 仅保留与买方有直接关系的候选
+        cands_raw = []
+        for sup_id in b["candidates"]:
+            if not _has_direct_relationship(s, buyer, sup_id):
+                continue
+            sup_name = _company_name(s, sup_id)
+            cands_raw.append({
+                "supplier_company_id": sup_id,
+                "supplier_name": sup_name,
+                "direction": "supplier",
+                "match_score": 0.95,
+                "match_reason": f"{sup_name} 为本企业直接上游, 主营相关品类",
+                "status": "quoted",
+            })
+        if not cands_raw:
+            continue
+        rfq = DemoRfq(
+            scenario_id=scenario_id,
+            company_id=buyer,
+            rfq_number=b["rfq_number"],
+            title=f"{b['part_name']} 缺件采购 ({b['part_number']})",
+            part_number=b["part_number"],
+            part_name=b["part_name"],
+            quantity=b["quantity"],
+            unit=b["unit"],
+            target_price=b["target_price"],
+            lead_time_days=b["lead_time_days"],
+            accept_alternatives=True,
+            scenario="shortage",
+            status="quoted",
+            candidates_json=_dump_json(cands_raw),
+        )
+        s.add(rfq)
+        s.flush()
+        # 为每个候选生成模拟报价
+        for c in cands_raw:
+            sup_id = c["supplier_company_id"]
+            base = b["target_price"] or _part_baseline_price(b["part_number"], b["category_name"])
+            price = round(base * _supplier_price_factor(s, sup_id), 4)
+            lead = _supplier_lead_time(s, sup_id)
+            moq = max(1, int(b["quantity"] * 0.1)) if base < 1 else 1
+            q = DemoQuotation(
+                scenario_id=scenario_id,
+                rfq_id=rfq.id,
+                supplier_company_id=sup_id,
+                supplier_name=c["supplier_name"],
+                part_number=b["part_number"],
+                unit_price=price,
+                currency="CNY",
+                moq=moq,
+                lead_time_days=lead,
+                stock_qty=None,
+                is_in_stock=False,
+                note=f"基线模拟报价 (匹配分 {c['match_score']})",
+            )
+            s.add(q)
+        created += 1
+    s.flush()
+    return created
 
 
 def _compute_company_state(s, scenario_id: str, company_id: int) -> dict:
@@ -493,6 +680,32 @@ def _compute_company_state(s, scenario_id: str, company_id: int) -> dict:
             "unit": ov.unit,
         })
 
+    # demo 订单明细补全 (可映射 DashboardOrder) + 活跃统计 (供前端合并驾驶舱)
+    product_map = {p["id"]: p for p in products}
+    demo_order_dicts: list[dict] = []
+    demo_orders_active_count = 0
+    demo_orders_active_quantity = 0
+    for o in demo_orders:
+        prod = product_map.get(o.product_id, {})
+        if o.status in ACTIVE_ORDER_STATUSES:
+            demo_orders_active_count += 1
+            demo_orders_active_quantity += o.quantity or 0
+        demo_order_dicts.append({
+            "id": o.id,
+            "order_number": o.order_number,
+            "product_id": o.product_id,
+            "product_name": o.product_name,
+            "product_model": prod.get("product_model"),
+            "quantity": o.quantity,
+            "priority": o.priority,
+            "status": o.status,
+            "customer_company_id": o.customer_company_id,
+            "customer_company_name": o.customer_company_name,
+            "due_date": o.due_date.isoformat() if o.due_date else None,
+            "unit": prod.get("unit"),
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+        })
+
     return {
         "company_id": company_id,
         "company_name": c.name if c else None,
@@ -502,14 +715,9 @@ def _compute_company_state(s, scenario_id: str, company_id: int) -> dict:
         "products_total": len(products),
         "baseline_inventory_total": len(baseline_inv),
         "demo_orders_total": len(demo_orders),
-        "demo_orders": [
-            {
-                "order_number": o.order_number, "product_name": o.product_name,
-                "quantity": o.quantity, "priority": o.priority, "status": o.status,
-                "customer_company_name": o.customer_company_name,
-            }
-            for o in demo_orders
-        ],
+        "demo_orders_active_count": demo_orders_active_count,
+        "demo_orders_active_quantity": demo_orders_active_quantity,
+        "demo_orders": demo_order_dicts,
         "demo_inventory_overrides_total": len(overrides),
         "demo_inventory": inv_view,
         "demo_shortages_total": len(shortages),
@@ -635,8 +843,9 @@ def reset_scenario(s, scenario_id: str) -> dict:
     scn.status = "active"
     scn.updated_at = _now()
     s.flush()
-    # 重新初始化状态快照
+    # 重新初始化状态快照 + 基线演示 RFQ (供应商工作台初始即非空)
     _init_company_states(s, scenario_id)
+    _seed_baseline_demo_rfqs(s, scenario_id)
     return {
         "scenario_id": scenario_id,
         "status": "reset",
@@ -1578,6 +1787,19 @@ def simulate_quotes(s, scenario_id: str, company_id: int,
                               message=f"RFQ {rfq.rfq_number} 无候选供应商 (无直接关系供应商)")
 
     base_price = rfq.target_price or _part_baseline_price(rfq.part_number, None)
+
+    # 幂等: 同一 RFQ 已有报价时不重复创建, 而是按当前规则原地刷新 (价格随 target_price/
+    # 供应商因子变化更新, 但不新增行, 不产生垃圾数据)。已关闭的 RFQ 不再重算。
+    existing_quotes = (
+        s.query(DemoQuotation)
+        .filter_by(rfq_id=rfq.id)
+        .all()
+    )
+    existing_by_sup: dict[int, DemoQuotation] = {
+        q.supplier_company_id: q for q in existing_quotes
+    }
+    is_requote = bool(existing_by_sup) and rfq.status not in ("closed",)
+
     event_ids: list[int] = []
     quotes: list[dict] = []
     for c in candidates:
@@ -1590,37 +1812,52 @@ def simulate_quotes(s, scenario_id: str, company_id: int,
         in_stock = stock is not None and stock > 0
         # 更新候选状态
         c["status"] = "quoted"
-        qrow = DemoQuotation(
-            scenario_id=scenario_id,
-            rfq_id=rfq.id,
-            supplier_company_id=sup_id,
-            supplier_name=c.get("supplier_name"),
-            part_number=rfq.part_number,
-            unit_price=unit_price,
-            currency="CNY",
-            moq=moq,
-            lead_time_days=lead,
-            stock_qty=stock,
-            is_in_stock=in_stock,
-            note=f"模拟报价 (匹配分 {c.get('match_score')})",
-        )
-        s.add(qrow)
-        s.flush()
-        qe = _log_event(s, scenario_id=scenario_id, company_id=sup_id, phase=phase,
-                        action_log_id=log.id, event_type="quote_received",
-                        title=f"{c.get('supplier_name')} 报价 {rfq.part_name} 单价 {unit_price}",
-                        detail=f"{c.get('supplier_name')} 对 RFQ {rfq.rfq_number} 报价: "
-                              f"{rfq.part_name}({rfq.part_number}) 单价 {unit_price} 元, "
-                              f"交期 {lead} 天, MOQ {moq}。",
-                        payload={"rfq_number": rfq.rfq_number, "unit_price": unit_price,
-                                 "lead_time_days": lead, "moq": moq},
-                        parent_event_id=rfq.event_id, linked_company_id=company_id)
-        qrow.event_id = qe.id
-        event_ids.append(qe.id)
+        prev = existing_by_sup.get(sup_id)
+        if prev is not None:
+            # 原地刷新 (幂等: 不新增行; uq_demo_quote_supplier 保证 rfq+supplier 唯一)
+            prev.unit_price = unit_price
+            prev.moq = moq
+            prev.lead_time_days = lead
+            prev.stock_qty = stock
+            prev.is_in_stock = in_stock
+            prev.note = f"模拟报价 (匹配分 {c.get('match_score')})"
+            s.flush()
+            qrow = prev
+        else:
+            qrow = DemoQuotation(
+                scenario_id=scenario_id,
+                rfq_id=rfq.id,
+                supplier_company_id=sup_id,
+                supplier_name=c.get("supplier_name"),
+                part_number=rfq.part_number,
+                unit_price=unit_price,
+                currency="CNY",
+                moq=moq,
+                lead_time_days=lead,
+                stock_qty=stock,
+                is_in_stock=in_stock,
+                note=f"模拟报价 (匹配分 {c.get('match_score')})",
+            )
+            s.add(qrow)
+            s.flush()
+        # 仅首次报价写事件 (重算时不重复写 quote_received 事件)
+        if not is_requote or prev is None:
+            qe = _log_event(s, scenario_id=scenario_id, company_id=sup_id, phase=phase,
+                            action_log_id=log.id, event_type="quote_received",
+                            title=f"{c.get('supplier_name')} 报价 {rfq.part_name} 单价 {unit_price}",
+                            detail=f"{c.get('supplier_name')} 对 RFQ {rfq.rfq_number} 报价: "
+                                  f"{rfq.part_name}({rfq.part_number}) 单价 {unit_price} 元, "
+                                  f"交期 {lead} 天, MOQ {moq}。",
+                            payload={"rfq_number": rfq.rfq_number, "unit_price": unit_price,
+                                     "lead_time_days": lead, "moq": moq},
+                            parent_event_id=rfq.event_id, linked_company_id=company_id)
+            qrow.event_id = qe.id
+            event_ids.append(qe.id)
         quotes.append(_quote_dict(qrow))
 
     rfq.candidates_json = _dump_json(candidates)
-    rfq.status = "quoted"
+    if rfq.status not in ("closed",):
+        rfq.status = "quoted"
     rfq.updated_at = _now()
     _refresh_company_state(s, scenario_id, company_id)
     result = {
@@ -1630,8 +1867,10 @@ def simulate_quotes(s, scenario_id: str, company_id: int,
         "quote_count": len(quotes),
         "lowest_price": min((q["unit_price"] for q in quotes), default=None),
         "events_created": len(event_ids),
+        "requote": is_requote,
     }
-    _finish_action(s, log, result, event_ids)
+    msg = f"RFQ {rfq.rfq_number} 已有报价, 已按当前规则刷新 (幂等, 未新增重复报价)" if is_requote else None
+    _finish_action(s, log, result, event_ids, message=msg)
     return result
 
 
@@ -1684,6 +1923,198 @@ def quote_comparison(s, scenario_id: str, company_id: int, rfq_id: int) -> dict:
         "quote_count": len(quotes),
         "lowest_price": quotes[0]["unit_price"] if quotes else None,
         "items": quotes,
+    }
+
+
+# ============================================================
+# 供应商视角: 查看自己作为候选供应商收到的 demo RFQ / 报价 / 事件
+# ============================================================
+
+def get_supplier_demo_view(s, scenario_id: str, supplier_company_id: int) -> dict:
+    """供应商视角: 返回当前企业作为候选供应商收到的 demo RFQ 列表 + 自己的报价 + 相关事件。
+
+    数据来源: demo_rfqs.candidates_json 含 supplier_company_id 的行 + demo_quotations +
+    demo_events (company_id=供应商 或 linked_company_id=供应商)。
+    不写死, 完全基于当前 scenario 的 demo 数据动态计算。
+    """
+    _company(s, supplier_company_id)
+    scn = s.query(DemoScenario).filter_by(scenario_id=scenario_id).first()
+    if not scn:
+        raise HTTPException(status_code=404, detail=f"演示场景 {scenario_id} 不存在")
+
+    all_rfqs = (
+        s.query(DemoRfq)
+        .filter_by(scenario_id=scenario_id)
+        .order_by(DemoRfq.id.desc())
+        .all()
+    )
+    # 筛选: candidates_json 含本供应商
+    relevant: list[DemoRfq] = []
+    for r in all_rfqs:
+        cands = _parse_json(r.candidates_json, [])
+        if any(c.get("supplier_company_id") == supplier_company_id for c in cands):
+            relevant.append(r)
+
+    # 本供应商对这些 RFQ 的报价 (rfq_id -> quote)
+    my_quotes = {
+        q.rfq_id: q for q in
+        s.query(DemoQuotation)
+        .filter_by(scenario_id=scenario_id, supplier_company_id=supplier_company_id)
+        .all()
+    }
+
+    items: list[dict] = []
+    for r in relevant:
+        cands = _parse_json(r.candidates_json, [])
+        me = next((c for c in cands if c.get("supplier_company_id") == supplier_company_id), {})
+        my_quote = my_quotes.get(r.id)
+        buyer_name = _company_name(s, r.company_id)
+        items.append({
+            "rfq_id": r.id,
+            "rfq_number": r.rfq_number,
+            "title": r.title,
+            "buyer_company_id": r.company_id,
+            "buyer_name": buyer_name,
+            "part_number": r.part_number,
+            "part_name": r.part_name,
+            "quantity": r.quantity,
+            "unit": r.unit,
+            "target_price": r.target_price,
+            "lead_time_days": r.lead_time_days,
+            "accept_alternatives": r.accept_alternatives,
+            "rfq_status": r.status,
+            "selected_supplier_company_id": r.selected_supplier_company_id,
+            "is_selected": r.selected_supplier_company_id == supplier_company_id,
+            "my_match_score": me.get("match_score"),
+            "my_match_reason": me.get("match_reason"),
+            "my_quote": _quote_dict(my_quote) if my_quote else None,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        })
+
+    # 相关事件 (本企业收到/发出的 demo 事件)
+    events_q = (
+        s.query(DemoEvent)
+        .filter(DemoEvent.scenario_id == scenario_id)
+        .filter(
+            (DemoEvent.company_id == supplier_company_id)
+            | (DemoEvent.linked_company_id == supplier_company_id)
+        )
+        .order_by(DemoEvent.seq.desc())
+        .limit(50)
+        .all()
+    )
+
+    return {
+        "scenario_id": scenario_id,
+        "supplier_company_id": supplier_company_id,
+        "supplier_name": _company_name(s, supplier_company_id),
+        "total_rfqs": len(items),
+        "items": items,
+        "events": [_event_dict(e) for e in events_q],
+    }
+
+
+# ============================================================
+# 审核队列: 从 demo events 派生只读审核项
+# ============================================================
+
+# 触发审核的 demo 事件类型
+_AUDIT_EVENT_TYPES = ("no_direct_supplier",)
+# 报价超目标价阈值 (倍数) -> 报价异常
+_ANOMALY_RATIO = 1.5
+
+
+def get_demo_audit_queue(s, scenario_id: str,
+                         company_id: int | None = None) -> dict:
+    """只读审核队列: 从 demo events + demo quotations 派生需人工处理的事项。
+
+    来源 (全部动态计算, 不写死):
+      - no_direct_supplier 事件 (无直接关系供应商, 需建立合作关系/人工审核)
+      - 报价异常: demo_quotations 中单价 > 目标价 × 1.5 的报价
+      - relationship_missing 缺件 (从 demo_company_states 缓存的 shortages 派生)
+
+    MVP 只读: 不写回审批状态, 仅展示队列。
+    """
+    scn = s.query(DemoScenario).filter_by(scenario_id=scenario_id).first()
+    if not scn:
+        raise HTTPException(status_code=404, detail=f"演示场景 {scenario_id} 不存在")
+
+    items: list[dict] = []
+    seq_counter = 0
+
+    # 1) no_direct_supplier 事件
+    ev_q = s.query(DemoEvent).filter(
+        DemoEvent.scenario_id == scenario_id,
+        DemoEvent.event_type.in_(_AUDIT_EVENT_TYPES),
+    )
+    if company_id is not None:
+        ev_q = ev_q.filter(DemoEvent.company_id == company_id)
+    for e in ev_q.order_by(DemoEvent.seq.desc()).all():
+        seq_counter += 1
+        payload = _parse_json(e.payload_json, {})
+        items.append({
+            "audit_id": f"evt-{e.id}",
+            "item_type": "no_direct_supplier",
+            "title": e.title or "无可用直接关系供应商",
+            "detail": e.detail,
+            "company_id": e.company_id,
+            "company_name": e.company_name,
+            "severity": "high",
+            "status": "pending",
+            "payload": {
+                "part_number": payload.get("part_number"),
+                "shortage_qty": payload.get("shortage_qty"),
+                "preferred_supplier_company_id": payload.get("preferred_supplier_company_id"),
+                "event_id": e.id,
+            },
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        })
+
+    # 2) 报价异常 (单价 > 目标价 × 阈值)
+    quote_q = (
+        s.query(DemoQuotation, DemoRfq)
+        .join(DemoRfq, DemoQuotation.rfq_id == DemoRfq.id)
+        .filter(DemoQuotation.scenario_id == scenario_id)
+    )
+    if company_id is not None:
+        quote_q = quote_q.filter(DemoRfq.company_id == company_id)
+    for q, r in quote_q.all():
+        target = r.target_price
+        if not target or target <= 0:
+            continue
+        if q.unit_price > target * _ANOMALY_RATIO:
+            seq_counter += 1
+            items.append({
+                "audit_id": f"quote-{q.id}",
+                "item_type": "quotation_anomaly",
+                "title": f"{q.supplier_name} 报价超目标价 {round((q.unit_price / target - 1) * 100, 1)}%",
+                "detail": (f"RFQ {r.rfq_number} ({r.part_name}) 目标单价 {target}, "
+                           f"{q.supplier_name} 报价 {q.unit_price}, 超出阈值 {_ANOMALY_RATIO}x, 建议人工复核。"),
+                "company_id": r.company_id,
+                "company_name": _company_name(s, r.company_id),
+                "severity": "medium",
+                "status": "pending",
+                "payload": {
+                    "rfq_id": r.id, "rfq_number": r.rfq_number,
+                    "supplier_company_id": q.supplier_company_id,
+                    "unit_price": q.unit_price, "target_price": target,
+                },
+                "created_at": q.created_at.isoformat() if q.created_at else None,
+            })
+
+    # 注: relationship_missing 缺件不单独入队 -- 该语义已由 no_direct_supplier 事件覆盖
+    # (recalculate_shortages / generate_rfq 在发现首选供应商无直接关系时即写
+    #  no_direct_supplier 事件)。审核队列仅来自 demo events + demo quotations,
+    # reset 后随演示数据清空, 不残留基线派生项。
+
+    # 按严重度排序
+    items.sort(key=lambda x: (_SEVERITY_RANK.get(x["severity"], 9), x["audit_id"]))
+    return {
+        "scenario_id": scenario_id,
+        "company_id": company_id,
+        "total": len(items),
+        "pending": len(items),  # MVP 只读, 全部 pending
+        "items": items,
     }
 
 

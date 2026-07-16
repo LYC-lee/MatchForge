@@ -141,7 +141,10 @@ function goRfqFromAction(action: DashboardAction) {
             <span>优先级</span>
           </div>
           <div v-for="item in orders.slice(0, 8)" :key="`o${item.id}`" class="table-row">
-            <span class="mono">{{ item.order_number }}</span>
+            <span class="mono">
+              {{ item.order_number }}
+              <small v-if="item.is_demo" class="demo-badge">演示</small>
+            </span>
             <span>{{ item.customer_name || `企业${item.customer_company_id || ''}` }}</span>
             <span>{{ item.product_model || item.product_name || '-' }}</span>
             <span>{{ item.quantity.toLocaleString() }}</span>
@@ -203,7 +206,7 @@ function goRfqFromAction(action: DashboardAction) {
         <div class="shortage-list">
           <button v-for="item in topShortages" :key="item.id" class="shortage-line" @click="goProcure(item)">
             <div>
-              <b>{{ item.part_name || item.part_number }}</b>
+              <b>{{ item.part_name || item.part_number }}<small v-if="item.is_demo" class="demo-badge">演示</small></b>
               <span>缺口 {{ item.shortage_qty.toLocaleString() }} {{ item.unit || '' }} · 影响 {{ item.affected_order_numbers.join('、') || '无' }}</span>
             </div>
             <span :class="severityClass(item.severity)">{{ severityLabel(item.severity) }}</span>
@@ -222,7 +225,10 @@ function goRfqFromAction(action: DashboardAction) {
         </div>
         <div class="action-list">
           <div v-for="action in sortedActions.slice(0, 6)" :key="action.title" class="action-line">
-            <span class="action-type" :class="`action-type--${action.category}`">{{ categoryLabel(action.category) }}</span>
+            <span class="action-type" :class="`action-type--${action.category}`">
+              {{ categoryLabel(action.category) }}
+              <small v-if="action.is_demo" class="demo-badge demo-badge--inline">演示</small>
+            </span>
             <div>
               <b>{{ action.title }}</b>
               <p>{{ action.detail }}</p>
@@ -382,6 +388,27 @@ function goRfqFromAction(action: DashboardAction) {
 .table-row--forecast { opacity: 0.85; }
 .table-row--empty { color: var(--text-tertiary); grid-template-columns: 1fr; justify-content: center; }
 .mono { font-family: var(--font-mono); font-size: var(--font-size-xs); }
+.demo-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-base, inherit);
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  vertical-align: middle;
+}
+.demo-badge--inline {
+  margin-left: 3px;
+  padding: 0 4px;
+  font-size: 9px;
+  color: #fff;
+  background: rgba(99, 102, 241, 0.55);
+  border-color: transparent;
+}
 .product-list,
 .shortage-list,
 .action-list { display: grid; gap: var(--space-2); }
