@@ -6,7 +6,7 @@ codex/demo-scenario-frontend
 
 ## commit hash
 
-待提交后填写。
+999a8ac (实现提交；最终分支 HEAD 以 git log 为准)
 
 ## 修改文件清单
 
