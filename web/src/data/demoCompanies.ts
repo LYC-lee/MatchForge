@@ -50,8 +50,8 @@ export const DEMO_COMPANIES: DemoCompany[] = [
   },
   {
     company_id: 9006,
-    name: '华北元器件',
-    short_name: '华北元器件',
+    name: '毅诚被动元件',
+    short_name: '毅诚',
     segment_name: '连接器/被动件',
     role: '元器件制造与备货供应商',
     chain_position: '上游',
