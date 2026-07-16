@@ -23,6 +23,9 @@ const expanded = ref(false)
 const loadingKey = ref('')
 const error = ref('')
 const events = ref<DemoEvent[]>([])
+const position = ref({ x: 0, y: 0 })
+const dragging = ref(false)
+const dragOffset = ref({ x: 0, y: 0 })
 
 const isDemo = computed(() => !!auth.user?.is_demo)
 
@@ -35,6 +38,47 @@ const actions = [
   { key: 'replenish', label: '执行补货', run: () => executeDemoReplenishment(currentEnterpriseId.value) },
   { key: 'alternative', label: '选择替代料', run: () => selectDemoAlternative(currentEnterpriseId.value) },
 ]
+
+const consoleStyle = computed(() => ({
+  left: `${position.value.x}px`,
+  top: `${position.value.y}px`,
+}))
+
+function clampPosition(x: number, y: number) {
+  const width = expanded.value ? 360 : 220
+  const height = expanded.value ? 620 : 72
+  const pad = 12
+  return {
+    x: Math.max(pad, Math.min(window.innerWidth - width - pad, x)),
+    y: Math.max(pad, Math.min(window.innerHeight - height - pad, y)),
+  }
+}
+
+function setDefaultPosition() {
+  position.value = clampPosition(window.innerWidth - 390, window.innerHeight - 120)
+}
+
+function startDrag(event: PointerEvent) {
+  const target = event.target as HTMLElement
+  if (target.closest('button') && !target.classList.contains('demo-console__drag')) return
+  dragging.value = true
+  dragOffset.value = {
+    x: event.clientX - position.value.x,
+    y: event.clientY - position.value.y,
+  }
+  window.addEventListener('pointermove', onDrag)
+  window.addEventListener('pointerup', stopDrag, { once: true })
+}
+
+function onDrag(event: PointerEvent) {
+  if (!dragging.value) return
+  position.value = clampPosition(event.clientX - dragOffset.value.x, event.clientY - dragOffset.value.y)
+}
+
+function stopDrag() {
+  dragging.value = false
+  window.removeEventListener('pointermove', onDrag)
+}
 
 function normalizeEvents(payload: unknown): DemoEvent[] {
   if (Array.isArray(payload)) return payload
@@ -91,23 +135,37 @@ function eventTime(event: DemoEvent) {
   return Number.isNaN(date.getTime()) ? raw : date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
-onMounted(loadEvents)
+onMounted(() => {
+  setDefaultPosition()
+  loadEvents()
+})
 </script>
 
 <template>
-  <div v-if="isDemo" class="demo-console" :class="{ 'demo-console--open': expanded }">
-    <button v-if="!expanded" type="button" class="demo-console__fab" @click="expanded = true">
-      <span>演示控制台</span>
-      <b>{{ current.company.name }}</b>
-    </button>
+  <div
+    v-if="isDemo"
+    class="demo-console"
+    :class="{ 'demo-console--open': expanded, 'is-dragging': dragging }"
+    :style="consoleStyle"
+  >
+    <div v-if="!expanded" class="demo-console__fab" @pointerdown="startDrag">
+      <button type="button" class="demo-console__drag" title="拖动演示控制台">⋮⋮</button>
+      <button type="button" class="demo-console__fab-main" @click="expanded = true">
+        <span>演示控制台</span>
+        <b>{{ current.company.name }}</b>
+      </button>
+    </div>
 
     <section v-else class="demo-console__panel" aria-label="演示控制台">
-      <header class="demo-console__head">
+      <header class="demo-console__head" @pointerdown="startDrag">
         <div>
           <p>演示控制台</p>
           <b>{{ current.company.name }}</b>
         </div>
-        <button type="button" @click="expanded = false">收起</button>
+        <div class="demo-console__head-actions">
+          <button type="button" class="demo-console__drag" title="拖动演示控制台">⋮⋮</button>
+          <button type="button" @click="expanded = false">收起</button>
+        </div>
       </header>
 
       <div class="demo-console__actions">
@@ -149,21 +207,43 @@ onMounted(loadEvents)
 <style scoped>
 .demo-console {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 60;
+  z-index: 90;
   color: #eef2ff;
+  user-select: none;
+}
+
+.demo-console.is-dragging {
+  cursor: grabbing;
 }
 
 .demo-console__fab {
-  width: 168px;
-  min-height: 58px;
-  padding: 10px 14px;
+  width: 220px;
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid rgba(129, 140, 248, 0.75);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #242a42, #141927 60%);
+  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.42), 0 0 0 4px rgba(99, 102, 241, 0.14);
+}
+
+.demo-console__fab-main {
+  padding: 10px 14px 10px 4px;
   text-align: left;
-  border: 1px solid rgba(129, 140, 248, 0.55);
-  border-radius: 12px;
-  background: #151927;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
+}
+
+.demo-console__drag {
+  min-width: 32px;
+  color: #c7d2fe;
+  cursor: grab;
+  font-weight: 800;
+  letter-spacing: -2px;
+}
+
+.demo-console__drag:active {
+  cursor: grabbing;
 }
 
 .demo-console__fab span,
@@ -188,7 +268,7 @@ onMounted(loadEvents)
   border: 1px solid #3a4258;
   border-radius: 14px;
   background: #111520;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48), 0 0 0 4px rgba(99, 102, 241, 0.12);
 }
 
 .demo-console__head,
@@ -205,9 +285,16 @@ onMounted(loadEvents)
   padding: 14px 16px;
   border-bottom: 1px solid #2e3548;
   background: #111520;
+  cursor: grab;
 }
 
-.demo-console__head button,
+.demo-console__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.demo-console__head-actions button,
 .demo-console__events-head button {
   color: #c8d1ea;
   font-size: 12px;

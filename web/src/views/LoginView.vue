@@ -45,10 +45,6 @@ async function demoLogin() {
   }
 }
 
-function selectDemoCompany(id: number) {
-  selectedDemoCompanyId.value = id
-}
-
 function switchAccount() { auth.logout(); account.value = ''; password.value = ''; error.value = '' }
 
 // 全息投影动画
@@ -294,17 +290,6 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
                 </option>
               </select>
             </label>
-            <div class="demo-login__quick">
-              <button
-                v-for="company in DEMO_COMPANIES.slice(0, 4)"
-                :key="company.company_id"
-                type="button"
-                :class="{ active: selectedDemoCompanyId === company.company_id }"
-                @click="selectDemoCompany(company.company_id)"
-              >
-                {{ company.short_name }}
-              </button>
-            </div>
             <button type="button" class="auth-demo auth-demo--primary" :disabled="demoLoading" @click="demoLogin">
               {{ demoLoading ? '进入中...' : '进入演示' }}
             </button>
@@ -395,26 +380,6 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
-}
-.demo-login__quick {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-}
-.demo-login__quick button {
-  min-height: 30px;
-  padding: 6px 8px;
-  color: #c5cada;
-  border: 1px solid #343a4d;
-  border-radius: 7px;
-  background: #151924;
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-}
-.demo-login__quick button.active {
-  color: #fff;
-  border-color: #818cf8;
-  background: rgba(99, 102, 241, 0.35);
 }
 .auth-divider {
   display: flex;
