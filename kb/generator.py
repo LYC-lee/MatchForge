@@ -525,18 +525,18 @@ def _template_business(company: CompanyCache, boundary: BusinessBoundary, lang: 
 # 对外入口
 # ============================================================
 async def generate_product_knowledge(company: CompanyCache, boundary: BusinessBoundary, lang: str) -> dict:
-    """生成产品知识结构。先 LLM, 失败/无 key 则模板。"""
+    """生成产品知识结构 — 仅使用真实 LLM。"""
     data = await _llm_generate(company, boundary, "product", lang)
     if data and data.get("products"):
         data["source"] = "llm"
         return data
-    return _template_products(company, boundary, lang)
+    raise RuntimeError(f"LLM product knowledge generation failed for company {company.id} ({company.name})")
 
 
 async def generate_business_knowledge(company: CompanyCache, boundary: BusinessBoundary, lang: str) -> dict:
-    """生成业务知识结构。先 LLM, 失败/无 key 则模板。"""
+    """生成业务知识结构 — 仅使用真实 LLM。"""
     data = await _llm_generate(company, boundary, "business", lang)
     if data and data.get("business_types"):
         data["source"] = "llm"
         return data
-    return _template_business(company, boundary, lang)
+    raise RuntimeError(f"LLM business knowledge generation failed for company {company.id} ({company.name})")

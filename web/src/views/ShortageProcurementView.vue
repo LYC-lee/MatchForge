@@ -167,7 +167,7 @@ function goFlow() {
     </header>
 
     <div v-if="loading" class="loading-bar">正在拉取缺件与采购数据…</div>
-    <div v-if="dataSource === 'mock'" class="notice-bar">后端不可用, 已降级到 mock 数据</div>
+    <div v-if="dataSource === 'mock'" class="notice-bar">后端接口暂不可用，当前显示本地兜底经营数据</div>
 
     <section class="layout">
       <!-- 缺件清单 -->

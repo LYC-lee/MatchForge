@@ -82,7 +82,7 @@ function goRfqFromAction(action: DashboardAction) {
           <h1>{{ company?.name || '加载中…' }}</h1>
           <span class="role">{{ company?.role || current.role || '' }}</span>
           <span class="source-tag" :class="`source-tag--${dataSource}`">
-            {{ dataSource === 'api' ? '实时接口' : dataSource === 'mock' ? 'Mock 降级' : '加载中' }}
+            {{ dataSource === 'api' ? '实时接口' : dataSource === 'loading' ? '加载中' : '暂无数据' }}
           </span>
         </div>
         <p>{{ company?.description || current.company.description || '' }}</p>

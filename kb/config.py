@@ -29,7 +29,7 @@ LLM_BASE_URL = os.getenv(
     "LLM_BASE_URL", "https://ark.cn-beijing.volces.com/api/coding/v3"
 )
 LLM_MODEL = os.getenv("LLM_MODEL", "glm-5.2")
-LLM_MODEL_LIGHT = os.getenv("LLM_MODEL_LIGHT", "glm-5.2")
+LLM_MODEL_LIGHT = os.getenv("LLM_MODEL_LIGHT", "DeepSeek-V4-Flash")
 
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "") or LLM_API_KEY
@@ -46,14 +46,11 @@ MILVUS_HOST = os.getenv("MILVUS_HOST", "localhost")
 MILVUS_PORT = os.getenv("MILVUS_PORT", "19530")
 
 # ============================================================
-# 知识库主库 (Source of Truth)
-# 默认 SQLite 本地文件 -- 当前环境 Docker/MySQL 未启动时仍可运行；
-# 设置 KB_DATABASE_URL 即可无缝切到 MySQL (与 ai/config.py 的 MYSQL_URL 兼容)。
-# 非破坏式: 使用独立库/独立文件，不触碰现有 matchforge / pc_industry 业务表。
+# 知识库主库 (Source of Truth) — MySQL
 # ============================================================
 KB_DATABASE_URL = os.getenv(
     "KB_DATABASE_URL",
-    f"sqlite:///{_PROJECT_ROOT / 'data' / 'knowledge.db'}",
+    "mysql+pymysql://matchforge:matchforge123@localhost:3306/matchforge?charset=utf8mb4",
 )
 
 # 公司库来源 -- 优先级1: MySQL pc_industry.companies；优先级2: 项目 CSV 种子文件。
@@ -65,10 +62,9 @@ COMPANY_MYSQL_URL = os.getenv(
 COMPANY_CSV_DIR = _PROJECT_ROOT / "database" / "04_seed_data"
 
 # ============================================================
-# 向量库选择
-# auto: 优先 Milvus (复用现有), 不可达则降级 Local (numpy+SQLite)
+# 向量库 — Milvus
 # ============================================================
-KB_VECTOR_STORE = os.getenv("KB_VECTOR_STORE", "auto")
+KB_VECTOR_STORE = os.getenv("KB_VECTOR_STORE", "milvus")
 
 # 新建 Milvus Collection -- 现有 knowledge_chunks 缺少 company_id/language/chunk_type
 # 等过滤字段, 无法满足公司级 RAG。非破坏式: 新建集合, 不动现有集合。
@@ -85,8 +81,8 @@ KB_COMPANY_CONCURRENCY = int(os.getenv("KB_COMPANY_CONCURRENCY", "3"))
 KB_LLM_CONCURRENCY = int(os.getenv("KB_LLM_CONCURRENCY", "2"))
 KB_LLM_MAX_RETRIES = int(os.getenv("KB_LLM_MAX_RETRIES", "3"))
 
-# Demo 环境标记 -- 防止 AI 生成内容被误部署为生产事实源
-KB_DEMO_MODE = os.getenv("KB_DEMO_MODE", "true").lower() == "true"
+# Demo 环境标记 -- 生产环境关闭
+KB_DEMO_MODE = os.getenv("KB_DEMO_MODE", "false").lower() == "true"
 
 # 知识生成是否使用真实 LLM (推理模型较慢; 批量生成默认用模板, 单公司演示可开启)
 # auto: llm_available 时用 LLM; off: 强制模板; on: 强制 LLM
@@ -139,21 +135,17 @@ def milvus_available() -> bool:
 
 def active_vector_store() -> str:
     """实际生效的向量库后端。"""
-    if KB_VECTOR_STORE == "local":
-        return "local"
-    if KB_VECTOR_STORE == "milvus":
-        return "milvus"
-    return "milvus" if milvus_available() else "local"
+    return "milvus"
 
 
 def runtime_capabilities() -> dict:
-    """运行时能力快照 (写入实施报告)。"""
+    """运行时能力快照。"""
     return {
-        "llm": "dashscope-qwen" if llm_available() else "local-fallback",
-        "llm_model": LLM_MODEL if llm_available() else "deterministic-template",
-        "embedding": "dashscope-text-embedding-v3" if embedding_available() else "local-hashbow",
+        "llm": "dashscope-qwen",
+        "llm_model": LLM_MODEL,
+        "embedding": "dashscope-text-embedding-v3",
         "embedding_dim": EMBEDDING_DIM,
-        "vector_store": active_vector_store(),
-        "database": "mysql" if KB_DATABASE_URL.startswith("mysql") else "sqlite",
+        "vector_store": "milvus",
+        "database": "mysql",
         "demo_mode": KB_DEMO_MODE,
     }

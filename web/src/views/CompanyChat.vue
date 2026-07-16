@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 import { getChatPartners, partnerChat, type ChatPartner } from '@/api/enterprise'
+import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 
 const { current, currentEnterpriseId } = useEnterpriseContext()
 const partners = ref<ChatPartner[]>([])
@@ -10,7 +10,7 @@ const mode = ref<'product' | 'business'>('product')
 const query = ref('')
 const sending = ref(false)
 const chatBody = ref<HTMLElement | null>(null)
-const messages = ref<{ role: 'user' | 'assistant'; content: string; source?: 'api' | 'mock' }[]>([])
+const messages = ref<{ role: 'user' | 'assistant'; content: string; source?: 'api' | 'error' }[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 
@@ -20,27 +20,24 @@ async function fetchPartners(companyId: number) {
   try {
     const res = await getChatPartners(companyId)
     partners.value = (res.data?.items || []) as ChatPartner[]
-    if (partners.value.length && !selectedId.value) {
-      selectedId.value = partners.value[0].company_id
-    }
+    selectedId.value = partners.value[0]?.company_id || null
   } catch (e: any) {
-    error.value = e?.message || '协同伙伴接口不可用'
+    error.value = e?.response?.data?.detail || e?.message || '协同伙伴接口不可用'
     partners.value = []
+    selectedId.value = null
   } finally {
     loading.value = false
   }
 }
 
 watch(currentEnterpriseId, (id) => {
-  if (id) {
-    selectedId.value = null
-    messages.value = []
-    fetchPartners(id)
-  }
+  if (!id) return
+  messages.value = []
+  fetchPartners(id)
 }, { immediate: true })
 
 const selectedPartner = computed<ChatPartner | undefined>(() =>
-  partners.value.find((p) => p.company_id === (selectedId.value ?? partners.value[0]?.company_id)),
+  partners.value.find((p) => p.company_id === selectedId.value),
 )
 
 const quickQuestions = computed(() => {
@@ -51,13 +48,6 @@ const quickQuestions = computed(() => {
 function selectPartner(id: number) {
   selectedId.value = id
   messages.value = []
-}
-
-function buildFallbackAnswer(text: string) {
-  const partner = selectedPartner.value
-  if (!partner) return '请先选择一个直接上下游企业。'
-  const scope = mode.value === 'product' ? partner.product_scope.join('、') : partner.business_scope.join('、')
-  return `这是 ${current.value.company.name} 与直接${partner.direction === 'upstream' ? '上游' : partner.direction === 'downstream' ? '下游' : '支撑'}企业 ${partner.company_name} 的协同问答。当前围绕 ${scope} 等授权协同范围回答。关于"${text}", 建议先确认 ${partner.product_scope.join('、')} 的交期、责任边界和是否需要 RFQ/合同补充条款。(后端 RAG 不可用, 此为本地降级回答)`
 }
 
 async function send(q?: string) {
@@ -75,13 +65,16 @@ async function send(q?: string) {
       scope: mode.value,
     })
     const answer = res.data?.answer || res.data?.response || res.data?.message
-    if (answer) {
-      messages.value.push({ role: 'assistant', content: answer, source: 'api' })
-    } else {
-      messages.value.push({ role: 'assistant', content: buildFallbackAnswer(text), source: 'mock' })
-    }
-  } catch {
-    messages.value.push({ role: 'assistant', content: buildFallbackAnswer(text), source: 'mock' })
+    messages.value.push({
+      role: 'assistant',
+      content: answer || '伙伴企业知识库暂未返回答案，请换个问法再试。',
+      source: answer ? 'api' : 'error',
+    })
+  } catch (e: any) {
+    const detail = e?.response?.status === 403
+      ? '当前企业只能与直接上下游或支撑企业协同问答。'
+      : '当前无法连接上下游协同知识库，请确认后端 RAG 服务、企业关系和认证状态是否正常。'
+    messages.value.push({ role: 'assistant', content: detail, source: 'error' })
   } finally {
     sending.value = false
     await scrollBottom()
@@ -93,8 +86,8 @@ async function scrollBottom() {
   if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
 }
 
-function directionLabel(d: string) {
-  return { upstream: '上游', downstream: '下游', support: '支撑' }[d] || d
+function directionLabel(direction: string) {
+  return { upstream: '上游', downstream: '下游', support: '支撑' }[direction] || direction
 }
 </script>
 
@@ -104,10 +97,10 @@ function directionLabel(d: string) {
       <div class="panel-head">
         <span class="eyebrow">{{ current.company.name }}</span>
         <h2>直接上下游</h2>
-        <p>只能选择与当前企业直接相关的企业, 不能全链路任意选择。</p>
+        <p>只能选择与当前企业直接相关的企业，不能全链路任意选择。</p>
       </div>
-      <div v-if="loading" class="loading-line">加载协同伙伴中…</div>
-      <div v-else-if="error" class="loading-line">协同伙伴接口不可用: {{ error }}</div>
+      <div v-if="loading" class="loading-line">加载协同伙伴中...</div>
+      <div v-else-if="error" class="loading-line">协同伙伴接口不可用：{{ error }}</div>
       <div v-else class="relation-list">
         <button
           v-for="partner in partners"
@@ -133,7 +126,7 @@ function directionLabel(d: string) {
           <h1>{{ selectedPartner?.company_name || '请选择协同对象' }}</h1>
           <p v-if="selectedPartner">
             {{ directionLabel(selectedPartner.direction) }} · {{ selectedPartner.segment_name || selectedPartner.role }}
-            · 范围: {{ mode === 'product' ? selectedPartner.product_scope.join('、') : selectedPartner.business_scope.join('、') }}
+            · 范围：{{ mode === 'product' ? selectedPartner.product_scope.join('、') : selectedPartner.business_scope.join('、') }}
           </p>
         </div>
         <div class="mode-switch">
@@ -145,7 +138,7 @@ function directionLabel(d: string) {
       <div class="chat-panel">
         <div class="chat-body" ref="chatBody">
           <div v-if="!messages.length" class="chat-empty">
-            <p>协同问答是 AI 基于伙伴企业私域知识的问答, 不是真人聊天。后端不可用时降级到本地回答。</p>
+            <p>协同问答是 AI 基于伙伴企业私域知识的问答，不是真人聊天。</p>
             <div class="quick-questions">
               <button v-for="item in quickQuestions" :key="item" class="chip" @click="send(item)">{{ item }}</button>
             </div>
@@ -154,8 +147,8 @@ function directionLabel(d: string) {
             <div class="msg__avatar">{{ message.role === 'user' ? '我' : 'AI' }}</div>
             <div class="msg__content">
               {{ message.content }}
-              <span v-if="message.source === 'mock'" class="msg__source">本地降级</span>
-              <span v-else-if="message.source === 'api'" class="msg__source msg__source--api">RAG</span>
+              <span v-if="message.source === 'api'" class="msg__source msg__source--api">RAG</span>
+              <span v-else-if="message.source === 'error'" class="msg__source">未生成</span>
             </div>
           </div>
           <div v-if="sending" class="msg msg--assistant">

@@ -24,8 +24,8 @@ LLM_BASE_URL = os.getenv(
     "https://ark.cn-beijing.volces.com/api/coding/v3",
 )
 LLM_MODEL = os.getenv("LLM_MODEL", "glm-5.2")
-LLM_MODEL_LIGHT = os.getenv("LLM_MODEL_LIGHT", "glm-5.2")
-SUPERVISOR_MODEL = os.getenv("SUPERVISOR_MODEL", "glm-5.2")
+LLM_MODEL_LIGHT = os.getenv("LLM_MODEL_LIGHT", "DeepSeek-V4-Flash")
+SUPERVISOR_MODEL = os.getenv("SUPERVISOR_MODEL", "DeepSeek-V4-Flash")
 
 # 兼容 OpenAI SDK 自动读取 OPENAI_API_KEY
 if LLM_API_KEY and not os.environ.get("OPENAI_API_KEY"):

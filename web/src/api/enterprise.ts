@@ -66,6 +66,8 @@ export function getEnterpriseContexts() {
   return api.get('/enterprise-context/companies')
 }
 
+export const getEnterpriseCompanies = getEnterpriseContexts
+
 export function getEnterpriseContext(companyId: number) {
   return api.get(`/enterprise-context/${companyId}`)
 }
@@ -208,13 +210,19 @@ export function getCompanyOrders(companyId: number) {
   return api.get(`/companies/${companyId}/orders`)
 }
 
+export const getOrders = getCompanyOrders
+
 export function getCompanyForecasts(companyId: number) {
   return api.get(`/companies/${companyId}/forecasts`)
 }
 
+export const getForecasts = getCompanyForecasts
+
 export function getCompanyShortages(companyId: number) {
   return api.get(`/companies/${companyId}/shortages`)
 }
+
+export const getShortages = getCompanyShortages
 
 export function recalculateShortages(companyId: number) {
   return api.post(`/companies/${companyId}/shortages/recalculate`)
@@ -501,10 +509,21 @@ export function getChatPartners(companyId: number) {
   return api.get(`/companies/${companyId}/chat-partners`)
 }
 
+export function getRelationships(companyId: number) {
+  return api.get('/relationships', { params: { company_id: companyId } })
+}
+
+type PartnerChatPayload = { partner_company_id: number; query: string; scope: 'product' | 'business' }
+
 export function partnerChat(
   companyId: number,
-  payload: { partner_company_id: number; query: string; scope: 'product' | 'business' },
+  payloadOrPartnerId: PartnerChatPayload | number,
+  query?: string,
+  scope: 'product' | 'business' = 'product',
 ) {
+  const payload = typeof payloadOrPartnerId === 'number'
+    ? { partner_company_id: payloadOrPartnerId, query: query || '', scope }
+    : payloadOrPartnerId
   return api.post(`/companies/${companyId}/partner-chat`, payload)
 }
 

@@ -16,27 +16,13 @@ const loading = ref(false)
 async function submit() {
   error.value = ''
   loading.value = true
-  const IS_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
-  if (IS_MOCK) {
-    setTimeout(() => {
-      const r = auth.login(account.value, password.value)
-      loading.value = false
-      if (r.ok) {
-        const redirect = (route.query.redirect as string) || '/app'
-        router.push(redirect)
-      } else {
-        error.value = r.msg || '登录失败'
-      }
-    }, 300)
+  const r = await auth.login(account.value, password.value)
+  loading.value = false
+  if (r.ok) {
+    const redirect = (route.query.redirect as string) || '/app'
+    router.push(redirect)
   } else {
-    const r = await auth.login(account.value, password.value)
-    loading.value = false
-    if (r.ok) {
-      const redirect = (route.query.redirect as string) || '/app'
-      router.push(redirect)
-    } else {
-      error.value = r.msg || '登录失败'
-    }
+    error.value = r.msg || '登录失败'
   }
 }
 
@@ -279,7 +265,7 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
           <button type="button" class="auth-demo" @click="demoLogin">使用演示账号登录</button>
         </form>
         <p class="auth-hint">还没有账号? <RouterLink to="/register">创建采购工作台</RouterLink></p>
-        <div class="auth-disclaimer">演示账号：demo@matchforge.ai / demo12345。本地 mock 认证仅用于 Spike 演示。</div>
+        <div class="auth-disclaimer">演示账号：demo@matchforge.ai / demo12345</div>
       </div>
     </section>
   </div>
