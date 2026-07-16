@@ -292,9 +292,19 @@ async def run_procure_stream(
         SSE 格式的事件字符串。
     """
     state = init_state(raw_query, user_id, thread_id)
+    state["_phase"] = phase  # 记录原始阶段，供 supervisor 决策
 
-    if phase == "confirm" and confirmed_spec:
+    # phase == "match"（前端传的）或 "confirm"（老名称兼容）时，跳过 parse/normalize
+    skip_parse = phase in ("match", "confirm") and confirmed_spec
+    if skip_parse:
         state["parsed_spec"] = state["normalized_spec"] = confirmed_spec
+        # 标记 parse + normalize 为"已完成"，使 Supervisor 路由直接到 alternatives
+        state["_attempted_agents"] = list(state.get("_attempted_agents", []))
+        for _done in ("parse", "normalize"):
+            if _done not in state["_attempted_agents"]:
+                state["_attempted_agents"].append(_done)
+        # 标记使用顺序路由（跳过 LLM 决策，避免 LLM 误跳到 gen_rfq/grade）
+        state["_use_ordered_fallback"] = True
 
     agent_keys = set(ROUTING_ORDER)
     graph = get_graph()
