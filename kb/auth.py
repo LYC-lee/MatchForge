@@ -11,6 +11,14 @@
 不引入新依赖, 不硬编码密钥。Admin 角色通过 KB_ADMIN_TOKEN 环境变量或 demo 账号授予。
 """
 
+# ── 生产安全 TODO (Phase 1 暂不收紧, 保持 demo/mock 兼容) ──────────────
+# 1. KB_ADMIN_TOKEN / KB_DEMO_TOKEN 有默认值 (kb-admin-demo / kb-demo-user),
+#    生产部署必须用环境变量覆盖, 否则任何人可拿到 admin。
+# 2. resolve_token 对未知 token 自动注册为 demo user (兼容前端 mock), 生产应拒识。
+# 3. can_access_company 默认策略为"无白名单则全公开", 企业驾驶舱多租户场景需改为默认拒绝。
+# 4. procure / partner-chat 等接口目前仅做 token 解析, 未校验企业归属, 生产需补 enterprise_id 隔离。
+# ──────────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import os

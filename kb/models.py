@@ -290,3 +290,319 @@ class CompanyCache(Base):
     last_generated_at = Column(DateTime, nullable=True)
     source_hash = Column(String(64), nullable=True, comment="源数据哈希, 增量判断")
     updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+
+# ============================================================
+# 9. CompanyRelationship -- 企业上下游关系 (驾驶舱产业链协同)
+#    轻量关系表, 复用 KB 数据库 (本阶段不切换 pc_industry 全 ORM)。
+#
+#  语义: source_company_id 对 target_company_id 持有 [direction] 关系。
+#    direction=upstream   -> target 是 source 的上游 (source 向 target 采购)
+#    direction=downstream -> target 是 source 的下游 (source 向 target 供货)
+#    direction=support    -> target 向 source 提供支撑服务 (物流/检测/认证)
+#  每条货物上下游边建议存两行 (双向视角), 保证 /upstream /downstream 各自可查。
+# ============================================================
+class CompanyRelationship(Base):
+    __tablename__ = "kb_company_relationships"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    source_company_id = Column(BigInteger, nullable=False, index=True, comment="关系发起方公司ID")
+    target_company_id = Column(BigInteger, nullable=False, index=True, comment="关系对方公司ID")
+    relationship_type = Column(String(40), nullable=False,
+                               comment="supply|service|channel|...")
+    direction = Column(String(20), nullable=False,
+                       comment="upstream|downstream|support")
+    product_scope = Column(Text, nullable=True, comment="JSON 数组: 涉及产品/品类")
+    business_scope = Column(Text, nullable=True, comment="JSON 数组: 涉及业务范围")
+    confidence_level = Column(String(30), nullable=False, default="manual")
+    status = Column(String(20), nullable=False, default="active",
+                    comment="active|inactive|pending")
+    created_at = Column(DateTime, nullable=False, default=_now)
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("idx_rel_source_target", "source_company_id", "target_company_id", "direction"),
+        Index("idx_rel_direction", "direction"),
+        Index("idx_rel_target", "target_company_id"),
+    )
+
+
+# ============================================================
+# 10. CompanyProduct -- 驾驶舱 Phase2: 当前企业生产的产品 (产能/状态)
+#    与 kb_products (知识库结构化产品) 区分: 本表面向"经营驾驶舱",
+#    描述企业自身在产产品 + 月产能 + 状态, 驱动 BOM/订单/缺件计算。
+# ============================================================
+class CompanyProduct(Base):
+    __tablename__ = "kb_company_products"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    company_id = Column(BigInteger, nullable=False, index=True, comment="所属企业ID")
+    product_name = Column(String(200), nullable=False, comment="产品名称")
+    product_model = Column(String(200), nullable=True, index=True, comment="产品型号")
+    product_type = Column(String(80), nullable=True, comment="整机|主板|模组|...")
+    description = Column(Text, nullable=True)
+    monthly_capacity = Column(Integer, nullable=True, comment="月产能")
+    unit = Column(String(20), nullable=False, default="台", comment="产能/用量单位")
+    status = Column(String(20), nullable=False, default="active",
+                    comment="active|paused|eol")
+    created_at = Column(DateTime, nullable=False, default=_now)
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("idx_cprod_company_status", "company_id", "status"),
+    )
+
+
+# ============================================================
+# 11. ProductBomItem -- 产品 BOM 零件
+#    preferred_supplier_company_id 指向产业链上游企业 (CompanyCache.id),
+#    用于缺件推荐动作 (联系上游 / 关系缺失标记)。
+# ============================================================
+class ProductBomItem(Base):
+    __tablename__ = "kb_product_bom_items"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    product_id = Column(BigInteger, nullable=False, index=True, comment="CompanyProduct.id")
+    part_number = Column(String(120), nullable=False, index=True, comment="零件号")
+    part_name = Column(String(200), nullable=False, comment="零件名称")
+    category_name = Column(String(120), nullable=True, comment="零件分类")
+    qty_per_unit = Column(Float, nullable=False, default=1.0, comment="单台用量")
+    unit = Column(String(20), nullable=False, default="个")
+    is_critical = Column(Boolean, nullable=False, default=False, comment="是否关键件")
+    preferred_supplier_company_id = Column(BigInteger, nullable=True, index=True,
+                                           comment="首选上游供应商企业ID")
+    created_at = Column(DateTime, nullable=False, default=_now)
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("idx_bom_product_part", "product_id", "part_number"),
+    )
+
+
+# ============================================================
+# 12. ProductionOrder -- 生产订单
+#    status=completed|cancelled 不计入需求; priority 影响缺件严重度。
+# ============================================================
+class ProductionOrder(Base):
+    __tablename__ = "kb_production_orders"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    company_id = Column(BigInteger, nullable=False, index=True)
+    product_id = Column(BigInteger, nullable=False, index=True, comment="CompanyProduct.id")
+    order_number = Column(String(80), nullable=False, index=True)
+    customer_company_id = Column(BigInteger, nullable=True, comment="下游客户企业ID")
+    quantity = Column(Integer, nullable=False)
+    due_date = Column(DateTime, nullable=True)
+    priority = Column(String(20), nullable=False, default="normal",
+                      comment="urgent|high|normal|low")
+    status = Column(String(20), nullable=False, default="open",
+                    comment="open|confirmed|in_progress|completed|cancelled")
+    created_at = Column(DateTime, nullable=False, default=_now)
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("idx_order_company_status", "company_id", "status", "priority"),
+    )
+
+
+# ============================================================
+# 13. DemandForecast -- 预测需求
+# ============================================================
+class DemandForecast(Base):
+    __tablename__ = "kb_demand_forecasts"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    company_id = Column(BigInteger, nullable=False, index=True)
+    product_id = Column(BigInteger, nullable=False, index=True, comment="CompanyProduct.id")
+    forecast_period = Column(String(20), nullable=False, comment="如 2026-08")
+    forecast_quantity = Column(Integer, nullable=False)
+    confidence = Column(Float, nullable=False, default=0.7, comment="0-1")
+    source_type = Column(String(30), nullable=False, default="manual",
+                         comment="manual|ai|history")
+    created_at = Column(DateTime, nullable=False, default=_now)
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("idx_forecast_company_product", "company_id", "product_id"),
+    )
+
+
+# ============================================================
+# 14. InventoryItem -- 库存 (按企业 × 零件号)
+#    可用库存 = on_hand_qty - reserved_qty; 安全库存用于预警。
+# ============================================================
+class InventoryItem(Base):
+    __tablename__ = "kb_inventory_items"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    company_id = Column(BigInteger, nullable=False, index=True)
+    part_number = Column(String(120), nullable=False, index=True)
+    part_name = Column(String(200), nullable=True)
+    category_name = Column(String(120), nullable=True)
+    on_hand_qty = Column(Integer, nullable=False, default=0, comment="在手库存")
+    reserved_qty = Column(Integer, nullable=False, default=0, comment="已预留库存")
+    safety_stock_qty = Column(Integer, nullable=False, default=0, comment="安全库存")
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "part_number", name="uq_inv_company_part"),
+    )
+
+
+# ============================================================
+# 15. Shortage -- 缺件/库存预警 (recalculate 物化, 持久化)
+#    shortage_type=shortage  -> 缺口>0 (真正缺件)
+#    shortage_type=warning   -> 可用库存<安全库存 但 未缺货
+#    relationship_missing    -> 首选供应商与本企业无直接上下游关系
+# ============================================================
+class Shortage(Base):
+    __tablename__ = "kb_shortages"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    company_id = Column(BigInteger, nullable=False, index=True)
+    product_id = Column(BigInteger, nullable=True, index=True,
+                        comment="代表关联产品 (多产品共用零件时取首个)")
+    product_name = Column(String(300), nullable=True, comment="关联产品名 (可能多个, /分隔)")
+    part_number = Column(String(120), nullable=False, index=True)
+    part_name = Column(String(200), nullable=False)
+    category_name = Column(String(120), nullable=True)
+    shortage_type = Column(String(20), nullable=False, comment="shortage|warning")
+    required_qty = Column(Float, nullable=False, default=0.0, comment="BOM 需求量")
+    available_qty = Column(Float, nullable=False, default=0.0,
+                           comment="可用库存 = on_hand - reserved")
+    shortage_qty = Column(Float, nullable=False, default=0.0,
+                          comment="缺口 = required - available (>0 为缺件)")
+    safety_stock_qty = Column(Integer, nullable=False, default=0)
+    unit = Column(String(20), nullable=False, default="个")
+    is_critical = Column(Boolean, nullable=False, default=False)
+    severity = Column(String(20), nullable=False, default="medium",
+                      comment="critical|high|medium|low")
+    status = Column(String(20), nullable=False, default="open", comment="open|resolved")
+    preferred_supplier_company_id = Column(BigInteger, nullable=True, index=True)
+    relationship_missing = Column(Boolean, nullable=False, default=False,
+                                  comment="首选供应商是否与本企业无直接关系")
+    affected_order_numbers = Column(Text, nullable=True, comment="JSON 数组: 受影响订单号")
+    affected_product_ids = Column(Text, nullable=True, comment="JSON 数组: 受影响产品ID")
+    created_at = Column(DateTime, nullable=False, default=_now)
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("idx_shortage_company_type", "company_id", "shortage_type", "status"),
+    )
+
+
+# ============================================================
+# 16. RfqRecord -- 询价单 (缺件后的采购动作闭环)
+#    轻量模型, 复用 KB 数据库 (与 Phase 1 一致, 不切 pc_industry 全 ORM)。
+#    Phase 2 Dashboard 的 shortage_id / product_id / recommended_action_id
+#    等尚未落地的字段统一存入 context_json, 不强依赖外部模型。
+# ============================================================
+class RfqRecord(Base):
+    __tablename__ = "kb_rfqs"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    rfq_number = Column(String(64), nullable=False, unique=True, index=True,
+                        comment="业务编号 RFQ-YYYY-NNNN")
+    buyer_company_id = Column(BigInteger, nullable=False, index=True, comment="买方公司ID")
+    title = Column(String(300), nullable=False)
+    raw_query = Column(Text, nullable=True, comment="原始用户询价文本")
+    part_number = Column(String(200), nullable=True, index=True)
+    part_name = Column(String(200), nullable=True)
+    quantity = Column(Integer, nullable=False, default=1)
+    unit = Column(String(20), nullable=False, default="个")
+    target_price = Column(Float, nullable=True, comment="目标单价")
+    lead_time_days = Column(Integer, nullable=True, comment="期望交期(天)")
+    accept_alternatives = Column(Boolean, nullable=False, default=False)
+    scenario = Column(String(40), nullable=True,
+                      comment="shortage|sourcing|cost_down|...")
+    status = Column(String(20), nullable=False, default="draft",
+                    comment="draft|sent|quoted|closed|cancelled")
+    created_by = Column(String(100), nullable=True, comment="创建人 user_id")
+
+    # Phase 2 兼容: shortage_id / product_id / recommended_action_id 等
+    # 未落地的外部引用统一存 JSON, 不建强外键。
+    context_json = Column(Text, nullable=True, comment="Phase2 兼容字段 JSON")
+
+    created_at = Column(DateTime, nullable=False, default=_now)
+    updated_at = Column(DateTime, nullable=False, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        Index("idx_rfq_buyer_status", "buyer_company_id", "status"),
+    )
+
+
+# ============================================================
+# 17. RfqSupplierLink -- RFQ × 候选供应商 (供应商线索)
+#    一条记录 = 一个供应商收到的一条 RFQ 线索。
+#    status: pending(已关联未发送) -> sent(RFQ已发送) -> viewed(供应商已查看)
+#            -> quoted(已报价) | declined(已拒绝) | expired
+# ============================================================
+class RfqSupplierLink(Base):
+    __tablename__ = "kb_rfq_suppliers"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    rfq_id = Column(BigInteger, nullable=False, index=True)
+    supplier_company_id = Column(BigInteger, nullable=False, index=True)
+    match_score = Column(Float, nullable=True, comment="匹配分 0-1")
+    match_reason = Column(Text, nullable=True, comment="匹配理由")
+    status = Column(String(20), nullable=False, default="pending",
+                    comment="pending|sent|viewed|quoted|declined|expired")
+    sent_at = Column(DateTime, nullable=True)
+    viewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        UniqueConstraint("rfq_id", "supplier_company_id", name="uq_rfq_supplier"),
+        Index("idx_rfq_supplier_status", "supplier_company_id", "status"),
+    )
+
+
+# ============================================================
+# 18. QuotationRecord -- 供应商报价
+# ============================================================
+class QuotationRecord(Base):
+    __tablename__ = "kb_quotations"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    rfq_id = Column(BigInteger, nullable=False, index=True)
+    supplier_company_id = Column(BigInteger, nullable=False, index=True)
+    part_number = Column(String(200), nullable=True)
+    unit_price = Column(Float, nullable=False, comment="报价单价")
+    currency = Column(String(10), nullable=False, default="CNY")
+    moq = Column(Integer, nullable=True, comment="最小起订量")
+    lead_time_days = Column(Integer, nullable=True, comment="报价交期(天)")
+    stock_qty = Column(Integer, nullable=True, comment="现货库存")
+    valid_until = Column(DateTime, nullable=True, comment="报价有效期")
+    is_in_stock = Column(Boolean, nullable=False, default=False)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_now)
+
+    __table_args__ = (
+        Index("idx_quote_rfq_supplier", "rfq_id", "supplier_company_id"),
+    )
+
+
+# ============================================================
+# 19. AuditQueueItem -- 审核队列 (轻量, 不做复杂工作流)
+#    item_type: supplier_capability | rfq_supplier_match | quotation_anomaly
+#    status:    pending | approved | rejected
+# ============================================================
+class AuditQueueItem(Base):
+    __tablename__ = "kb_audit_queue"
+
+    id = Column(BigIntPK, primary_key=True, autoincrement=True)
+    item_type = Column(String(40), nullable=False, index=True,
+                       comment="supplier_capability|rfq_supplier_match|quotation_anomaly")
+    entity_id = Column(BigInteger, nullable=True, comment="关联实体ID (link_id/quote_id/...)")
+    company_id = Column(BigInteger, nullable=True, index=True)
+    title = Column(String(300), nullable=False)
+    payload_json = Column(Text, nullable=True, comment="审核上下文 JSON")
+    status = Column(String(20), nullable=False, default="pending",
+                    comment="pending|approved|rejected")
+    review_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_now)
+    reviewed_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("idx_audit_status_type", "status", "item_type"),
+    )

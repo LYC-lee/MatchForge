@@ -196,8 +196,32 @@ CREATE TABLE IF NOT EXISTS kb_vectors (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库-本地向量(Local后端, Milvus模式不使用)';
 
 -- ============================================================
+-- 企业上下游关系表 (驾驶舱产业链协同)
+-- 语义: source_company_id 对 target_company_id 持有 [direction] 关系。
+--   direction=upstream   -> target 是 source 的上游 (source 向 target 采购)
+--   direction=downstream -> target 是 source 的下游 (source 向 target 供货)
+--   direction=support    -> target 向 source 提供支撑服务
+-- ============================================================
+CREATE TABLE IF NOT EXISTS kb_company_relationships (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  source_company_id BIGINT       NOT NULL COMMENT '关系发起方公司ID',
+  target_company_id BIGINT       NOT NULL COMMENT '关系对方公司ID',
+  relationship_type VARCHAR(40)  NOT NULL COMMENT 'supply|service|channel|...',
+  direction         VARCHAR(20)  NOT NULL COMMENT 'upstream|downstream|support',
+  product_scope     TEXT         NULL     COMMENT 'JSON 数组: 涉及产品/品类',
+  business_scope    TEXT         NULL     COMMENT 'JSON 数组: 涉及业务范围',
+  confidence_level  VARCHAR(30)  NOT NULL DEFAULT 'manual',
+  status            VARCHAR(20)  NOT NULL DEFAULT 'active' COMMENT 'active|inactive|pending',
+  created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_rel_source_target (source_company_id, target_company_id, direction),
+  KEY idx_rel_direction (direction),
+  KEY idx_rel_target (target_company_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库-企业上下游关系';
+
+-- ============================================================
 -- Rollback (谨慎执行, 仅删除知识库表, 不影响业务表):
---   DROP TABLE IF EXISTS kb_vectors, kb_sessions, kb_company_access,
---     kb_rag_traces, kb_failures, kb_tasks, kb_chunks, kb_products,
---     kb_manuals, kb_companies;
+--   DROP TABLE IF EXISTS kb_company_relationships, kb_vectors, kb_sessions,
+--     kb_company_access, kb_rag_traces, kb_failures, kb_tasks, kb_chunks,
+--     kb_products, kb_manuals, kb_companies;
 -- ============================================================

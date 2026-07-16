@@ -7,7 +7,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 
 from kb.db import session_scope
-from kb.models import CompanyCache, Product
+from kb.models import CompanyCache, CompanyProduct, Product
 from kb.pipeline import company_knowledge_status
 from api.deps import check_company_access, get_current_user
 
@@ -108,13 +108,24 @@ def get_company_knowledge(company_id: int, user: dict = Depends(get_current_user
 
 @router.get("/{company_id}/products")
 def get_company_products(company_id: int, user: dict = Depends(get_current_user)):
-    """公司结构化产品列表 (用于产品比较)。"""
+    """公司产品列表。
+
+    items               : 知识库结构化产品 (kb_products, 用于产品比较) -- 原有, 向后兼容
+    production_products : 驾驶舱在产产品 (kb_company_products, 产能/状态) -- Phase2 追加
+    """
     check_company_access(user, company_id)
     with session_scope() as s:
         rows = s.query(Product).filter_by(company_id=company_id).all()
         import json
 
+        prod_rows = (
+            s.query(CompanyProduct)
+            .filter_by(company_id=company_id)
+            .order_by(CompanyProduct.id)
+            .all()
+        )
         return {
+            "company_id": company_id,
             "items": [
                 {
                     "id": p.id,
@@ -134,5 +145,20 @@ def get_company_products(company_id: int, user: dict = Depends(get_current_user)
                     "confidence": p.confidence,
                 }
                 for p in rows
-            ]
+            ],
+            "production_products": [
+                {
+                    "id": cp.id,
+                    "company_id": cp.company_id,
+                    "product_name": cp.product_name,
+                    "product_model": cp.product_model,
+                    "product_type": cp.product_type,
+                    "description": cp.description,
+                    "monthly_capacity": cp.monthly_capacity,
+                    "unit": cp.unit,
+                    "status": cp.status,
+                }
+                for cp in prod_rows
+            ],
+            "production_total": len(prod_rows),
         }

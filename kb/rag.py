@@ -298,10 +298,13 @@ def answer(
     company_ids: list[int] | None = None,
     user_id: str | None = None,
     language: str | None = None,
+    manual_type: str | None = None,
 ) -> dict:
     """
     单公司问答 (company_id) 或多公司比较 (company_ids)。
     返回: {request_id, answer, intent, language, retrieved, trace}
+
+    manual_type: 仅单公司模式生效, 限定检索 product|business 手册 (None=不限)。
     """
     request_id = str(uuid.uuid4())
     lang = language or detect_language(query)
@@ -326,7 +329,7 @@ def answer(
     if company_id is None:
         raise ValueError("单公司问答需提供 company_id")
     intent = classify_intent(query)
-    hits = retrieve(query, company_id, language=lang, top_k=KB_RAG_TOP_K)
+    hits = retrieve(query, company_id, language=lang, manual_type=manual_type, top_k=KB_RAG_TOP_K)
     company_name = _company_name(company_id, lang)
 
     from kb.boundary import get_boundary

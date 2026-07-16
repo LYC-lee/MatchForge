@@ -1,185 +1,123 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
-import {
-  getCompanies, chatSingle, chatCompare,
-  type CompanyListItem, type ChatResult, type RetrievedChunk,
-} from '@/api/kb'
+import { computed, nextTick, ref } from 'vue'
+import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import type { RelationCompany } from '@/mock/enterpriseContext'
 
-const companies = ref<CompanyListItem[]>([])
-const search = ref('')
-const selected = ref<number[]>([])  // 选中的公司
-const mode = ref<'single' | 'compare'>('single')
-
+const { current } = useEnterpriseContext()
+const selectedId = ref<number | null>(null)
+const mode = ref<'product' | 'business'>('product')
 const query = ref('')
-const messages = ref<{ role: 'user' | 'assistant'; content: string; intent?: string; mode?: string; retrieved?: any[] }[]>([])
 const sending = ref(false)
 const chatBody = ref<HTMLElement | null>(null)
+const messages = ref<{ role: 'user' | 'assistant'; content: string }[]>([])
 
-const filteredCompanies = computed(() => {
-  const kw = search.value.trim().toLowerCase()
-  if (!kw) return companies.value
-  return companies.value.filter(
-    (c) => c.name.toLowerCase().includes(kw) || (c.name_en || '').toLowerCase().includes(kw),
-  )
-})
-
-const selectedCompanies = computed(() =>
-  selected.value.map((id) => companies.value.find((c) => c.id === id)).filter(Boolean) as CompanyListItem[],
+const selectedRelation = computed<RelationCompany | undefined>(() =>
+  current.value.relations.find((item) => item.id === (selectedId.value ?? current.value.relations[0]?.id)),
 )
 
-const canSend = computed(() => {
-  if (sending.value || !query.value.trim()) return false
-  if (mode.value === 'single') return selected.value.length === 1
-  return selected.value.length >= 2
+const quickQuestions = computed(() => {
+  if (mode.value === 'product') return ['有哪些可供型号和规格？', 'MOQ、价格阶梯和交期分别是多少？', '是否有可替代型号？']
+  return ['合作流程是什么？', '供货区域和售后责任怎么划分？', '付款方式和合同条款有哪些注意点？']
 })
 
-function toggleCompany(id: number) {
-  const idx = selected.value.indexOf(id)
-  if (mode.value === 'single') {
-    selected.value = idx >= 0 ? [] : [id]
-  } else {
-    if (idx >= 0) selected.value.splice(idx, 1)
-    else if (selected.value.length < 6) selected.value.push(id)
-  }
+function selectRelation(id: number) {
+  selectedId.value = id
+  messages.value = []
 }
 
-function switchMode(m: 'single' | 'compare') {
-  mode.value = m
-  if (m === 'single' && selected.value.length > 1) selected.value = selected.value.slice(0, 1)
+function buildMockAnswer(text: string) {
+  const relation = selectedRelation.value
+  if (!relation) return '请先选择一个直接上下游企业。'
+  const scope = relation.scope.join('、')
+  return `这是 ${current.value.company.name} 与直接${relation.direction}企业 ${relation.name} 的协同问答。当前只围绕 ${scope} 等授权协同范围回答。关于“${text}”，建议先确认 ${relation.products} 的交期、责任边界和是否需要 RFQ/合同补充条款。`
 }
 
-async function send() {
-  const text = query.value.trim()
-  if (!text || !canSend.value) return
+async function send(q?: string) {
+  const text = (q ?? query.value).trim()
+  if (!text || sending.value || !selectedRelation.value) return
   query.value = ''
   messages.value.push({ role: 'user', content: text })
   sending.value = true
   await scrollBottom()
-  try {
-    let r: ChatResult
-    if (mode.value === 'single') {
-      r = (await chatSingle(selected.value[0], text)).data
-    } else {
-      r = (await chatCompare(selected.value, text)).data
-    }
-    const retrieved = Array.isArray(r.retrieved) ? (r.retrieved as RetrievedChunk[]) : []
-    messages.value.push({
-      role: 'assistant',
-      content: r.answer,
-      intent: r.intent,
-      mode: r.mode,
-      retrieved,
-    })
-  } catch (e: any) {
-    messages.value.push({ role: 'assistant', content: `查询失败: ${e?.message || e}` })
-  } finally {
+  window.setTimeout(async () => {
+    messages.value.push({ role: 'assistant', content: buildMockAnswer(text) })
     sending.value = false
     await scrollBottom()
-  }
+  }, 260)
 }
 
 async function scrollBottom() {
   await nextTick()
   if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
 }
-
-onMounted(async () => {
-  const res = await getCompanies()
-  companies.value = res.data.items
-})
 </script>
 
 <template>
   <div class="chat-page">
-    <aside class="picker">
-      <div class="picker__head">
-        <h3>全局企业问答</h3>
+    <aside class="relation-panel">
+      <div class="panel-head">
+        <span class="eyebrow">{{ current.company.name }}</span>
+        <h2>直接上下游</h2>
+        <p>只能选择与当前企业直接相关的企业，不能全链路任意选择。</p>
       </div>
-      <div class="mode-switch">
-        <button :class="{ active: mode === 'single' }" @click="switchMode('single')">单企业问答</button>
-        <button :class="{ active: mode === 'compare' }" @click="switchMode('compare')">产品对比</button>
-      </div>
-      <div class="picker__hint muted small">
-        {{ mode === 'single' ? '选择 1 家企业进行私域问答' : '选择 2-6 家企业进行产品对比' }}
-      </div>
-      <div class="picker__search">
-        <input v-model="search" placeholder="搜索公司…" class="input" />
-      </div>
-      <div class="picker__items">
+      <div class="relation-list">
         <button
-          v-for="c in filteredCompanies"
-          :key="c.id"
-          class="company-item"
-          :class="{ active: selected.includes(c.id) }"
-          @click="toggleCompany(c.id)"
+          v-for="relation in current.relations"
+          :key="relation.id"
+          class="relation-item"
+          :class="{ active: selectedRelation?.id === relation.id }"
+          @click="selectRelation(relation.id)"
         >
-          <div class="company-item__row">
-            <span class="company-item__name">{{ c.name }}</span>
-            <span v-if="selected.includes(c.id)" class="check">✓</span>
+          <div>
+            <b>{{ relation.name }}</b>
+            <span>{{ relation.direction }} · {{ relation.segment }}</span>
           </div>
-          <span class="tag small">{{ c.segment_name || c.segment_code || '-' }}</span>
+          <small>{{ relation.products }}</small>
         </button>
-      </div>
-      <div class="picker__selected" v-if="selectedCompanies.length">
-        <div class="muted small">已选 ({{ selectedCompanies.length }})</div>
-        <div class="selected-chips">
-          <span v-for="c in selectedCompanies" :key="c.id" class="selected-chip" @click="toggleCompany(c.id)">
-            {{ c.name }} ✕
-          </span>
-        </div>
       </div>
     </aside>
 
     <section class="chat-main">
       <header class="chat-header">
         <div>
-          <h2>{{ mode === 'single' ? '单企业 AI 问答' : '多企业产品对比' }}</h2>
-          <p class="muted small">
-            <template v-if="selectedCompanies.length">
-              当前范围：{{ selectedCompanies.map((c) => c.name).join(' · ') }}
-            </template>
-            <template v-else>请从左侧选择企业</template>
+          <span class="eyebrow">上下游协同问答</span>
+          <h1>{{ selectedRelation?.name || '请选择协同对象' }}</h1>
+          <p v-if="selectedRelation">
+            {{ selectedRelation.direction }} · {{ selectedRelation.segment }} · 范围：{{ selectedRelation.scope.join('、') }}
           </p>
         </div>
-        <span class="tag tag--scope" v-if="mode === 'compare'">分别检索 · 不全库搜索</span>
+        <div class="mode-switch">
+          <button :class="{ active: mode === 'product' }" @click="mode = 'product'">产品方面</button>
+          <button :class="{ active: mode === 'business' }" @click="mode = 'business'">业务方面</button>
+        </div>
       </header>
 
       <div class="chat-panel">
         <div class="chat-body" ref="chatBody">
           <div v-if="!messages.length" class="chat-empty">
-            <div class="chat-empty__icon">💬</div>
-            <p v-if="mode === 'single'">选择一家企业后，提出你的问题。</p>
-            <p v-else>选择多家企业后，对它们的产品进行对比。</p>
-            <p class="muted small">中文提问优先检索中文知识，英文提问优先检索英文知识。</p>
-          </div>
-          <div v-for="(m, i) in messages" :key="i" class="msg" :class="`msg--${m.role}`">
-            <div class="msg__avatar">{{ m.role === 'user' ? '我' : 'AI' }}</div>
-            <div class="msg__body">
-              <div class="msg__content">{{ m.content }}</div>
-              <div class="msg__meta" v-if="m.role === 'assistant'">
-                <span v-if="m.intent" class="tag tag--intent">{{ m.intent }}</span>
-                <span v-if="m.mode" class="tag">{{ m.mode }}</span>
-                <span v-if="m.retrieved?.length" class="muted small">引用 {{ m.retrieved.length }} 条</span>
-              </div>
+            <p>协同问答是 AI 基于企业知识的问答，不是真人聊天。</p>
+            <div class="quick-questions">
+              <button v-for="item in quickQuestions" :key="item" class="chip" @click="send(item)">{{ item }}</button>
             </div>
+          </div>
+          <div v-for="(message, index) in messages" :key="index" class="msg" :class="`msg--${message.role}`">
+            <div class="msg__avatar">{{ message.role === 'user' ? '我' : 'AI' }}</div>
+            <div class="msg__content">{{ message.content }}</div>
           </div>
           <div v-if="sending" class="msg msg--assistant">
             <div class="msg__avatar">AI</div>
-            <div class="msg__body"><div class="typing">{{ mode === 'compare' ? '正在分别检索各公司知识…' : '正在检索企业知识库…' }}</div></div>
+            <div class="msg__content muted">正在检索直接上下游协同知识...</div>
           </div>
         </div>
+
         <div class="chat-input">
           <input
             v-model="query"
-            :placeholder="mode === 'single' ? '向选中企业提问…' : '输入产品对比问题，如：对比三家的MLCC型号和价格'"
-            @keydown.enter="send()"
-            :disabled="sending || !canSend"
             class="input"
+            :placeholder="mode === 'product' ? '询问型号、规格、价格、MOQ、交期、替代品...' : '询问合作流程、合同条款、售后、付款方式...'"
+            @keydown.enter="send()"
           />
-          <button class="btn-send" @click="send()" :disabled="!canSend">发送</button>
-        </div>
-        <div class="chat-foot muted small" v-if="!canSend && query.trim()">
-          {{ mode === 'single' ? '请选择 1 家企业' : '请选择至少 2 家企业' }}
+          <button class="btn-send" :disabled="sending || !query.trim() || !selectedRelation" @click="send()">发送</button>
         </div>
       </div>
     </section>
@@ -189,133 +127,106 @@ onMounted(async () => {
 <style scoped>
 .chat-page {
   display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: var(--space-5);
-  padding: var(--space-5);
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--space-4);
   height: calc(100vh - 56px);
+  padding: var(--space-5);
 }
-.picker {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-1);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+.relation-panel,
+.chat-header,
+.chat-panel {
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: #10131b;
 }
-.picker__head { padding: var(--space-4); border-bottom: 1px solid var(--border-subtle); }
-.picker__head h3 { font-size: var(--font-size-md); }
-.mode-switch { display: flex; gap: 4px; padding: var(--space-2) var(--space-4); }
-.mode-switch button {
-  flex: 1;
-  padding: 7px;
-  font-size: var(--font-size-xs);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-default);
-  background: var(--bg-2);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.mode-switch button.active {
-  background: var(--accent-soft);
-  border-color: var(--accent-border);
-  color: var(--text-primary);
-}
-.picker__hint { padding: 0 var(--space-4) var(--space-2); }
-.picker__search { padding: var(--space-2) var(--space-4) var(--space-2); }
-.picker__items { flex: 1; overflow-y: auto; padding: var(--space-2); }
-.company-item {
-  display: block;
+.relation-panel { overflow: hidden; }
+.panel-head { padding: var(--space-4); border-bottom: 1px solid var(--border-default); }
+.eyebrow { color: #aab3c4; font-size: var(--font-size-xs); font-weight: 700; }
+h1,
+h2 { color: var(--text-primary); }
+.panel-head h2 { font-size: var(--font-size-lg); margin-top: 4px; }
+.panel-head p,
+.chat-header p { margin-top: 6px; color: #c7cfdd; font-size: var(--font-size-sm); line-height: 1.6; }
+.relation-list { display: grid; gap: var(--space-1); padding: var(--space-2); }
+.relation-item {
+  display: grid;
+  gap: 5px;
   width: 100%;
   text-align: left;
   padding: var(--space-3);
-  margin-bottom: var(--space-1);
-  border-radius: var(--radius-md);
   border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s;
+  border-radius: 6px;
+  color: #c7cfdd;
 }
-.company-item:hover { background: var(--bg-2); color: var(--text-primary); }
-.company-item.active {
-  background: var(--bg-2);
-  border-color: var(--accent-border);
-  color: var(--text-primary);
-}
-.company-item__row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.company-item__name { font-size: var(--font-size-sm); font-weight: 600; }
-.check { color: var(--success); font-weight: 700; }
-.tag {
-  font-size: var(--font-size-xs);
-  padding: 2px 7px;
-  border-radius: var(--radius-full);
-  background: var(--bg-3);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
-}
-.small { font-size: var(--font-size-xs); }
-.tag--intent { color: var(--accent-hover); border-color: var(--accent-border); }
-.tag--scope { color: var(--warning); border-color: rgba(234, 179, 8, 0.3); }
-.picker__selected { padding: var(--space-3); border-top: 1px solid var(--border-subtle); }
-.selected-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.selected-chip {
-  font-size: var(--font-size-xs);
-  padding: 3px 8px;
-  border-radius: var(--radius-full);
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-border);
-  color: var(--text-primary);
-  cursor: pointer;
-}
-.muted { color: var(--text-tertiary); }
+.relation-item:hover,
+.relation-item.active { background: #171b26; border-color: var(--border-default); }
+.relation-item.active { border-color: var(--accent-border); }
+.relation-item b { display: block; color: var(--text-primary); font-size: var(--font-size-sm); }
+.relation-item span,
+.relation-item small { color: #aeb7c8; font-size: var(--font-size-xs); }
 .chat-main { display: flex; flex-direction: column; gap: var(--space-4); overflow: hidden; }
 .chat-header {
   display: flex;
   justify-content: space-between;
+  gap: var(--space-4);
   align-items: flex-start;
-  background: var(--bg-1);
+  padding: var(--space-4);
+}
+.chat-header h1 { font-size: var(--font-size-xl); margin-top: 4px; }
+.mode-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4) var(--space-5);
-}
-.chat-header h2 { font-size: var(--font-size-xl); }
-.chat-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-1);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  min-height: 0;
-}
-.chat-body { flex: 1; overflow-y: auto; padding: var(--space-4); }
-.chat-empty { text-align: center; padding: var(--space-8) var(--space-4); color: var(--text-secondary); }
-.chat-empty__icon { font-size: 40px; margin-bottom: var(--space-3); }
-.msg { display: flex; gap: var(--space-3); margin-bottom: var(--space-4); }
-.msg__avatar {
-  width: 30px; height: 30px; flex: 0 0 auto;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: var(--font-size-xs); font-weight: 700;
-  background: var(--bg-3); color: var(--text-secondary);
-}
-.msg--user .msg__avatar { background: var(--gradient-accent); color: #fff; }
-.msg__body { flex: 1; min-width: 0; }
-.msg__content {
+  border-radius: 6px;
   background: var(--bg-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+}
+.mode-switch button {
+  padding: 6px 10px;
+  border-radius: 4px;
+  color: #c7cfdd;
+  font-size: var(--font-size-xs);
+}
+.mode-switch button.active { color: var(--text-primary); background: var(--bg-3); }
+.chat-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.chat-body { flex: 1; overflow-y: auto; padding: var(--space-4); }
+.chat-empty { color: #d2d8e4; font-size: var(--font-size-sm); }
+.quick-questions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.chip {
+  border: 1px solid var(--border-default);
+  background: #171b26;
+  color: #d8deea;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: var(--font-size-xs);
+}
+.msg { display: flex; gap: var(--space-3); margin-bottom: var(--space-3); }
+.msg__avatar {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-3);
+  color: #d8deea;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+.msg--user .msg__avatar { color: #fff; background: var(--gradient-accent); }
+.msg__content {
+  flex: 1;
   padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-2);
+  color: var(--text-primary);
   font-size: var(--font-size-sm);
   line-height: 1.7;
-  color: var(--text-primary);
   white-space: pre-wrap;
 }
-.msg--user .msg__content { background: var(--accent-soft); border-color: var(--accent-border); }
-.msg__meta { display: flex; gap: var(--space-2); align-items: center; margin-top: 6px; flex-wrap: wrap; }
-.typing { color: var(--text-tertiary); font-size: var(--font-size-sm); padding: var(--space-3); }
+.muted { color: #aeb7c8; }
 .chat-input {
   display: flex;
   gap: var(--space-2);
@@ -324,29 +235,28 @@ onMounted(async () => {
 }
 .input {
   flex: 1;
+  min-width: 0;
   background: var(--bg-2);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
   padding: 10px 12px;
   color: var(--text-primary);
   font-size: var(--font-size-sm);
-  outline: none;
 }
-.input:focus { border-color: var(--accent-border); }
+.input::placeholder { color: #9fa8ba; }
 .btn-send {
-  padding: 0 20px;
-  border-radius: var(--radius-md);
-  border: none;
+  padding: 0 18px;
+  border-radius: 6px;
   background: var(--gradient-accent);
   color: #fff;
   font-size: var(--font-size-sm);
   font-weight: 600;
-  cursor: pointer;
 }
 .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
-.chat-foot { padding: 0 var(--space-4) var(--space-2); }
 @media (max-width: 920px) {
   .chat-page { grid-template-columns: 1fr; height: auto; }
-  .picker { max-height: 280px; }
+}
+@media (max-width: 640px) {
+  .chat-header { flex-direction: column; }
 }
 </style>

@@ -10,6 +10,7 @@ html,
 body,
 #app {
   height: 100%;
+  color-scheme: dark;
 }
 
 body {
@@ -44,6 +45,7 @@ select {
   font-family: inherit;
   font-size: inherit;
   color: var(--text-primary);
+  background-color: var(--bg-2);
 }
 
 ul,
