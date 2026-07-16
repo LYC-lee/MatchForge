@@ -52,6 +52,7 @@ from ai.agents.parse import parse_agent
 from ai.agents.normalize import normalize_agent
 from ai.agents.alternatives import alternatives_agent
 from ai.agents.match import match_agent
+from ai.agents.rag_enrich import rag_enrich_agent
 from ai.agents.gen_rfq import gen_rfq_agent
 from ai.agents.grade import grade_agent
 from ai.agents.chat import chat_agent
@@ -67,6 +68,7 @@ _AGENT_MAP: dict[str, Any] = {
     "normalize": normalize_agent,
     "alternatives": alternatives_agent,
     "match": match_agent,
+    "rag_enrich": rag_enrich_agent,
     "gen_rfq": gen_rfq_agent,
     "grade": grade_agent,
 }
@@ -223,6 +225,7 @@ def init_state(raw_query: str, user_id: str = "", thread_id: str | None = None) 
         rfq_doc=None,
         rfq_id=None,
         lead_grade=None,
+        rag_enrichment=None,
         chat_response=None,
         errors=[],
         _attempted_agents=[],
@@ -250,6 +253,7 @@ def _extract_result(base_state: dict, node_output: dict, agent: str) -> Any:
         "normalize": "normalized_spec",
         "alternatives": "alternatives",
         "match": "matched_suppliers",
+        "rag_enrich": "rag_enrichment",
         "gen_rfq": "rfq_doc",
         "grade": "lead_grade",
     }
@@ -324,8 +328,8 @@ async def run_procure_stream(
         "state": {
             k: state.get(k) for k in [
                 "thread_id", "raw_query", "parsed_spec", "normalized_spec",
-                "alternatives", "matched_suppliers", "rfq_doc", "rfq_id",
-                "lead_grade", "chat_response", "errors",
+                "alternatives", "matched_suppliers", "rag_enrichment",
+                "rfq_doc", "rfq_id", "lead_grade", "chat_response", "errors",
             ]
         }
     })

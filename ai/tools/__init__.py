@@ -2,10 +2,11 @@
 MatchForge 工具层
 
 模块:
-  - regex_utils:    型号正则提取
-  - mysql_client:    MySQL 字典/供应商查询 (已 @tool 装饰，LLM 可自主调用)
-  - neo4j_client:    Neo4j 替代料图查询 (已 @tool 装饰，LLM 可自主调用)
-  - milvus_client:   Milvus 向量检索
+  - regex_utils:      型号正则提取
+  - mysql_client:     MySQL 字典/供应商查询 (已 @tool 装饰，LLM 可自主调用)
+  - neo4j_client:     Neo4j 替代料图查询 (已 @tool 装饰，LLM 可自主调用)
+  - milvus_client:    Milvus 向量检索
+  - kb_client:        企业知识库查询 (已 @tool 装饰，LLM 可自主调用，内部调用 kb/rag 实现)
 """
 
 from ai.tools.regex_utils import (
@@ -32,6 +33,9 @@ from ai.tools.milvus_client import (
     search_products,
     connect_milvus,
 )
+from ai.tools.kb_client import (
+    search_knowledge_base,     # @tool 装饰版，LLM 可自主调用
+)
 
 __all__ = [
     # regex_utils
@@ -46,4 +50,6 @@ __all__ = [
     "get_driver",
     # milvus_client
     "search_products", "connect_milvus",
+    # kb_client
+    "search_knowledge_base",
 ]

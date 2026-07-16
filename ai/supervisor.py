@@ -74,7 +74,7 @@ AGENT_META: dict[str, dict] = {
 }
 
 # 合法的 Agent 名称列表（供 RouteDecision 使用）
-ROUTING_ORDER: list[str] = ["chat", "parse", "normalize", "alternatives", "match", "gen_rfq", "grade"]
+ROUTING_ORDER: list[str] = ["chat", "parse", "normalize", "alternatives", "match", "rag_enrich", "gen_rfq", "grade"]
 
 # ── Supervisor 系统提示词 ─────────────────────────────────────────────
 SYSTEM_PROMPT = """你是电子元器件寻源系统的主调度 Agent。

@@ -2,15 +2,10 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-// 关键入口页非懒加载，避免动态 import 在 Vite 重载时失败
-import LandingView from '@/views/LandingView.vue'
-import LoginView from '@/views/LoginView.vue'
-import RegisterView from '@/views/RegisterView.vue'
-
 const routes: RouteRecordRaw[] = [
-  { path: '/', name: 'landing', component: LandingView, meta: { layout: 'blank', public: true, title: '产品介绍' } },
-  { path: '/login', name: 'login', component: LoginView, meta: { layout: 'blank', public: true, title: '登录' } },
-  { path: '/register', name: 'register', component: RegisterView, meta: { layout: 'blank', public: true, title: '注册' } },
+  { path: '/', name: 'landing', component: () => import('@/views/LandingView.vue'), meta: { layout: 'blank', public: true, title: '产品介绍' } },
+  { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { layout: 'blank', public: true, title: '登录' } },
+  { path: '/register', name: 'register', component: () => import('@/views/RegisterView.vue'), meta: { layout: 'blank', public: true, title: '注册' } },
 
   { path: '/app', name: 'app', component: () => import('@/views/HomeView.vue'), meta: { requiresAuth: true, title: '经营驾驶舱' } },
   { path: '/products-bom', name: 'products-bom', component: () => import('@/views/ProductsBomView.vue'), meta: { requiresAuth: true, title: '产品与 BOM' } },
@@ -40,7 +35,6 @@ const router = createRouter({
   routes,
 })
 
-// 路由守卫: 认证检查
 router.beforeEach(async (to) => {
   document.title = `${String(to.meta.title || 'MatchForge')} - MatchForge 智配`
 
