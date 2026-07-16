@@ -35,11 +35,11 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   document.title = `${String(to.meta.title || 'MatchForge')} - MatchForge 智配`
 
   const auth = useAuthStore()
-  if (to.meta.requiresAuth && !auth.validateSession()) {
+  if (to.meta.requiresAuth && !(await auth.validateSession())) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 })
