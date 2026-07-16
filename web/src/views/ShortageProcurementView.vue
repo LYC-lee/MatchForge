@@ -5,6 +5,7 @@ import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 import { useDashboard } from '@/composables/useDashboard'
 import { severityRank } from '@/composables/useDashboard'
 import { useRfq } from '@/composables/useRfq'
+import { useDemo } from '@/composables/useDemo'
 import { recalculateShortages } from '@/api/enterprise'
 import type { DashboardShortage, DashboardAction } from '@/api/enterprise'
 
@@ -13,6 +14,9 @@ const router = useRouter()
 const { current, currentEnterpriseId } = useEnterpriseContext()
 const { dashboard, loading, dataSource, refresh: refreshDashboard } = useDashboard()
 const { rfqs, create: createRfq, send: sendRfq, loadComparison, comparison } = useRfq()
+const demo = useDemo()
+
+const isDemo = computed(() => demo.isDemo.value)
 
 const selectedPart = computed(() => String(route.query.part || ''))
 const selectedShortage = computed<DashboardShortage | undefined>(() => {
@@ -51,6 +55,12 @@ const actions = computed(() => {
   return [...items].sort((a, b) => severityRank(b.priority) - severityRank(a.priority))
 })
 
+/** 统一 RFQ 列表: demo 模式取 demo.demoRfqs, 否则取真实 useRfq.rfqs */
+const rfqList = computed(() => {
+  if (isDemo.value) return demo.demoRfqs.value as unknown as typeof rfqs.value
+  return rfqs.value
+})
+
 function severityLabel(s: string) {
   return { critical: '紧急', high: '高', medium: '中', low: '低' }[s] || s
 }
@@ -68,6 +78,7 @@ function selectShortage(shortage: DashboardShortage) {
 function openRfqForm(shortage?: DashboardShortage) {
   showRfqForm.value = true
   createError.value = null
+  demo.clearLastResult()
   if (shortage) {
     rfqForm.value = {
       title: `询价: ${shortage.part_name || shortage.part_number}`,
@@ -85,6 +96,7 @@ function openRfqForm(shortage?: DashboardShortage) {
 function openRfqFromAction(action: DashboardAction) {
   showRfqForm.value = true
   createError.value = null
+  demo.clearLastResult()
   rfqForm.value = {
     title: action.title,
     part_number: action.part_number || '',
@@ -101,20 +113,39 @@ async function submitRfq() {
   creating.value = true
   createError.value = null
   try {
-    const res = await createRfq({
-      buyer_company_id: currentEnterpriseId.value,
-      title: rfqForm.value.title,
-      part_number: rfqForm.value.part_number || undefined,
-      part_name: rfqForm.value.part_name || undefined,
-      quantity: rfqForm.value.quantity,
-      unit: rfqForm.value.unit,
-      target_price: rfqForm.value.target_price,
-      lead_time_days: rfqForm.value.lead_time_days,
-      supplier_candidates: rfqForm.value.supplier_candidates.length ? rfqForm.value.supplier_candidates : undefined,
-      shortage_id: selectedShortage.value ? String(selectedShortage.value.id) : undefined,
-    })
-    lastCreatedRfqId.value = res?.rfq?.id || null
-    showRfqForm.value = false
+    if (isDemo.value) {
+      // demo 模式: 调 /demo/actions/generate-rfq (基于当前缺件 + 直接关系候选动态生成)
+      const res = await demo.generateRfq({
+        part_number: rfqForm.value.part_number || undefined,
+        quantity: rfqForm.value.quantity,
+        target_price: rfqForm.value.target_price,
+        lead_time_days: rfqForm.value.lead_time_days,
+      })
+      if (res?.no_direct_supplier) {
+        createError.value = res.message || '无可用直接关系供应商, 需要先建立合作关系/人工审核'
+      } else if (res?.rfq) {
+        lastCreatedRfqId.value = (res as any).rfq.id
+        showRfqForm.value = false
+      } else if (demo.actionError.value) {
+        createError.value = demo.actionError.value
+      }
+    } else {
+      // 真实模式: 走业务 RFQ 接口
+      const res = await createRfq({
+        buyer_company_id: currentEnterpriseId.value,
+        title: rfqForm.value.title,
+        part_number: rfqForm.value.part_number || undefined,
+        part_name: rfqForm.value.part_name || undefined,
+        quantity: rfqForm.value.quantity,
+        unit: rfqForm.value.unit,
+        target_price: rfqForm.value.target_price,
+        lead_time_days: rfqForm.value.lead_time_days,
+        supplier_candidates: rfqForm.value.supplier_candidates.length ? rfqForm.value.supplier_candidates : undefined,
+        shortage_id: selectedShortage.value ? String(selectedShortage.value.id) : undefined,
+      })
+      lastCreatedRfqId.value = res?.rfq?.id || null
+      showRfqForm.value = false
+    }
   } catch (e: any) {
     createError.value = e?.message || '创建 RFQ 失败'
   } finally {
@@ -123,6 +154,7 @@ async function submitRfq() {
 }
 
 async function sendCreatedRfq(rfqId: number) {
+  if (isDemo.value) return // demo RFQ 创建即已 sent, 无需再发送
   try {
     await sendRfq(rfqId)
     lastCreatedRfqId.value = null
@@ -134,18 +166,47 @@ async function sendCreatedRfq(rfqId: number) {
 async function viewComparison(rfqId: number) {
   compareRfqId.value = compareRfqId.value === rfqId ? null : rfqId
   if (compareRfqId.value) {
-    await loadComparison(rfqId)
+    if (isDemo.value) {
+      await demo.loadComparison(rfqId)
+    } else {
+      await loadComparison(rfqId)
+    }
   }
 }
 
-async function recalculate() {
-  try {
-    await recalculateShortages(currentEnterpriseId.value)
-    await refreshDashboard()
-  } catch {
-    // 静默失败
+/** demo 模式: 对指定 RFQ 模拟报价 (基于候选供应商动态生成) */
+async function demoSimulateQuotes(rfqId: number) {
+  await demo.simulateQuotes(rfqId)
+  if (compareRfqId.value === rfqId) {
+    await demo.loadComparison(rfqId)
   }
 }
+
+/** demo 模式: 执行补货 (选定报价入库, 缺件下降, RFQ 关闭) */
+async function demoExecuteReplenishment(rfq: { id: number }) {
+  await demo.executeReplenishment({ rfq_id: rfq.id })
+  await refreshDashboard()
+}
+
+async function recalculate() {
+  if (isDemo.value) {
+    await demo.recalculateShortages()
+    await refreshDashboard()
+  } else {
+    try {
+      await recalculateShortages(currentEnterpriseId.value)
+      await refreshDashboard()
+    } catch {
+      // 静默失败
+    }
+  }
+}
+
+/** 统一报价对比数据 */
+const comparisonData = computed(() => {
+  if (isDemo.value) return demo.comparison.value
+  return comparison.value as unknown as typeof demo.comparison.value
+})
 
 function goFlow() {
   router.push({ path: '/flow', query: selectedShortage.value ? { part: selectedShortage.value.part_number || '' } : undefined })
@@ -167,7 +228,8 @@ function goFlow() {
     </header>
 
     <div v-if="loading" class="loading-bar">正在拉取缺件与采购数据…</div>
-    <div v-if="dataSource === 'mock'" class="notice-bar">后端接口暂不可用，当前显示本地兜底经营数据</div>
+    <div v-if="dataSource === 'mock' && !isDemo" class="notice-bar">后端接口暂不可用，当前显示本地兜底经营数据</div>
+    <div v-if="isDemo" class="notice-bar notice-bar--demo">演示沙盘数据 · 缺件/RFQ/报价基于当前企业 BOM、库存、订单与直接上下游关系动态计算</div>
 
     <section class="layout">
       <!-- 缺件清单 -->
@@ -281,15 +343,16 @@ function goFlow() {
         <!-- 创建成功提示 -->
         <section v-if="lastCreatedRfqId" class="success-bar">
           <span>RFQ #{{ lastCreatedRfqId }} 创建成功!</span>
-          <button class="btn-send" @click="sendCreatedRfq(lastCreatedRfqId!)">发送给供应商</button>
+          <button v-if="!isDemo" class="btn-send" @click="sendCreatedRfq(lastCreatedRfqId!)">发送给供应商</button>
+          <span v-else class="success-note">已发送至直接关系候选供应商</span>
         </section>
 
         <!-- RFQ 列表 -->
         <section class="rfq-list-panel">
           <div class="rfq-list-head">
-            <h3>本企业 RFQ 列表 ({{ rfqs.length }})</h3>
+            <h3>{{ isDemo ? '演示 RFQ 列表' : '本企业 RFQ 列表' }} ({{ rfqList.length }})</h3>
           </div>
-          <div v-if="rfqs.length === 0" class="empty-line">暂无 RFQ, 可从缺件创建</div>
+          <div v-if="rfqList.length === 0" class="empty-line">暂无 RFQ, 可从缺件创建</div>
           <div v-else class="rfq-table">
             <div class="rfq-row rfq-row--head">
               <span>RFQ 编号</span>
@@ -299,23 +362,25 @@ function goFlow() {
               <span>状态</span>
               <span>操作</span>
             </div>
-            <div v-for="rfq in rfqs.slice(0, 10)" :key="rfq.id" class="rfq-row">
+            <div v-for="rfq in rfqList.slice(0, 10)" :key="rfq.id" class="rfq-row">
               <span class="mono">{{ rfq.rfq_number }}</span>
               <span>{{ rfq.title }}</span>
               <span class="mono">{{ rfq.part_number || rfq.part_name || '-' }}</span>
               <span>{{ rfq.quantity }}</span>
               <span class="status-pill" :class="`status--${rfq.status}`">{{ rfq.status }}</span>
               <div class="rfq-actions">
-                <button v-if="rfq.status === 'draft'" class="btn-mini" @click="sendRfq(rfq.id)">发送</button>
+                <button v-if="!isDemo && rfq.status === 'draft'" class="btn-mini" @click="sendRfq(rfq.id)">发送</button>
+                <button v-if="isDemo && rfq.status === 'sent'" class="btn-mini btn-mini--accent" :disabled="!!demo.running.value" @click="demoSimulateQuotes(rfq.id)">模拟报价</button>
+                <button v-if="isDemo && (rfq.status === 'sent' || rfq.status === 'quoted')" class="btn-mini btn-mini--success" :disabled="!!demo.running.value" @click="demoExecuteReplenishment(rfq)">执行补货</button>
                 <button class="btn-mini" @click="viewComparison(rfq.id)">{{ compareRfqId === rfq.id ? '收起' : '报价对比' }}</button>
               </div>
             </div>
           </div>
 
           <!-- 报价对比 -->
-          <div v-if="compareRfqId && comparison" class="comparison-panel">
-            <h4>{{ comparison.rfq_number }} 报价对比</h4>
-            <div v-if="comparison.items.length === 0" class="empty-line">暂无报价</div>
+          <div v-if="compareRfqId && comparisonData" class="comparison-panel">
+            <h4>{{ comparisonData.rfq_number }} 报价对比</h4>
+            <div v-if="comparisonData.items.length === 0" class="empty-line">暂无报价</div>
             <div v-else class="quote-table">
               <div class="quote-row quote-row--head">
                 <span>排名</span>
@@ -326,14 +391,14 @@ function goFlow() {
                 <span>库存</span>
                 <span>达标</span>
               </div>
-              <div v-for="q in comparison.items" :key="q.id" class="quote-row" :class="{ 'quote-row--best': q.is_lowest }">
-                <span>{{ q.rank }}</span>
+              <div v-for="q in comparisonData.items" :key="q.id" class="quote-row" :class="{ 'quote-row--best': q.is_lowest }">
+                <span>{{ q.rank || '-' }}</span>
                 <span>{{ q.supplier_name }}</span>
                 <span class="strong">¥{{ q.unit_price }}</span>
                 <span>{{ q.moq || '-' }}</span>
                 <span>{{ q.lead_time_days || '-' }}</span>
                 <span>{{ q.is_in_stock ? '有货' : '无货' }}</span>
-                <span :class="q.meets_target === false ? 'danger' : 'success'">{{ q.meets_target === null ? '-' : q.meets_target ? '达标' : '超目标' }}</span>
+                <span :class="q.meets_target === false ? 'danger' : 'success'">{{ q.meets_target === null || q.meets_target === undefined ? '-' : q.meets_target ? '达标' : '超目标' }}</span>
               </div>
             </div>
           </div>
@@ -396,6 +461,8 @@ h1 { margin-top: 4px; color: var(--text-primary); font-size: var(--font-size-2xl
 }
 .loading-bar { border: 1px solid var(--border-subtle); background: var(--bg-2); color: var(--text-tertiary); }
 .notice-bar { border: 1px solid rgba(234, 179, 8, 0.25); background: var(--warning-soft); color: var(--warning); }
+.notice-bar--demo { border: 1px solid rgba(99, 102, 241, 0.3); background: var(--accent-soft); color: var(--accent); }
+.success-note { color: var(--success); font-size: var(--font-size-sm); }
 .layout {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
@@ -460,6 +527,9 @@ h1 { margin-top: 4px; color: var(--text-primary); font-size: var(--font-size-2xl
 .action-tag--sales { color: var(--success); background: var(--success-soft); }
 .action-tag--collaboration { color: #a78bfa; background: rgba(167, 139, 250, 0.12); }
 .btn-mini { padding: 4px 8px; border-radius: 4px; font-size: var(--font-size-xs); color: var(--accent-hover); background: var(--accent-soft); border: 1px solid var(--accent-border); cursor: pointer; white-space: nowrap; }
+.btn-mini:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-mini--accent { color: #fff; background: var(--gradient-accent); border: none; }
+.btn-mini--success { color: var(--success); background: var(--success-soft); border-color: rgba(34, 197, 94, 0.35); }
 .empty-line { padding: var(--space-4); color: var(--text-tertiary); font-size: var(--font-size-sm); text-align: center; }
 .rfq-form-panel { padding: var(--space-4); }
 .rfq-form-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }

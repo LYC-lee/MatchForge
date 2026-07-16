@@ -101,6 +101,8 @@ export interface DashboardOrder {
   due_date: string | null
   priority: string
   status: string
+  /** 演示合并标记: true 表示来自 demo_orders (非基线业务表) */
+  is_demo?: boolean
 }
 
 export interface DashboardForecast {
@@ -137,6 +139,8 @@ export interface DashboardShortage {
   relationship_missing: boolean
   affected_order_numbers: string[]
   affected_product_ids: number[]
+  /** 演示合并标记: true 表示来自 demo_shortages (非基线 kb_shortages) */
+  is_demo?: boolean
 }
 
 export interface DashboardAction {
@@ -152,6 +156,8 @@ export interface DashboardAction {
   suggested_supplier_name: string | null
   relationship_missing: boolean
   shortage_id: number | null
+  /** 演示合并标记: true 表示由 demo 缺件合成 (非基线推荐动作) */
+  is_demo?: boolean
 }
 
 export interface ChatPartnerSummary {

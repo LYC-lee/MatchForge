@@ -10,11 +10,13 @@
   POST /demo/actions/consume-inventory            消耗库存 (写入 demo override)
   POST /demo/actions/recalculate-shortages        重算演示缺件
   POST /demo/actions/generate-rfq                 从缺件生成 RFQ (仅直接关系候选)
-  POST /demo/actions/simulate-quotes              模拟候选供应商报价
+  POST /demo/actions/simulate-quotes              模拟候选供应商报价 (幂等: 已报价则刷新不重复)
   POST /demo/actions/execute-replenishment        选择报价并补货入库
   POST /demo/actions/select-alternative           选用替代料来源 (仅直接关系)
-  GET  /demo/rfqs                                 演示 RFQ 列表
+  GET  /demo/rfqs                                 演示 RFQ 列表 (买方视角)
   GET  /demo/rfqs/{rfq_id}/quote-comparison       演示报价对比
+  GET  /demo/supplier-view                        供应商视角: 收到的 demo RFQ + 报价 + 事件
+  GET  /demo/audit-queue                          演示只读审核队列 (无直接供应商/报价异常/关系缺失)
 
 行为约束:
   - 控制台只能操作 6 家主视角企业 (DEMO_COMPANY_IDS); 联动影响写入相关上下游/支撑企业事件。
@@ -195,6 +197,39 @@ def demo_quote_comparison(
     with session_scope() as s:
         _ensure_scenario(s, sid)
         return dcalc.quote_comparison(s, sid, company_id, rfq_id)
+
+
+@router.get("/demo/supplier-view")
+def demo_supplier_view(
+    company_id: int = Query(..., description="当前登录企业ID (作为供应商)"),
+    scenario_id: str | None = Query(default=None),
+    user: dict = Depends(get_current_user),
+):
+    """供应商视角: 当前企业作为候选供应商收到的 demo RFQ + 自己的报价 + 相关事件。
+
+    数据完全来自 demo_rfqs.candidates_json / demo_quotations / demo_events, 不写死。
+    """
+    sid = _resolve_scenario(scenario_id)
+    with session_scope() as s:
+        _ensure_scenario(s, sid)
+        return dcalc.get_supplier_demo_view(s, sid, company_id)
+
+
+@router.get("/demo/audit-queue")
+def demo_audit_queue(
+    company_id: int | None = Query(default=None, description="可选: 按企业过滤"),
+    scenario_id: str | None = Query(default=None),
+    user: dict = Depends(get_current_user),
+):
+    """演示只读审核队列: 从 demo events/quotations/states 派生需人工处理的事项。
+
+    来源: no_direct_supplier 事件 / 报价异常 (超目标价 1.5x) / relationship_missing 缺件。
+    MVP 只读, 不写回审批状态。
+    """
+    sid = _resolve_scenario(scenario_id)
+    with session_scope() as s:
+        _ensure_scenario(s, sid)
+        return dcalc.get_demo_audit_queue(s, sid, company_id=company_id)
 
 
 # ============================================================

@@ -191,11 +191,20 @@ RELATIONSHIPS = [
     {"source": 9005, "target": 9003, "type": "channel", "direction": "upstream",
      "product_scope": ["台式机", "笔记本"], "business_scope": ["整机组装", "渠道供货"]},
     # 远达(9004) 支撑 创捷/鼎云/星河 (target=9004, direction=support)
+    # 制造/渠道方视角: 远达是我的支撑(物流)伙伴。
     {"source": 9002, "target": 9004, "type": "service", "direction": "support",
      "product_scope": ["仓储", "配送"], "business_scope": ["物流服务"]},
     {"source": 9003, "target": 9004, "type": "service", "direction": "support",
      "product_scope": ["仓储", "配送", "通关"], "business_scope": ["物流服务"]},
     {"source": 9005, "target": 9004, "type": "service", "direction": "support",
+     "product_scope": ["仓储", "末端配送"], "business_scope": ["物流服务"]},
+    # 远达(9004) 视角反向边: 创捷/鼎云/星河 是远达的下游客户 (远达向其提供物流服务)。
+    # 使远达登录后驾驶舱 downstream_summary 非空, generate_orders 能联动客户。
+    {"source": 9004, "target": 9002, "type": "service", "direction": "downstream",
+     "product_scope": ["仓储", "配送"], "business_scope": ["物流服务"]},
+    {"source": 9004, "target": 9003, "type": "service", "direction": "downstream",
+     "product_scope": ["仓储", "配送", "通关"], "business_scope": ["物流服务"]},
+    {"source": 9004, "target": 9005, "type": "service", "direction": "downstream",
      "product_scope": ["仓储", "末端配送"], "business_scope": ["物流服务"]},
 ]
 

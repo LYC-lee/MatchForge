@@ -4,16 +4,25 @@ import { useRouter } from 'vue-router'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 import { onDemoRefresh } from '@/composables/useDemoRefresh'
 import { getSupplierLeads, type SupplierLead } from '@/api/enterprise'
+import { useDemo } from '@/composables/useDemo'
 import AppButton from '@/components/ui/AppButton.vue'
 
 const router = useRouter()
 const { current, currentEnterpriseId } = useEnterpriseContext()
+const demo = useDemo()
+
+const isDemo = computed(() => demo.isDemo.value)
 
 const leads = ref<SupplierLead[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 
 async function fetchLeads(companyId: number) {
+  if (isDemo.value) {
+    // demo 模式: 供应商视角由 useDemo 管理 (基于 demo_rfqs.candidates_json 动态计算)
+    loading.value = demo.loadingSupplier.value
+    return
+  }
   loading.value = true
   error.value = null
   try {
@@ -31,20 +40,53 @@ watch(currentEnterpriseId, (id) => {
   if (id) fetchLeads(id)
 }, { immediate: true })
 
-onDemoRefresh(() => fetchLeads(currentEnterpriseId.value))
+onDemoRefresh(() => {
+  if (isDemo.value) {
+    demo.fetchSupplierView()
+  } else {
+    fetchLeads(currentEnterpriseId.value)
+  }
+})
 
-const stats = computed(() => ({
-  activeLeads: leads.value.filter((l) => l.status !== 'declined' && l.status !== 'quoted').length,
-  totalLeads: leads.value.length,
-  newInquiries: leads.value.filter((l) => l.status === 'sent' || l.status === 'pending').length,
-  quoted: leads.value.filter((l) => l.status === 'quoted').length,
-}))
+/** 统一统计: demo 模式从 supplierView 派生, 否则从真实 leads 派生 */
+const stats = computed(() => {
+  if (isDemo.value) {
+    const items = demo.supplierView.value?.items || []
+    return {
+      activeLeads: items.filter((i) => i.rfq_status !== 'closed' && !i.my_quote).length,
+      totalLeads: items.length,
+      newInquiries: items.filter((i) => i.rfq_status === 'sent' && !i.my_quote).length,
+      quoted: items.filter((i) => !!i.my_quote).length,
+    }
+  }
+  return {
+    activeLeads: leads.value.filter((l) => l.status !== 'declined' && l.status !== 'quoted').length,
+    totalLeads: leads.value.length,
+    newInquiries: leads.value.filter((l) => l.status === 'sent' || l.status === 'pending').length,
+    quoted: leads.value.filter((l) => l.status === 'quoted').length,
+  }
+})
 
-const recentLeads = computed(() => leads.value.slice(0, 5))
+const recentLeads = computed(() => {
+  if (isDemo.value) {
+    const items = demo.supplierView.value?.items || []
+    return items.slice(0, 5).map((i) => ({
+      id: i.rfq_id,
+      rfq_number: i.rfq_number,
+      buyer_name: i.buyer_name,
+      part_name: i.part_name || i.part_number,
+      part_number: i.part_number,
+      quantity: i.quantity,
+      status: i.my_quote ? 'quoted' : (i.rfq_status === 'sent' ? 'sent' : i.rfq_status),
+    }))
+  }
+  return leads.value.slice(0, 5)
+})
 
 function statusLabel(s: string) {
   const map: Record<string, string> = {
     pending: '待发送', sent: '新线索', viewed: '已查看', quoted: '已报价', declined: '已拒绝',
+    closed: '已关闭',
   }
   return map[s] || s
 }
@@ -52,6 +94,7 @@ function statusLabel(s: string) {
 function statusClass(s: string) {
   const map: Record<string, string> = {
     pending: 'state-pending', sent: 'state-new', viewed: 'state-contacted', quoted: 'state-won', declined: 'state-lost',
+    closed: 'state-lost',
   }
   return map[s] || 'state-pending'
 }
@@ -72,6 +115,7 @@ function statusClass(s: string) {
 
     <div v-if="loading" class="loading-bar">正在拉取供应商线索…</div>
     <div v-else-if="error" class="notice-bar">线索接口不可用: {{ error }}</div>
+    <div v-if="isDemo" class="notice-bar notice-bar--demo">演示沙盘数据 · 线索来自当前企业作为候选供应商收到的 demo RFQ (基于直接关系动态匹配)</div>
 
     <!-- 统计卡片 -->
     <div v-if="!loading" class="stats-grid">
@@ -173,6 +217,7 @@ function statusClass(s: string) {
 .page-desc { color: var(--text-secondary); margin-top: 4px; font-size: var(--font-size-sm); }
 .loading-bar { padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border-radius: 6px; border: 1px solid var(--border-subtle); background: var(--bg-2); color: var(--text-tertiary); font-size: var(--font-size-sm); }
 .notice-bar { padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border-radius: 6px; border: 1px solid rgba(234, 179, 8, 0.25); background: var(--warning-soft); color: var(--warning); font-size: var(--font-size-sm); }
+.notice-bar--demo { border: 1px solid rgba(99, 102, 241, 0.3); background: var(--accent-soft); color: var(--accent); }
 
 /* 统计卡片 */
 .stats-grid {

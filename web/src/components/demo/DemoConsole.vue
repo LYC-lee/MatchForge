@@ -28,6 +28,8 @@ const dragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 
 const isDemo = computed(() => !!auth.user?.is_demo)
+const lastResultSummary = ref('')
+const lastResultKey = ref('')
 
 const actions = [
   { key: 'orders', label: '生成新订单', run: () => generateDemoOrders(currentEnterpriseId.value) },
@@ -38,6 +40,41 @@ const actions = [
   { key: 'replenish', label: '执行补货', run: () => executeDemoReplenishment(currentEnterpriseId.value) },
   { key: 'alternative', label: '选择替代料', run: () => selectDemoAlternative(currentEnterpriseId.value) },
 ]
+
+/** 从动作结果中提取可读摘要 (展示给用户: RFQ 编号 / no_direct_supplier / 缺件数等)。 */
+function resultSummary(payload: any): string {
+  if (!payload) return ''
+  if (payload.no_direct_supplier) {
+    return payload.message || '无可用直接关系供应商, 需要先建立合作关系/人工审核'
+  }
+  if (payload.rfq) {
+    const cands = payload.candidates?.length || 0
+    return `已生成 ${payload.rfq.rfq_number} (${cands} 家候选供应商)`
+  }
+  if (payload.quotes && Array.isArray(payload.quotes)) {
+    const lowest = payload.lowest_price
+    return lowest != null
+      ? `${payload.quote_count} 家报价, 最低 ¥${lowest}`
+      : `${payload.quote_count} 家报价`
+  }
+  if (payload.replenished_qty != null) {
+    return `已补货 ${payload.replenished_qty} ${payload.unit || ''}, 可用库存恢复至 ${payload.available_after ?? '-'}`
+  }
+  if (payload.shortages && Array.isArray(payload.shortages)) {
+    return `缺件 ${payload.shortage_count ?? 0} / 预警 ${payload.warning_count ?? 0} / 无直接供应商 ${payload.no_direct_supplier_count ?? 0}`
+  }
+  if (payload.order) {
+    return `订单 ${payload.order.order_number}: ${payload.order.product_name} ${payload.order.quantity}${payload.order.unit || ''}`
+  }
+  if (payload.consumed) {
+    return `消耗 ${payload.consumed.part_name} ${payload.consumed.consumed_qty}${payload.consumed.unit || ''}, 剩余 ${payload.consumed.available_after ?? '-'}`
+  }
+  if (payload.alternative_supplier_name) {
+    return `替代料 ${payload.rfq_number}: ${payload.alternative_supplier_name}, 入库 ${payload.replenished_qty}`
+  }
+  if (payload.message) return payload.message
+  return ''
+}
 
 const consoleStyle = computed(() => ({
   left: `${position.value.x}px`,
@@ -98,11 +135,19 @@ async function loadEvents() {
 
 async function runAction(key: string, runner: () => Promise<unknown>) {
   error.value = ''
+  lastResultSummary.value = ''
   loadingKey.value = key
   try {
-    await runner()
+    const res = await runner() as any
     await loadEvents()
     emitDemoRefresh()
+    // 展示动作结果摘要 (RFQ 编号 / no_direct_supplier / 缺件数等)
+    const data = res?.data ?? res
+    const summary = resultSummary(data)
+    if (summary) {
+      lastResultSummary.value = summary
+      lastResultKey.value = key
+    }
   } catch (err: any) {
     error.value = err?.response?.data?.detail || err?.message || '操作失败，后端演示接口暂不可用。'
   } finally {
@@ -184,6 +229,9 @@ onMounted(() => {
       </div>
 
       <p v-if="error" class="demo-console__error">{{ error }}</p>
+      <p v-else-if="lastResultSummary" class="demo-console__result">
+        <b>{{ actions.find(a => a.key === lastResultKey)?.label || '操作' }}:</b> {{ lastResultSummary }}
+      </p>
 
       <div class="demo-console__events">
         <div class="demo-console__events-head">
@@ -342,6 +390,22 @@ onMounted(() => {
   background: rgba(127, 29, 29, 0.22);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.demo-console__result {
+  margin: 0 16px 12px;
+  padding: 9px 10px;
+  color: #d1fae5;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  border-radius: 8px;
+  background: rgba(6, 78, 59, 0.22);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.demo-console__result b {
+  color: #6ee7b7;
+  font-weight: 700;
 }
 
 .demo-console__events {

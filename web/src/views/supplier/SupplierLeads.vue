@@ -9,9 +9,13 @@ import {
   createQuotation,
   type SupplierLead,
 } from '@/api/enterprise'
+import { useDemo } from '@/composables/useDemo'
 import AppButton from '@/components/ui/AppButton.vue'
 
 const { current, currentEnterpriseId } = useEnterpriseContext()
+const demo = useDemo()
+
+const isDemo = computed(() => demo.isDemo.value)
 
 const leads = ref<SupplierLead[]>([])
 const loading = ref(true)
@@ -30,6 +34,11 @@ const submitting = ref(false)
 const submitError = ref<string | null>(null)
 
 async function fetchLeads(companyId: number) {
+  if (isDemo.value) {
+    // demo 模式: 供应商视角由 useDemo 管理 (demo_rfqs.candidates_json 动态匹配)
+    loading.value = demo.loadingSupplier.value
+    return
+  }
   loading.value = true
   error.value = null
   try {
@@ -47,23 +56,64 @@ watch(currentEnterpriseId, (id) => {
   if (id) fetchLeads(id)
 }, { immediate: true })
 
-onDemoRefresh(() => fetchLeads(currentEnterpriseId.value))
-
-const filteredLeads = computed(() => {
-  if (activeTab.value === 'all') return leads.value
-  return leads.value.filter((l) => l.status === activeTab.value)
+onDemoRefresh(() => {
+  if (isDemo.value) {
+    demo.fetchSupplierView()
+  } else {
+    fetchLeads(currentEnterpriseId.value)
+  }
 })
 
-const stats = computed(() => ({
-  total: leads.value.length,
-  new: leads.value.filter((l) => l.status === 'sent' || l.status === 'pending').length,
-  viewed: leads.value.filter((l) => l.status === 'viewed').length,
-  quoted: leads.value.filter((l) => l.status === 'quoted').length,
-}))
+/** demo 模式: 把 supplierView.items 映射成统一的 lead 形态 */
+const demoLeads = computed<SupplierLead[]>(() => {
+  const items = demo.supplierView.value?.items || []
+  return items.map((i) => ({
+    id: i.rfq_id,
+    rfq_id: i.rfq_id,
+    rfq_number: i.rfq_number,
+    rfq_title: i.title || i.rfq_number,
+    rfq_status: i.rfq_status,
+    buyer_company_id: i.buyer_company_id,
+    buyer_name: i.buyer_name || `企业${i.buyer_company_id}`,
+    supplier_company_id: currentEnterpriseId.value,
+    part_number: i.part_number || null,
+    part_name: i.part_name || null,
+    quantity: i.quantity,
+    unit: i.unit || null,
+    target_price: i.target_price ?? null,
+    lead_time_days: i.lead_time_days ?? null,
+    accept_alternatives: i.accept_alternatives ?? null,
+    match_score: i.my_match_score ?? null,
+    match_reason: i.my_match_reason ?? null,
+    status: i.my_quote ? 'quoted' : (i.rfq_status === 'closed' ? 'declined' : 'sent'),
+    sent_at: null,
+    viewed_at: null,
+    created_at: i.created_at,
+    // demo 扩展字段 (my_quote / is_selected) 供模板展示
+    _my_quote: i.my_quote,
+    _is_selected: i.is_selected,
+  } as unknown as SupplierLead))
+})
+
+const filteredLeads = computed(() => {
+  const source = isDemo.value ? demoLeads.value : leads.value
+  if (activeTab.value === 'all') return source
+  return source.filter((l) => l.status === activeTab.value)
+})
+
+const stats = computed(() => {
+  const source = isDemo.value ? demoLeads.value : leads.value
+  return {
+    total: source.length,
+    new: source.filter((l) => l.status === 'sent' || l.status === 'pending').length,
+    viewed: source.filter((l) => l.status === 'viewed').length,
+    quoted: source.filter((l) => l.status === 'quoted').length,
+  }
+})
 
 function statusLabel(s: string) {
   const map: Record<string, string> = {
-    pending: '待发送', sent: '新线索', viewed: '已查看', quoted: '已报价', declined: '已拒绝',
+    pending: '待发送', sent: '新线索', viewed: '已查看', quoted: '已报价', declined: '已关闭',
   }
   return map[s] || s
 }
@@ -76,6 +126,7 @@ function statusClass(s: string) {
 }
 
 async function handleView(lead: SupplierLead) {
+  if (isDemo.value) return // demo 模式只读, 无需标记查看
   try {
     await viewLead(lead.id)
     await fetchLeads(currentEnterpriseId.value)
@@ -85,6 +136,7 @@ async function handleView(lead: SupplierLead) {
 }
 
 async function handleDecline(lead: SupplierLead) {
+  if (isDemo.value) return // demo 模式只读
   const note = prompt('拒绝理由（可选）:')
   try {
     await declineLead(lead.id, note || undefined)
@@ -109,6 +161,11 @@ function openQuote(lead: SupplierLead) {
 
 async function submitQuote() {
   if (!quoteLead.value) return
+  if (isDemo.value) {
+    // demo 模式: 报价由买方 simulate-quotes 统一生成; 此处提示用户
+    submitError.value = '演示沙盘模式下, 报价由采购方执行「模拟报价」统一生成 (基于供应商品类/直接关系动态计算), 供应商工作台为只读视角。'
+    return
+  }
   submitting.value = true
   submitError.value = null
   try {
@@ -144,6 +201,7 @@ async function submitQuote() {
 
     <div v-if="loading" class="card"><div class="card__body"><div v-for="i in 3" :key="i" class="skeleton" style="height: 60px; margin-bottom: 8px" /></div></div>
     <div v-else-if="error" class="notice-bar">供应商线索接口不可用: {{ error }}</div>
+    <div v-if="isDemo" class="notice-bar notice-bar--demo">演示沙盘数据 · 线索来自当前企业作为候选供应商收到的 demo RFQ (直接关系动态匹配, 供应商视角只读)</div>
 
     <template v-else>
       <!-- 统计 -->
@@ -189,12 +247,14 @@ async function submitQuote() {
             <div class="lead-meta-item"><span class="meta-label">目标价</span><span>{{ lead.target_price != null ? `¥${lead.target_price}` : '-' }}</span></div>
             <div class="lead-meta-item"><span class="meta-label">交期</span><span>{{ lead.lead_time_days ? `${lead.lead_time_days}天` : '-' }}</span></div>
             <div class="lead-meta-item"><span class="meta-label">接受替代</span><span>{{ lead.accept_alternatives ? '是' : '否' }}</span></div>
+            <div v-if="isDemo && (lead as any)._my_quote" class="lead-meta-item"><span class="meta-label">我的报价</span><span class="meta-quote">¥{{ (lead as any)._my_quote.unit_price }} · 交期{{ (lead as any)._my_quote.lead_time_days || '-' }}天</span></div>
+            <div v-if="isDemo && (lead as any)._is_selected" class="lead-meta-item"><span class="meta-label">中标状态</span><span class="meta-win">已选定</span></div>
           </div>
 
           <div class="lead-card__actions">
-            <AppButton v-if="lead.status === 'sent' || lead.status === 'pending'" variant="ghost" size="sm" @click="handleView(lead)">标记已查看</AppButton>
-            <AppButton v-if="lead.status !== 'quoted' && lead.status !== 'declined'" variant="danger" size="sm" @click="handleDecline(lead)">拒绝</AppButton>
-            <AppButton v-if="lead.status !== 'declined' && lead.status !== 'quoted'" variant="primary" size="sm" @click="openQuote(lead)">提交报价</AppButton>
+            <AppButton v-if="!isDemo && (lead.status === 'sent' || lead.status === 'pending')" variant="ghost" size="sm" @click="handleView(lead)">标记已查看</AppButton>
+            <AppButton v-if="!isDemo && lead.status !== 'quoted' && lead.status !== 'declined'" variant="danger" size="sm" @click="handleDecline(lead)">拒绝</AppButton>
+            <AppButton v-if="!isDemo && lead.status !== 'declined' && lead.status !== 'quoted'" variant="primary" size="sm" @click="openQuote(lead)">提交报价</AppButton>
             <span v-if="lead.status === 'quoted'" class="quoted-tag">已报价</span>
           </div>
         </div>
@@ -251,6 +311,9 @@ async function submitQuote() {
 .page-title { font-size: var(--font-size-xl); font-weight: 700; margin-top: 4px; }
 .page-desc { color: var(--text-secondary); margin-top: 4px; font-size: var(--font-size-sm); }
 .notice-bar { padding: var(--space-3) var(--space-4); border-radius: 6px; border: 1px solid rgba(234, 179, 8, 0.25); background: var(--warning-soft); color: var(--warning); font-size: var(--font-size-sm); }
+.notice-bar--demo { border: 1px solid rgba(99, 102, 241, 0.3); background: var(--accent-soft); color: var(--accent); }
+.meta-quote { color: var(--accent); font-weight: 600; }
+.meta-win { color: var(--success); font-weight: 700; }
 .stats-row { display: flex; gap: var(--space-3); margin-bottom: var(--space-4); }
 .stat-chip { flex: 1; display: flex; flex-direction: column; gap: 4px; padding: var(--space-3) var(--space-4); background: var(--bg-2); border: 1px solid var(--border-default); border-radius: 8px; }
 .stat-chip__num { font-size: var(--font-size-2xl); font-weight: 700; color: var(--text-primary); }

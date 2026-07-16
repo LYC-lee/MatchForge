@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import {
   getAuditQueue,
   approveAuditItem,
   rejectAuditItem,
   type AuditQueueItem,
 } from '@/api/enterprise'
+import { useDemo } from '@/composables/useDemo'
 import AppButton from '@/components/ui/AppButton.vue'
+
+const demo = useDemo()
+const isDemo = computed(() => demo.isDemo.value)
 
 const auditItems = ref<AuditQueueItem[]>([])
 const loading = ref(true)
@@ -15,8 +19,30 @@ const activeTab = ref<'all' | 'pending' | 'approved' | 'rejected'>('pending')
 const searchQuery = ref('')
 const noteInputs = ref<Record<number, string>>({})
 
+/** 统一审核项列表: demo 模式取 demo.auditQueue, 否则取真实 auditItems */
+const unifiedItems = computed(() => {
+  if (isDemo.value) {
+    const items = demo.auditQueue.value?.items || []
+    // 映射成 AuditQueueItem 形态 (demo 审核项为只读, status 固定 pending)
+    return items.map((it) => ({
+      id: it.audit_id as unknown as number,
+      item_type: it.item_type,
+      title: it.title,
+      detail: it.detail || '',
+      status: it.status as 'pending',
+      company_id: it.company_id,
+      entity_id: it.audit_id as unknown as number,
+      payload: it.payload || {},
+      created_at: it.created_at,
+      reviewed_at: null,
+      review_note: null,
+    })) as unknown as AuditQueueItem[]
+  }
+  return auditItems.value
+})
+
 const filteredItems = computed(() => {
-  let items = auditItems.value
+  let items = unifiedItems.value
   if (activeTab.value !== 'all') {
     items = items.filter((i) => i.status === activeTab.value)
   }
@@ -32,18 +58,23 @@ const filteredItems = computed(() => {
   return items
 })
 
-const stats = computed(() => ({
-  pending: auditItems.value.filter((i) => i.status === 'pending').length,
-  approved: auditItems.value.filter((i) => i.status === 'approved').length,
-  rejected: auditItems.value.filter((i) => i.status === 'rejected').length,
-  total: auditItems.value.length,
-}))
+const stats = computed(() => {
+  const items = unifiedItems.value
+  return {
+    pending: items.filter((i) => i.status === 'pending').length,
+    approved: items.filter((i) => i.status === 'approved').length,
+    rejected: items.filter((i) => i.status === 'rejected').length,
+    total: items.length,
+  }
+})
 
 function typeLabel(t: string) {
   const map: Record<string, string> = {
     supplier_capability: '供应商能力',
     rfq_supplier_match: 'RFQ 供应商匹配',
     quotation_anomaly: '报价异常',
+    no_direct_supplier: '无直接供应商',
+    relationship_missing: '关系缺失',
   }
   return map[t] || t
 }
@@ -53,6 +84,8 @@ function typeClass(t: string) {
     supplier_capability: 'tag-blue',
     rfq_supplier_match: 'tag-yellow',
     quotation_anomaly: 'tag-red',
+    no_direct_supplier: 'tag-red',
+    relationship_missing: 'tag-yellow',
   }
   return map[t] || 'tag-gray'
 }
@@ -72,6 +105,8 @@ function payloadSummary(item: AuditQueueItem) {
   if (p.supplier_company_id) parts.push(`供应商: ${p.supplier_company_id}`)
   if (p.unit_price) parts.push(`单价: ¥${p.unit_price}`)
   if (p.target_price) parts.push(`目标价: ¥${p.target_price}`)
+  if (p.part_number) parts.push(`零件: ${p.part_number}`)
+  if (p.shortage_qty != null) parts.push(`缺口: ${p.shortage_qty}`)
   if (p.match_score != null) parts.push(`匹配分: ${p.match_score}`)
   return parts.join(' · ') || '无摘要'
 }
@@ -86,6 +121,11 @@ function formatTime(iso: string | null) {
 }
 
 async function fetchQueue() {
+  if (isDemo.value) {
+    // demo 模式: 审核队列由 useDemo 管理 (从 demo events/quotations 动态派生)
+    loading.value = demo.loadingAudit.value
+    return
+  }
   loading.value = true
   error.value = null
   try {
@@ -100,6 +140,7 @@ async function fetchQueue() {
 }
 
 async function handleApprove(item: AuditQueueItem) {
+  if (isDemo.value) return // demo 模式只读
   try {
     await approveAuditItem(item.id, noteInputs.value[item.id])
     await fetchQueue()
@@ -109,6 +150,7 @@ async function handleApprove(item: AuditQueueItem) {
 }
 
 async function handleReject(item: AuditQueueItem) {
+  if (isDemo.value) return // demo 模式只读
   try {
     await rejectAuditItem(item.id, noteInputs.value[item.id])
     await fetchQueue()
@@ -118,6 +160,9 @@ async function handleReject(item: AuditQueueItem) {
 }
 
 onMounted(fetchQueue)
+
+// demo 模式: 企业切换或全局刷新时重拉
+watch(() => demo.auditQueue.value, () => {}, { deep: true })
 </script>
 
 <template>
@@ -131,6 +176,7 @@ onMounted(fetchQueue)
 
     <div v-if="loading" class="card"><div class="card__body"><div v-for="i in 3" :key="i" class="skeleton" style="height: 80px; margin-bottom: 8px" /></div></div>
     <div v-else-if="error" class="notice-bar">{{ error }}</div>
+    <div v-if="isDemo" class="notice-bar notice-bar--demo">演示沙盘数据 · 审核项从 demo 事件/报价动态派生 (无直接供应商 / 报价异常), 只读队列, 不写回审批状态</div>
 
     <template v-else>
       <!-- 统计概览 -->
@@ -213,12 +259,15 @@ onMounted(fetchQueue)
               </div>
             </div>
 
-            <div v-if="item.status === 'pending'" class="audit-card__actions">
+            <div v-if="item.status === 'pending' && !isDemo" class="audit-card__actions">
               <input v-model="noteInputs[item.id]" class="source-input" placeholder="审核备注 (可选)" />
               <div class="action-btns">
                 <AppButton variant="danger" size="sm" @click="handleReject(item)">驳回</AppButton>
                 <AppButton variant="primary" size="sm" @click="handleApprove(item)">通过</AppButton>
               </div>
+            </div>
+            <div v-if="item.status === 'pending' && isDemo" class="audit-card__readonly">
+              <span class="readonly-hint">演示沙盘只读队列 · 通过采购方建立合作关系或人工处理后, 重置场景可清除</span>
             </div>
           </div>
         </div>
@@ -243,6 +292,9 @@ onMounted(fetchQueue)
 .page-title { font-size: var(--font-size-xl); font-weight: 700; }
 .page-desc { color: var(--text-secondary); margin-top: 4px; font-size: var(--font-size-sm); }
 .notice-bar { padding: var(--space-3) var(--space-4); border-radius: 6px; border: 1px solid rgba(234, 179, 8, 0.25); background: var(--warning-soft); color: var(--warning); font-size: var(--font-size-sm); }
+.notice-bar--demo { border: 1px solid rgba(99, 102, 241, 0.3); background: var(--accent-soft); color: var(--accent); }
+.audit-card__readonly { padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+.readonly-hint { color: var(--text-tertiary); font-size: var(--font-size-xs); }
 
 /* 统计 */
 .stats-row { display: flex; gap: var(--space-3); margin-bottom: var(--space-5); }
