@@ -16,28 +16,26 @@ const role = ref<AuthUser['role']>('buyer')
 const error = ref('')
 const loading = ref(false)
 
-function submit() {
+async function submit() {
   error.value = ''
   if (password.value !== confirmPassword.value) {
     error.value = '两次输入的密码不一致'
     return
   }
   loading.value = true
-  setTimeout(() => {
-    const result = auth.register({
-      name: name.value,
-      company: company.value,
-      account: account.value,
-      password: password.value,
-      role: role.value,
-    })
-    loading.value = false
-    if (result.ok) {
-      router.push('/app')
-    } else {
-      error.value = result.msg || '注册失败'
-    }
-  }, 300)
+  const result = await auth.register({
+    name: name.value,
+    company: company.value,
+    account: account.value,
+    password: password.value,
+    role: role.value,
+  })
+  loading.value = false
+  if (result.ok) {
+    router.push('/app')
+  } else {
+    error.value = result.msg || '注册失败'
+  }
 }
 </script>
 
@@ -50,7 +48,7 @@ function submit() {
       </div>
       <h1>创建你的采购寻源工作区</h1>
       <p>
-        Spike 阶段注册为本地 mock 流程，后续可直接替换为 FastAPI 的 `/api/v1/auth/register`。
+        注册后即可使用 AI 装配寻源、替代料推荐、供应商匹配与 RFQ 生成。
       </p>
       <div class="register-roadmap">
         <span>采购端 AI 寻源</span>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
-import type { RiskLevel } from '@/mock/enterpriseContext'
+import type { RiskLevel } from '@/types/enterprise'
 
 const { current } = useEnterpriseContext()
 

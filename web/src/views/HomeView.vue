@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
-import { riskRank, type RiskLevel } from '@/mock/enterpriseContext'
+import { riskRank, type RiskLevel } from '@/types/enterprise'
 
 const router = useRouter()
 const { companies, current, currentEnterpriseId, setCurrentEnterprise } = useEnterpriseContext()

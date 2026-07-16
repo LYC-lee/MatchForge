@@ -46,7 +46,7 @@ def create_app() -> FastAPI:
     )
 
     # 确保知识库表 (含 kb_company_relationships) 已创建 (幂等)。
-    # SQLite 自动建表; MySQL 需先执行 database/migrations/02_kb_schema.sql。
+    # MySQL 表由 SQLAlchemy ORM 自动创建。
     from kb.db import init_db
 
     init_db()

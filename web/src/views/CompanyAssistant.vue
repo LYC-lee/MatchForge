@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { chatSingle } from '@/api/kb'
 
 const { current } = useEnterpriseContext()
 const query = ref('')
@@ -15,12 +16,6 @@ const quickQuestions = computed(() => [
   '请给我一份采购、生产、销售联动建议。',
 ])
 
-function buildMockAnswer(text: string) {
-  const shortages = current.value.shortages.slice(0, 2).map((item) => `${item.part} 缺口 ${item.gap}`).join('；')
-  const orders = current.value.demands.filter((item) => item.risk !== '低').map((item) => item.id).join('、')
-  return `基于 ${current.value.company.name} 的当前经营数据，建议先处理 ${orders || '高风险订单'}。关键风险是：${shortages}。下一步可以按“先保紧急订单、再锁预测需求、同步上下游承诺”的顺序推进。你刚才问的是：“${text}”。`
-}
-
 async function send(q?: string) {
   const text = (q ?? query.value).trim()
   if (!text || sending.value) return
@@ -28,11 +23,16 @@ async function send(q?: string) {
   messages.value.push({ role: 'user', content: text })
   sending.value = true
   await scrollBottom()
-  window.setTimeout(async () => {
-    messages.value.push({ role: 'assistant', content: buildMockAnswer(text) })
+  try {
+    const res = await chatSingle(current.value.company.id, text)
+    const data = res.data
+    messages.value.push({ role: 'assistant', content: data.answer || '暂无回答' })
+  } catch {
+    messages.value.push({ role: 'assistant', content: '抱歉，当前企业知识库暂时无法回答，请稍后重试。' })
+  } finally {
     sending.value = false
     await scrollBottom()
-  }, 260)
+  }
 }
 
 async function scrollBottom() {
@@ -72,7 +72,7 @@ async function scrollBottom() {
 
       <div class="chat-body" ref="chatBody">
         <div v-if="!messages.length" class="chat-empty">
-          <p>我是 {{ current.company.name }} 的内部 AI 助手，可以基于当前企业 mock 经营数据回答问题。</p>
+          <p>我是 {{ current.company.name }} 的内部 AI 助手，基于企业私域知识库回答经营相关问题。</p>
           <div class="quick-questions">
             <button v-for="item in quickQuestions" :key="item" class="chip" @click="send(item)">{{ item }}</button>
           </div>

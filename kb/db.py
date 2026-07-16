@@ -1,18 +1,13 @@
 """
-SQLAlchemy 引擎/会话工厂。
-
-- 默认 SQLite (data/knowledge.db)，当前环境无 Docker/MySQL 仍可运行
-- 设置 KB_DATABASE_URL=mysql+pymysql://... 即可切 MySQL (与 ai/config.py 对齐)
-- 独立库/独立文件 -> 非破坏式，不触碰现有业务表
+SQLAlchemy 引擎/会话工厂 — MySQL。
 """
 
 from __future__ import annotations
 
 import threading
 from contextlib import contextmanager
-from pathlib import Path
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker, declarative_base
 
 from kb.config import KB_DATABASE_URL
@@ -25,28 +20,7 @@ _lock = threading.Lock()
 
 
 def _build_engine():
-    url = KB_DATABASE_URL
-    is_sqlite = url.startswith("sqlite")
-    kwargs = {"pool_pre_ping": True, "future": True}
-    if is_sqlite:
-        # SQLite 文件目录确保存在
-        db_path = url.replace("sqlite:///", "")
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        kwargs = {"future": True}
-    eng = create_engine(url, **kwargs)
-
-    # SQLite 开启外键约束
-    if is_sqlite:
-
-        @event.listens_for(eng, "connect")
-        def _fk_on(dbapi_conn, _):  # pragma: no cover
-            cur = dbapi_conn.cursor()
-            cur.execute("PRAGMA foreign_keys=ON")
-            cur.execute("PRAGMA journal_mode=WAL")
-            cur.execute("PRAGMA busy_timeout=5000")  # 写冲突时等待 5s 而非立即失败
-            cur.close()
-
-    return eng
+    return create_engine(KB_DATABASE_URL, pool_pre_ping=True, future=True)
 
 
 def get_engine():

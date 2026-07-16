@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { streamProcure } from '@/api/procure'
-import { buildRfqTemplate } from '@/mock/data'
 import type {
   AgentName,
   AgentState,
@@ -160,14 +159,9 @@ export const useProcureStore = defineStore('procure', () => {
         onError: (agent, message) => {
           if (agent) setAgent(agent, 'error', message)
           errors.value.push(message)
-          // gen_rfq 失败 -> 固定模板兜底
+          // gen_rfq 失败 -> 提示错误
           if (agent === 'gen_rfq') {
-            rfqDoc.value = buildRfqTemplate({
-              rawQuery: rawQuery.value,
-              spec: editedSpec,
-              alternatives: alternatives.value,
-              suppliers: matchedSuppliers.value,
-            })
+            rfqDoc.value = `# RFQ 生成失败\n\n后端寻源服务暂时不可用，请稍后重试。\n\n错误信息: ${message}`
           }
         },
         onResult: (state) => applyState(state),

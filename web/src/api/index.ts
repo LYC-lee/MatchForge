@@ -116,51 +116,10 @@ async function refreshAccessToken(): Promise<string> {
 
 /**
  * 实际执行刷新 Token 的请求
- * 对接后端 POST /api/v1/auth/refresh
- * Spike 期间使用 auth store 的本地 session 逻辑
+ * 后端暂未提供 /auth/refresh 接口，token 过期后引导重新登录
  */
 async function doRefresh(): Promise<boolean> {
-  const auth = useAuthStore()
-  const currentToken = auth.token
-
-  // Spike 期没有真实 refresh 接口，走本地 session 延长
-  if (import.meta.env.VITE_USE_MOCK !== 'false') {
-    // 本地 mock：检查 session 是否过期，未过期则延长
-    const userStr = localStorage.getItem('matchforge:user')
-    if (!userStr || !currentToken) return false
-
-    // 延长 session：重新写一次存储，续 8 小时
-    const expiresAt = Date.now() + 8 * 60 * 60 * 1000
-    localStorage.setItem('matchforge:session', JSON.stringify({ token: currentToken, expiresAt }))
-
-    // 刷新 Pinia store
-    const session = { token: currentToken, expiresAt }
-    ;(auth as any).session = session
-
-    return true
-  }
-
-  // 真实后端：POST /api/v1/auth/refresh 换取新 token
-  try {
-    const res = await axios.post(
-      '/api/v1/auth/refresh',
-      {},
-      { headers: { Authorization: `Bearer ${currentToken}` } },
-    )
-    const { token: newToken } = res.data
-
-    // 更新 store 和 localStorage
-    const expiresAt = Date.now() + 8 * 60 * 60 * 1000
-    localStorage.setItem('matchforge:session', JSON.stringify({ token: newToken, expiresAt }))
-    localStorage.setItem('matchforge:user', auth.user ? JSON.stringify(auth.user) : 'null')
-
-    // 刷新 Pinia store
-    ;(auth as any).session = { token: newToken, expiresAt }
-
-    return true
-  } catch {
-    return false
-  }
+  return false
 }
 
 // ============================================================

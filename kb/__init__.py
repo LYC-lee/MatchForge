@@ -9,7 +9,7 @@ MatchForge 企业私域知识库 (Company-Level RAG) 系统
 
 模块:
   config     - 配置 (复用 ai/config.py + KB 专属)
-  db         - SQLAlchemy 引擎/会话 (SQLite 默认, 可切 MySQL)
+  db         - SQLAlchemy 引擎/会话 (MySQL)
   models     - ORM 模型 (KnowledgeManual / Product / KnowledgeChunk / KbTask / RagTrace)
   companies  - 公司源数据采集 (CSV 优先级2 / MySQL 优先级1)
   boundary   - 企业业务边界模型
