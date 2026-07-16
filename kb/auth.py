@@ -146,7 +146,8 @@ def resolve_token(token: str | None) -> dict | None:
     if token == KB_ADMIN_TOKEN:
         return {"user_id": "kb-admin", "name": "KB Admin",
                 "role": "admin", "account": "admin@matchforge.ai", "token": token}
-    if token == KB_DEMO_TOKEN:
+    # 兼容前端演示登录使用的 'demo-token' 字面量 (与 KB_DEMO_TOKEN 'kb-demo-user' 等价)
+    if token == KB_DEMO_TOKEN or token == "demo-token":
         return {"user_id": "demo-user", "name": "Demo Buyer",
                 "role": "user", "account": "demo@matchforge.ai", "token": token}
     with session_scope() as s:
