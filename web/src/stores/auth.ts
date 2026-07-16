@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { DEFAULT_DEMO_COMPANY_ID, findDemoCompany, type DemoCompany } from '@/data/demoCompanies'
 
 const SESSION_KEY = 'matchforge:session'
 const USER_KEY = 'matchforge:user'
@@ -9,6 +10,11 @@ export interface AuthUser {
   name: string
   account: string
   company?: string
+  company_id?: number
+  company_name?: string
+  company_role?: string
+  company_segment?: string
+  is_demo?: boolean
   role?: 'buyer' | 'supplier' | 'admin'
 }
 
@@ -49,8 +55,15 @@ export const useAuthStore = defineStore('auth', () => {
         password: password,
       })
 
-      const { token: newToken, name, role, account: acc } = res.data
-      persistSession(newToken, { name, account: acc, role })
+      const { token: newToken, name, role, account: acc, company_id, company_name, company } = res.data
+      persistSession(newToken, {
+        name,
+        account: acc,
+        role,
+        company,
+        company_id,
+        company_name: company_name || company,
+      })
       return { ok: true }
     } catch (err: any) {
       const status = err?.response?.status
@@ -58,6 +71,26 @@ export const useAuthStore = defineStore('auth', () => {
       if (status === 401) return { ok: false, msg: '账号或密码不正确' }
       return { ok: false, msg }
     }
+  }
+
+  async function loginDemoCompany(
+    company: DemoCompany,
+  ): Promise<{ ok: boolean; msg?: string }> {
+    const selected = company || findDemoCompany(DEFAULT_DEMO_COMPANY_ID)
+    if (!selected) return { ok: false, msg: '未找到演示企业' }
+
+    persistSession('demo-token', {
+      name: 'Demo Buyer',
+      account: 'demo@matchforge.ai',
+      role: 'buyer',
+      company: selected.name,
+      company_id: selected.company_id,
+      company_name: selected.name,
+      company_role: selected.role,
+      company_segment: selected.segment_name,
+      is_demo: true,
+    })
+    return { ok: true }
   }
 
   async function register(payload: {
@@ -106,6 +139,9 @@ export const useAuthStore = defineStore('auth', () => {
       clearSession()
       return false
     }
+    if (user.value?.is_demo) {
+      return true
+    }
     try {
       const res = await axios.get('/api/v1/auth/me', {
         headers: { Authorization: `Bearer ${session.value.token}` },
@@ -115,6 +151,9 @@ export const useAuthStore = defineStore('auth', () => {
           name: res.data.name,
           account: res.data.account,
           role: res.data.role,
+          company: res.data.company || user.value?.company,
+          company_id: res.data.company_id || user.value?.company_id,
+          company_name: res.data.company_name || res.data.company || user.value?.company_name,
         }
         localStorage.setItem(USER_KEY, JSON.stringify(user.value))
         return true
@@ -148,7 +187,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(USER_KEY, JSON.stringify(publicUser))
   }
 
-  return { token, user, isAuthenticated, login, register, validateSession, logout }
+  return { token, user, isAuthenticated, login, loginDemoCompany, register, validateSession, logout }
 })
 
 function readJson<T>(key: string, fallback: T): T {

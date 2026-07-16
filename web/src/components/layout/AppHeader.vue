@@ -7,7 +7,7 @@ import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const { companies, current, currentEnterpriseId, setCurrentEnterprise, dataSource } = useEnterpriseContext()
+const { current, dataSource } = useEnterpriseContext()
 
 const pageTitle = computed(() => String(route.meta.title || '经营驾驶舱'))
 
@@ -52,17 +52,10 @@ function logout() {
     </div>
 
     <div class="enterprise-card">
-      <label for="enterprise-switch">当前企业</label>
-      <select
-        id="enterprise-switch"
-        :value="currentEnterpriseId"
-        @change="setCurrentEnterprise(Number(($event.target as HTMLSelectElement).value))"
-      >
-        <option v-for="company in companies" :key="company.company_id" :value="company.company_id">
-          {{ company.company.name }}
-        </option>
-      </select>
-      <p>{{ current.segment_name || '-' }} · {{ current.role || '-' }}</p>
+      <span class="enterprise-card__label">当前绑定企业</span>
+      <b>{{ current.company.name }}</b>
+      <p>{{ current.segment_name || auth.user?.company_segment || '-' }} · {{ current.role || auth.user?.company_role || '-' }}</p>
+      <span v-if="auth.user?.is_demo" class="enterprise-badge">演示账号固定视角</span>
       <p class="enterprise-source">数据来源：{{ sourceLabel }}</p>
     </div>
 
@@ -141,27 +134,36 @@ function logout() {
   border-radius: 8px;
   background: var(--bg-1);
 }
-.enterprise-card label {
+.enterprise-card__label {
   display: block;
   margin-bottom: 6px;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   font-weight: 700;
 }
-.enterprise-card select {
-  width: 100%;
-  padding: 7px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--border-default);
+.enterprise-card b {
+  display: block;
   color: var(--text-primary);
-  background: var(--bg-2);
   font-size: var(--font-size-sm);
+  line-height: 1.35;
 }
 .enterprise-card p {
   margin-top: 7px;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   line-height: 1.5;
+}
+.enterprise-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  padding: 3px 7px;
+  color: #d9ddff;
+  border: 1px solid rgba(129, 140, 248, 0.45);
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.13);
+  font-size: 11px;
+  font-weight: 700;
 }
 .enterprise-source {
   margin-top: 4px !important;
