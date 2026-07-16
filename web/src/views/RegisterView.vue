@@ -24,15 +24,20 @@ async function submit() {
   }
   loading.value = true
   const result = await auth.register({
-    name: name.value, company: company.value,
-    account: account.value, password: password.value, role: role.value,
+    name: name.value,
+    company: company.value,
+    account: account.value,
+    password: password.value,
+    role: role.value,
   })
   loading.value = false
-  if (result.ok) { router.push('/app') }
-  else { error.value = result.msg || '注册失败' }
+  if (result.ok) {
+    router.push('/app')
+  } else {
+    error.value = result.msg || '注册失败'
+  }
 }
-
-// 全息投影动画 (与登录页一致)
+// 全息投影动画
 let animId = 0
 onMounted(() => {
   const canvas = document.getElementById('holoCanvas') as HTMLCanvasElement | null
@@ -95,7 +100,6 @@ onMounted(() => {
     const time = t * 0.001
     ctx.clearRect(0, 0, W, H)
     const cx = W/2, cy = H/2 + 10, ps = Math.min(W, H) * 0.95, px = cx, py = H - 25
-
     // 投影仪底座
     const bg = ctx.createRadialGradient(px, py, 0, px, py, 35)
     bg.addColorStop(0, `rgba(99,102,241,${0.15+0.05*Math.sin(time*0.5)})`)
@@ -105,7 +109,6 @@ onMounted(() => {
     ctx.beginPath(); ctx.arc(px, py, 12, 0, 6.28); ctx.stroke()
     ctx.strokeStyle = 'rgba(167,139,250,0.08)'; ctx.lineWidth = 0.8
     ctx.beginPath(); ctx.arc(px, py, 18, 0, 6.28); ctx.stroke()
-
     // 线性光束
     const cnRange = (cnMaxY - cnMinY) / 2 + 20
     const cnCenter = (cnMaxY + cnMinY) / 2
@@ -119,7 +122,6 @@ onMounted(() => {
     beamGrad.addColorStop(0.6, 'rgba(60,60,160,0.02)'); beamGrad.addColorStop(0.8, 'rgba(40,40,120,0.008)')
     beamGrad.addColorStop(1, 'rgba(0,0,0,0)')
     ctx.fillStyle = beamGrad; ctx.fill(); ctx.restore()
-
     // 经纬网格
     ctx.strokeStyle = 'rgba(129,140,248,0.18)'; ctx.lineWidth = 0.8
     ctx.beginPath(); ctx.arc(cx, cy, ps, 0, 6.28); ctx.stroke()
@@ -134,7 +136,6 @@ onMounted(() => {
       for(let lng=65; lng<=145; lng+=1) { const p = proj(lat, lng); if(!p) { ok=false; break } pts.push(p) }
       if(!ok || pts.length<2) continue; ctx.beginPath(); pts.forEach((p,i) => i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y)); ctx.stroke()
     }
-
     // 中国轮廓
     chinaPolys.forEach(poly => {
       const pts: any[] = []; let ok = true
@@ -147,13 +148,11 @@ onMounted(() => {
       ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle = 'rgba(129,140,248,0.3)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore()
       ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle = 'rgba(99,102,241,0.5)'; ctx.lineWidth = 0.6; ctx.stroke()
     })
-
     // 扫描线
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, ps, 0, 6.28); ctx.clip()
     ctx.strokeStyle = `rgba(150,150,255,${0.05+0.02*Math.sin(time*0.3)})`; ctx.lineWidth = 1.5
     ctx.beginPath(); ctx.moveTo(0, scanY); ctx.lineTo(W, scanY); ctx.stroke()
     ctx.restore()
-
     // 引导线箭头
     const arrows = (window as any)._holoArrows || []
     if(!(window as any)._holoArrows) { (window as any)._holoArrows = arrows }
@@ -191,7 +190,7 @@ onMounted(() => {
       if(segs.length>1) {
         ctx.beginPath(); ctx.moveTo(segs[0].x, segs[0].y)
         for(let j=1; j<segs.length; j++) ctx.lineTo(segs[j].x, segs[j].y)
-        ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle=`rgba(241,180,15,${0.15+0.1*Math.sin(p*Math.PI)})`; ctx.lineWidth=1.2; ctx.stroke()
+        ctx.strokeStyle=`rgba(241,180,15,${0.15+0.1*Math.sin(p*Math.PI)})`; ctx.lineWidth=1.2; ctx.stroke()
       }
       if(segs.length>=2) {
         const last=segs[segs.length-1]; const prev=segs.length>=3?segs[segs.length-3]:segs[0]
@@ -210,11 +209,9 @@ onMounted(() => {
         ctx.beginPath(); ctx.arc(p2.x,p2.y,1.5*fa,0,6.28); ctx.fillStyle=`rgba(255,220,80,${0.5*fa})`; ctx.fill()
       }
     }
-
     ctx.fillStyle = 'rgba(99,102,241,0.035)'; ctx.font = '10px monospace'
     ctx.textAlign = 'left'; ctx.textBaseline = 'top'
     ctx.fillText('// CHINA · HOLOGRAM', 14, 14)
-
     animId = requestAnimationFrame(draw)
   }
   animId = requestAnimationFrame(draw)
@@ -229,18 +226,18 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
       <canvas id="holoCanvas" class="register-canvas" />
       <div class="register-overlay">
         <div class="register-brand">
-          <span class="register-brand__mark" />
-          <span class="register-brand__text">MatchForge · 智配</span>
-        </div>
-        <h1>创建你的采购寻源工作区</h1>
-        <p>
-          Spike 阶段注册为本地 mock 流程，后续可直接替换为 FastAPI 的 `/api/v1/auth/register`。
-        </p>
-        <div class="register-roadmap">
-          <span>采购端 AI 寻源</span>
-          <span>供应商能力匹配</span>
-          <span>运营审核后台留白</span>
-        </div>
+        <span class="register-brand__mark" />
+        <span class="register-brand__text">MatchForge · 智配</span>
+      </div>
+      <h1>创建你的采购寻源工作区</h1>
+      <p>
+        注册后即可使用 AI 装配寻源、替代料推荐、供应商匹配与 RFQ 生成。
+      </p>
+      <div class="register-roadmap">
+        <span>采购端 AI 寻源</span>
+        <span>供应商能力匹配</span>
+        <span>运营审核后台留白</span>
+      </div>
       </div>
     </section>
 

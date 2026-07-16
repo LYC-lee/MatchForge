@@ -74,7 +74,7 @@ AGENT_META: dict[str, dict] = {
 }
 
 # 合法的 Agent 名称列表（供 RouteDecision 使用）
-ROUTING_ORDER: list[str] = ["chat", "parse", "normalize", "alternatives", "match", "gen_rfq", "grade"]
+ROUTING_ORDER: list[str] = ["chat", "parse", "normalize", "alternatives", "match", "rag_enrich", "gen_rfq", "grade"]
 
 # ── Supervisor 系统提示词 ─────────────────────────────────────────────
 SYSTEM_PROMPT = """你是电子元器件寻源系统的主调度 Agent。
@@ -122,14 +122,18 @@ def get_supervisor_llm() -> ChatOpenAI:
 
     使用轻量快速模型（SUPERVISOR_MODEL），temperature 设为 0 保证路由稳定性，
     超时 10s + 2 次重试应对网络抖动。
+
+    注意: glm-5.2 是推理模型，先在 reasoning_content 思考、再在 content 输出最终
+    JSON。max_tokens 必须给足“思考+输出”预算，否则 token 耗尽时 content 为空、
+    finish_reason=length，json_mode 与正则兜底双双失败 -> 分类器形同不可用。
     """
     return ChatOpenAI(
         model=SUPERVISOR_MODEL,
         api_key=LLM_API_KEY,
         base_url=LLM_BASE_URL,
         temperature=0,
-        max_tokens=64,
-        timeout=10,
+        max_tokens=1024,
+        timeout=20,
         max_retries=2,
     )
 
@@ -146,17 +150,9 @@ def get_supervisor_chain():
 
 # ── 状态检查辅助 ──────────────────────────────────────────────────────
 def _check_done(state: dict, agent: str) -> bool:
-    """检查指定 Agent 是否已完成。"""
-    checks = {
-        "chat": state.get("chat_response") is not None,
-        "parse": state.get("parsed_spec") is not None,
-        "normalize": state.get("normalized_spec") is not None,
-        "alternatives": len(state.get("alternatives", [])) > 0,
-        "match": len(state.get("matched_suppliers", [])) > 0,
-        "gen_rfq": state.get("rfq_doc") is not None,
-        "grade": state.get("lead_grade") is not None,
-    }
-    return checks.get(agent, False)
+    """检查指定 Agent 是否已完成（已执行过即算完成，不要求非空结果）。"""
+    attempted = state.get("_attempted_agents", [])
+    return agent in attempted
 
 
 def _build_supervisor_prompt(state: dict) -> str:

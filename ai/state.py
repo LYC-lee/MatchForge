@@ -78,6 +78,11 @@ class LeadGrade(TypedDict):
     reasons: list[str]
 
 
+class RagEnrichment(TypedDict):
+    supplier_reports: list[dict]
+    summary: str
+
+
 class ProcureState(TypedDict):
     """
     Graph State — 6 个智能体间的共享状态
@@ -101,6 +106,9 @@ class ProcureState(TypedDict):
     thread_id: str
     user_id: Optional[str]              # 用户标识，记忆用
 
+    # ── 执行追踪（防 supervisor 路由循环）──
+    _attempted_agents: list[str]          # 已尝试执行的 Agent 列表
+
     # ── 业务字段 ──
     raw_query: str
     parsed_spec: Optional[dict]
@@ -110,6 +118,7 @@ class ProcureState(TypedDict):
     rfq_doc: Optional[str]
     rfq_id: Optional[str]
     lead_grade: Optional[LeadGrade]
+    rag_enrichment: Optional[RagEnrichment]  # 🔥 RAG 深度分析结果
     errors: list[str]
     chat_response: Optional[str]        # 💬 聊天 Agent 回复
     started_at: str

@@ -11,16 +11,15 @@ export async function fetchSSE(
   callbacks: SseCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'text/event-stream',
-  }
-  // 注入 Token
-  const token = localStorage.getItem('matchforge:session')
-  if (token) {
-    try { const s = JSON.parse(token); if (s?.token) headers['Authorization'] = `Bearer ${s.token}` } catch {}
-  }
-  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal })
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
+    body: JSON.stringify(body),
+    signal,
+  })
 
   if (!res.ok || !res.body) {
     throw new Error(`SSE 请求失败: HTTP ${res.status}`)

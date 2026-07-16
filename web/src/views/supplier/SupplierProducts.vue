@@ -43,21 +43,16 @@ function toggleStatus(p: Product) {
   p.status = p.status === 'active' ? 'inactive' : 'active'
 }
 
-onMounted(async () => {
-  const IS_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
-  if (!IS_MOCK) {
-    try {
-      const res = await fetch('/api/v1/suppliers').then(r => r.json())
-      if (res.data && res.data.length > 0) {
-        products.value = res.data.map((s:any) => ({
-          id: s.id, name: s.name, category: (s.categories||[])[0] || '',
-          brand: (s.brands||[])[0] || '', moq: s.moq || 0,
-          price: 0, stock: '-', status: 'active' as const,
-        }))
-      }
-    } catch {}
-  }
-  setTimeout(() => { loading.value = false }, 200)
+onMounted(() => {
+  setTimeout(() => {
+    products.value = [
+      { id: 'P001', category: 'MLCC', partNumber: 'CC0805KKX7R9BB103', brand: 'YAGEO', package: '0805', moq: 3000, stock: 50000, status: 'active', updatedAt: '2026-07-14' },
+      { id: 'P002', category: 'MLCC', partNumber: '0805F105Z500NT', brand: 'Walsin', package: '0805', moq: 5000, stock: 100000, status: 'active', updatedAt: '2026-07-13' },
+      { id: 'P003', category: 'MLCC', partNumber: 'GRM21BR61E105KA12L', brand: 'Murata', package: '0805', moq: 4000, stock: 20000, status: 'active', updatedAt: '2026-07-10' },
+      { id: 'P004', category: 'MLCC', partNumber: 'CL21B105KAFNNNE', brand: 'Samsung EM', package: '0805', moq: 5000, stock: 0, status: 'inactive', updatedAt: '2026-06-28' },
+    ]
+    loading.value = false
+  }, 400)
 })
 
 const categories = ['MLCC', '贴片电阻', '钽电容', '连接器', '分立器件']

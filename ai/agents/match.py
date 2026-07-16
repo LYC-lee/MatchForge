@@ -1,11 +1,12 @@
 """
 Agent ④ — 供应商匹配
+确定性流程: MySQL 查询 → RAG 知识库检索 → LLM 评分排序
 
 流程:
-  1. Milvus 向量召回 (按 spec 语义检索)
-  2. MySQL 规则过滤 (品类 + 品牌 + 资质)
-  3. 排序 (品牌覆盖度 + 资质等级 + 响应速度)
-  4. LLM 生成匹配解释 (可选)
+  1. 从 normalized_spec 提取品类/品牌/地区参数
+  2. 确定性调用 filter_suppliers_raw 查询供应商 (MySQL)
+  3. 对每个匹配到的供应商，确定性调用 search_knowledge_base 检索知识库 (RAG)
+  4. 将 MySQL 数据 + RAG 结果一并交给 LLM 评分排序
 
 红线: 供应商必须来自 DB，首期库存/交期/价格一律标"未确认"
 
@@ -14,12 +15,71 @@ Agent ④ — 供应商匹配
 
 from __future__ import annotations
 
+import json
+
 from ai.state import ProcureState
+from ai import base_agent as agent_engine
 from ai.tools.mysql_client import filter_suppliers_raw
+from ai.tools.kb_client import search_knowledge_base as search_knowledge_base_tool
 from ai.monitor import AgentLogger
+
+MATCH_SYSTEM_PROMPT = """你是电子元器件供应商匹配专家。根据提供的供应商数据库查询结果和知识库检索结果，进行评分排序。
+
+## 输入数据说明
+- 每个供应商包含两部分信息：
+  1. 数据库字段: id, name, category, brands, location, moq, lead_time_weeks, data_source, updated_at
+  2. 知识库检索: 从该企业知识库中检索到的产品线、认证资质、业务能力等文本信息
+
+## 评分标准 (必须严格按此权重)
+- 品牌覆盖度: 匹配的品牌数 / 需求品牌数 × 0.4
+- 资质等级: IATF16949=3分, ISO14001=2分, ISO9001=2分, 原厂授权=3分 → 归一化 /3 × 0.3
+- 响应速度: 24h/12h内响应 +0.2, 48h内 +0.1
+- 数据新鲜度: 30天内更新 +0.1, 90天内 +0.05
+- 知识库匹配度: RAG 检索结果与需求的匹配程度 × 0.1
+
+## 关键规则
+- 知识库检索结果为空或"未找到"时，该供应商仍可评分，但知识库匹配度计为 0
+- 知识库中明确提到认证资质、原厂授权、产品线匹配的，相应加分
+- 知识库中明确提到负面信息（如停产、质量问题）的，降低评分
+
+## 输出格式
+严格返回 JSON 对象，包含 matched_suppliers 数组：
+{
+  "matched_suppliers": [
+    {
+      "id": "供应商ID",
+      "name": "供应商名称",
+      "match_score": 0.0-1.0,
+      "category": "品类",
+      "region": "地区",
+      "location": "地区",
+      "categories": ["品类列表"],
+      "brands": ["品牌列表"],
+      "qualifications": ["资质列表"],
+      "moq": 最小起订量,
+      "lead_time_weeks": 交期周数,
+      "in_stock": false,
+      "response_speed": "24h/48h/72h/暂无数据",
+      "data_source": "平台数据",
+      "updated_at": "更新时间",
+      "confirmed_stock": false,
+      "confirmed_lead": false,
+      "confirmed_price": false,
+      "rag_insights": "从知识库中提取的关键信息摘要"
+    }
+  ]
+}
+
+## 红线规则
+- 供应商必须来自提供的数据库查询结果，不得编造
+- 库存、交期、价格一律标 "未确认" (confirmed_stock/confirmed_lead/confirmed_price = false)
+- 数据超过 90 天未更新，标注 "信息可能过期"
+- 按 match_score 降序排列
+- 返回纯 JSON，不要包含 markdown 代码块标记"""
 
 
 async def match_agent(state: ProcureState) -> ProcureState:
+    """供应商匹配 Agent — 确定性: MySQL 查询 → RAG 检索 → LLM 评分。"""
     log = AgentLogger("match", thread_id=state.get("thread_id", ""))
     normalized_spec = state.get("normalized_spec") or {}
     alternatives = state.get("alternatives", [])
@@ -31,97 +91,99 @@ async def match_agent(state: ProcureState) -> ProcureState:
     log.start(state)
 
     try:
+        # ── 阶段 1: 从 normalized_spec 提取查询参数 ──
         category = normalized_spec.get("category", "")
-        brands: list[str] = []
+        brand_pref = normalized_spec.get("brand_pref", [])
+        if isinstance(brand_pref, str):
+            brand_pref = [brand_pref] if brand_pref else []
+
+        # 从 alternatives 中补充品牌信息
         for alt in alternatives:
             b = alt.get("brand", "")
-            if b and b not in brands:
-                brands.append(b)
-        brand_pref = normalized_spec.get("brand_pref", [])
-        if isinstance(brand_pref, list):
-            for b in brand_pref:
-                if b not in brands:
-                    brands.append(b)
+            if b and b not in brand_pref:
+                brand_pref.append(b)
 
-        suppliers = []
-        if category:
-            try:
-                suppliers = filter_suppliers_raw(category=category, brands=brands if brands else None)
-            except Exception as e:
-                state.setdefault("errors", []).append(f"[match] MySQL 查询失败: {str(e)[:100]}")
+        location = normalized_spec.get("location", "")
 
-        qual_rank = {"IATF16949": 3, "ISO14001": 2, "ISO9001": 2, "原厂授权": 3}
+        # ── 阶段 2: 确定性调用 MySQL 查询供应商 ──
+        suppliers = filter_suppliers_raw(
+            category=category,
+            brands=brand_pref if brand_pref else None,
+            location=location if location else None,
+        )
 
-        def _rank(sup: dict) -> float:
-            score = 0.0
-            sup_brands = sup.get("brands", [])
-            if isinstance(sup_brands, str):
-                sup_brands = [b.strip() for b in sup_brands.split(",")]
-            if brands:
-                matched = sum(1 for b in brands if any(b.lower() in sb.lower() for sb in sup_brands))
-                score += (matched / max(len(brands), 1)) * 0.4
-            quals = sup.get("qualifications", [])
-            if isinstance(quals, str):
-                quals = [q.strip() for q in quals.split(",")]
-            max_qual = 0
-            for q in quals:
-                for k, v in qual_rank.items():
-                    if k.lower() in q.lower():
-                        max_qual = max(max_qual, v)
-            score += (max_qual / 3) * 0.3
-            resp = sup.get("response_speed", "")
-            if "24h" in resp or "12h" in resp:
-                score += 0.2
-            elif "48h" in resp:
-                score += 0.1
-            updated = sup.get("updated_at", "")
-            if updated:
+        if not suppliers:
+            state["matched_suppliers"] = []
+            log.end(state)
+            return state
+
+        # ── 阶段 3: 对每个供应商确定性调用 RAG 知识库检索 ──
+        enriched_suppliers = []
+        for supplier in suppliers:
+            supplier_name = supplier.get("name", "")
+            rag_insight = ""
+            if supplier_name:
                 try:
-                    from datetime import datetime
-                    days_ago = (datetime.now() - datetime.strptime(updated[:10], "%Y-%m-%d")).days
-                    if days_ago < 30:
-                        score += 0.1
-                    elif days_ago < 90:
-                        score += 0.05
-                except Exception:
-                    pass
-            return score
+                    rag_result = search_knowledge_base_tool.invoke({
+                        "company_name": supplier_name,
+                        "query": f"主营产品、认证资质、{category}产品线、业务能力",
+                    })
+                    rag_insight = str(rag_result) if rag_result else ""
+                except Exception as e:
+                    rag_insight = f"知识库检索异常: {str(e)[:100]}"
+            enriched_suppliers.append({
+                **supplier,
+                "rag_insight": rag_insight[:1500],  # 截断保护
+            })
 
-        matched = []
-        for s in suppliers:
-            s_dict = dict(s) if hasattr(s, '_mapping') else s
-            if isinstance(s_dict, dict):
-                sup_score = _rank(s_dict)
-                matched.append({
-                    "id": str(s_dict.get("id", "")),
-                    "name": s_dict.get("name", ""),
-                    "score": sup_score,
-                    "category": s_dict.get("category", category),
-                    "region": s_dict.get("location", s_dict.get("region", "")),
-                    "location": s_dict.get("location", s_dict.get("region", "")),
-                    "categories": [s_dict.get("category", category)],
-                    "brands": _ensure_list(s_dict.get("brands", [])),
-                    "qualifications": _ensure_list(s_dict.get("qualifications", [])),
-                    "moq": s_dict.get("moq", 0),
-                    "lead_time_weeks": s_dict.get("lead_time_weeks", 0),
-                    "in_stock": False,
-                    "response_speed": _get_response_speed(s_dict.get("lead_time_weeks", 0)),
-                    "data_source": s_dict.get("data_source", "平台数据"),
-                    "updated_at": s_dict.get("updated_at", ""),
-                    "confirmed_stock": False,
-                    "confirmed_lead": False,
-                    "confirmed_price": False,
-                    "match_score": round(sup_score, 2),
-                })
+        # ── 阶段 4: 将所有数据交给 LLM 评分排序 ──
+        context = {
+            "requirement": {
+                "category": category,
+                "brand_pref": brand_pref,
+                "location": location,
+                "normalized_spec": normalized_spec,
+            },
+            "suppliers": enriched_suppliers,
+        }
 
-        matched.sort(key=lambda x: x["match_score"], reverse=True)
+        user_msg = (
+            f"请根据以下供应商数据（含数据库查询结果 + 知识库检索结果）进行评分排序：\n"
+            f"{json.dumps(context, ensure_ascii=False, indent=2)}"
+        )
+
+        tool_state = {"messages": [{"role": "user", "content": user_msg}]}
+
+        result = await agent_engine.run_direct_agent(
+            state=tool_state,
+            system_prompt=MATCH_SYSTEM_PROMPT,
+            heavy=False,
+        )
+
+        content = result["messages"][0].content
+        parsed = agent_engine.parse_json_from_llm(content)
+
+        if parsed and isinstance(parsed, dict) and "matched_suppliers" in parsed:
+            matched = parsed["matched_suppliers"]
+        elif parsed and isinstance(parsed, list):
+            matched = parsed
+        else:
+            matched = []
+
+        # 后处理：确保字段完整性
         for m in matched:
-            if m["updated_at"]:
+            m.setdefault("confirmed_stock", False)
+            m.setdefault("confirmed_lead", False)
+            m.setdefault("confirmed_price", False)
+            m.setdefault("in_stock", False)
+            if m.get("updated_at"):
                 try:
                     from datetime import datetime
-                    days_ago = (datetime.now() - datetime.strptime(m["updated_at"][:10], "%Y-%m-%d")).days
+                    days_ago = (datetime.now() - datetime.strptime(
+                        str(m["updated_at"])[:10], "%Y-%m-%d"
+                    )).days
                     if days_ago > 90:
-                        m["data_source"] += " (信息可能过期)"
+                        m["data_source"] = m.get("data_source", "平台数据") + " (信息可能过期)"
                 except Exception:
                     pass
 
@@ -138,22 +200,3 @@ async def match_agent(state: ProcureState) -> ProcureState:
 
 # ecs_assistant 风格别名
 process = match_agent
-
-
-def _ensure_list(val) -> list:
-    if isinstance(val, list):
-        return val
-    if isinstance(val, str):
-        return [x.strip() for x in val.split(",") if x.strip()]
-    return []
-
-
-def _get_response_speed(lead_time_weeks: int) -> str:
-    if lead_time_weeks <= 0:
-        return "暂无数据"
-    elif lead_time_weeks <= 1:
-        return "24h 内首次响应"
-    elif lead_time_weeks <= 2:
-        return "48h 内首次响应"
-    else:
-        return "72h 内首次响应"

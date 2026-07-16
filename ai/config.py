@@ -2,7 +2,8 @@
 MatchForge AI 配置
 从 .env 加载，所有默认值与 deploy/docker-compose.yml 严格对齐
 
-数据源优先级: .env 环境变量 > 默认值(与 docker-compose 一致)
+LLM 提供商: 火山方舟 Coding Plan (OpenAI 兼容)
+Embedding:  SiliconFlow BAAI/bge-m3
 """
 
 import os
@@ -14,27 +15,32 @@ _project_root = Path(__file__).resolve().parent.parent
 load_dotenv(_project_root / ".env")
 
 # ============================================================
-# LLM 配置 (通义千问 DashScope / OpenAI 兼容)
+# LLM 配置 (OpenAI 兼容接口)
 # ============================================================
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
-LLM_API_KEY = DASHSCOPE_API_KEY  # 统一命名别名，兼容 ecs_assistant 风格
+LLM_API_KEY = DASHSCOPE_API_KEY  # 统一命名别名
 LLM_BASE_URL = os.getenv(
     "LLM_BASE_URL",
-    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "https://ark.cn-beijing.volces.com/api/coding/v3",
 )
-LLM_MODEL = os.getenv("LLM_MODEL", "qwen-max")                # 高推理: parse / alternatives
-LLM_MODEL_LIGHT = os.getenv("LLM_MODEL_LIGHT", "qwen-plus")   # 轻量: normalize / match / gen_rfq / grade
-SUPERVISOR_MODEL = os.getenv("SUPERVISOR_MODEL", "qwen-plus") # 路由专用轻量模型
+LLM_MODEL = os.getenv("LLM_MODEL", "glm-5.2")
+LLM_MODEL_LIGHT = os.getenv("LLM_MODEL_LIGHT", "DeepSeek-V4-Flash")
+SUPERVISOR_MODEL = os.getenv("SUPERVISOR_MODEL", "DeepSeek-V4-Flash")
+
 # 兼容 OpenAI SDK 自动读取 OPENAI_API_KEY
 if LLM_API_KEY and not os.environ.get("OPENAI_API_KEY"):
     os.environ["OPENAI_API_KEY"] = LLM_API_KEY
 
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-v3")
+# Embedding 配置
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
+EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "")
+EMBEDDING_BASE_URL = os.getenv("EMBEDDING_BASE_URL", "https://api.siliconflow.cn/v1")
+EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "1024"))
 
 # LLM 调用参数
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.1"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "2048"))
-LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "30"))
+LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "120"))
 
 # ============================================================
 # MySQL 8.0 — 业务主库
@@ -94,6 +100,6 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "matchforge123")
 REDIS_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0"
 
 # ============================================================
-# LangFuse — 可选可观测
+# LangFuse - 可选可观测
 # ============================================================
 LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY", "")

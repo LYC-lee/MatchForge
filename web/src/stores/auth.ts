@@ -4,10 +4,8 @@ import axios from 'axios'
 
 const SESSION_KEY = 'matchforge:session'
 const USER_KEY = 'matchforge:user'
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000
 
 export interface AuthUser {
-  id?: string
   name: string
   account: string
   company?: string
@@ -19,42 +17,44 @@ interface AuthSession {
   expiresAt: number
 }
 
+// session 有效期 8 小时
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000
+
 export const useAuthStore = defineStore('auth', () => {
   const session = ref<AuthSession | null>(readJson<AuthSession | null>(SESSION_KEY, null))
   const user = ref<AuthUser | null>(readJson<AuthUser | null>(USER_KEY, null))
 
   // 过期 session 自动清除
-  if (session.value && session.value.expiresAt <= Date.now()) clearSession()
+  if (session.value && session.value.expiresAt <= Date.now()) {
+    clearSession()
+  }
 
   const token = computed(() => session.value?.token || null)
   const isAuthenticated = computed(
-    () => !!session.value?.token && !!user.value && (session.value.expiresAt || 0) > Date.now(),
+    () => !!session.value?.token && !!user.value && session.value.expiresAt > Date.now(),
   )
-  const role = computed(() => user.value?.role || '')
 
   async function login(
     account: string,
     password: string,
   ): Promise<{ ok: boolean; msg?: string }> {
-    if (!account.trim() || !password.trim()) {
+    const normalized = account.trim().toLowerCase()
+    if (!normalized || !password.trim()) {
       return { ok: false, msg: '请输入账号和密码' }
     }
+
     try {
       const res = await axios.post('/api/v1/auth/login', {
-        account: account.trim().toLowerCase(),
-        password,
+        account: normalized,
+        password: password,
       })
-      const data = res.data
-      const userInfo: AuthUser = {
-        name: data.name,
-        account: data.account || account,
-        role: data.role,
-      }
-      persistSession(data.token, userInfo)
+
+      const { token: newToken, name, role, account: acc } = res.data
+      persistSession(newToken, { name, account: acc, role })
       return { ok: true }
-    } catch (e: any) {
-      const status = e?.response?.status
-      const msg = e?.response?.data?.detail || '登录失败，请检查网络'
+    } catch (err: any) {
+      const status = err?.response?.status
+      const msg = err?.response?.data?.detail || '登录失败，请检查网络'
       if (status === 401) return { ok: false, msg: '账号或密码不正确' }
       return { ok: false, msg }
     }
@@ -65,7 +65,7 @@ export const useAuthStore = defineStore('auth', () => {
     account: string
     password: string
     company: string
-    role: string
+    role: AuthUser['role']
   }): Promise<{ ok: boolean; msg?: string }> {
     const account = payload.account.trim().toLowerCase()
     if (!payload.name.trim() || !account || !payload.password.trim() || !payload.company.trim()) {
@@ -80,6 +80,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (!/[A-Za-z]/.test(payload.password) || !/\d/.test(payload.password)) {
       return { ok: false, msg: '密码需同时包含字母和数字' }
     }
+
     try {
       const res = await axios.post('/api/v1/auth/register', {
         name: payload.name.trim(),
@@ -88,17 +89,13 @@ export const useAuthStore = defineStore('auth', () => {
         company: payload.company.trim(),
         role: payload.role || 'buyer',
       })
-      const data = res.data
-      const userInfo: AuthUser = {
-        name: data.name,
-        account: data.account || account,
-        role: data.role,
-      }
-      persistSession(data.token, userInfo)
+
+      const { token: newToken, name, role, account: acc } = res.data
+      persistSession(newToken, { name, account: acc, company: payload.company.trim(), role })
       return { ok: true }
-    } catch (e: any) {
-      const status = e?.response?.status
-      const msg = e?.response?.data?.detail || '注册失败，请检查网络'
+    } catch (err: any) {
+      const status = err?.response?.status
+      const msg = err?.response?.data?.detail || '注册失败，请检查网络'
       if (status === 400) return { ok: false, msg }
       return { ok: false, msg }
     }
@@ -140,14 +137,18 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(USER_KEY)
   }
 
-  function persistSession(newToken: string, userInfo: AuthUser) {
-    session.value = { token: newToken, expiresAt: Date.now() + SESSION_TTL_MS }
-    user.value = userInfo
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session.value))
-    localStorage.setItem(USER_KEY, JSON.stringify(userInfo))
+  function persistSession(newToken: string, publicUser: AuthUser) {
+    const nextSession: AuthSession = {
+      token: newToken,
+      expiresAt: Date.now() + SESSION_TTL_MS,
+    }
+    session.value = nextSession
+    user.value = publicUser
+    localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession))
+    localStorage.setItem(USER_KEY, JSON.stringify(publicUser))
   }
 
-  return { token, user, isAuthenticated, role, login, register, validateSession, logout }
+  return { token, user, isAuthenticated, login, register, validateSession, logout }
 })
 
 function readJson<T>(key: string, fallback: T): T {

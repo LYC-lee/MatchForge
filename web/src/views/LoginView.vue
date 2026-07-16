@@ -32,8 +32,9 @@ function switchAccount() { auth.logout(); account.value = ''; password.value = '
 // 全息投影动画
 let animId = 0
 onMounted(() => {
-  const canvas = document.getElementById('holoCanvas') as HTMLCanvasElement | null
-  if (!canvas) return
+  const canvasEl = document.getElementById('holoCanvas') as HTMLCanvasElement | null
+  if (!canvasEl) return
+  const canvas = canvasEl
   const ctx = canvas.getContext('2d')!
   let W = 0, H = 0
 
@@ -264,7 +265,7 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
           <button type="button" class="auth-demo" @click="demoLogin">使用演示账号登录</button>
         </form>
         <p class="auth-hint">还没有账号? <RouterLink to="/register">创建采购工作台</RouterLink></p>
-        <div class="auth-disclaimer">演示账号：demo@matchforge.ai / demo12345。本地 mock 认证仅用于 Spike 演示。</div>
+        <div class="auth-disclaimer">演示账号：demo@matchforge.ai / demo12345</div>
       </div>
     </section>
   </div>
