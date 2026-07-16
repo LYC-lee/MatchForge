@@ -1,13 +1,17 @@
 """
 MatchForge API 主入口 (FastAPI)
-寻源 Agent + 知识库 + 企业驾驶舱上下文 + 上下游协同
+寻源 Agent + 知识库 + 企业驾驶舱上下文 + 上下游协同 + 缺件采购闭环 (RFQ/报价/审核)
 
 路由:
   /api/v1/procure/*              - SSE 流式多 Agent 寻源 / 解析 / 匹配
   /api/v1/auth/*                 - 登录 / 当前用户
-  /api/v1/companies/*            - 公司 / 知识 / 产品 / 上下游关系 / 协同问答
+  /api/v1/companies/*            - 公司 / 知识 / 产品 / 上下游关系 / 协同问答 / 企业 RFQ
   /api/v1/chat/*                 - 单公司 RAG / 多公司比较 / Trace
   /api/v1/admin/kb/*             - 知识库管理 (生成 / 增量 / 重建 / 任务 / 统计)
+  /api/v1/admin/audit-queue/*    - 缺件闭环审核队列 (供应商能力/匹配/报价异常)
+  /api/v1/rfqs/*                 - RFQ 创建/查询/发送 + 报价/对比
+  /api/v1/suppliers/*/leads      - 供应商线索 (查看/拒绝)
+  /api/v1/supplier-leads/*       - 供应商线索动作
   /api/v1/enterprise-context/*   - 当前企业驾驶舱上下文
   /api/v1/companies/*/dashboard  - 经营驾驶舱 Phase2 (BOM/订单/预测/缺件/推荐动作/聚合)
   /api/v1/health                 - 健康检查
@@ -55,6 +59,9 @@ def create_app() -> FastAPI:
         enterprise_context,
         kb_admin,
         relationships,
+        rfqs,
+        supplier_leads,
+        audit,
     )
 
     api_prefix = "/api/v1"
@@ -73,7 +80,12 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, prefix=api_prefix)
     app.include_router(kb_admin.router, prefix=api_prefix)
     app.include_router(enterprise_context.router, prefix=api_prefix)
+    # 经营驾驶舱 Phase2 (产品/BOM/订单/预测/缺件/推荐动作/聚合 dashboard)
     app.include_router(dashboard.router, prefix=api_prefix)
+    # 缺件采购闭环 (Phase: RFQ/供应商线索/报价/审核)
+    app.include_router(rfqs.router, prefix=api_prefix)
+    app.include_router(supplier_leads.router, prefix=api_prefix)
+    app.include_router(audit.router, prefix=api_prefix)
 
     @app.get("/api/v1/health")
     def health():
