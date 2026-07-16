@@ -40,8 +40,9 @@ async function submit() {
 // 全息投影动画
 let animId = 0
 onMounted(() => {
-  const canvas = document.getElementById('holoCanvas') as HTMLCanvasElement | null
-  if (!canvas) return
+  const canvasEl = document.getElementById('holoCanvas') as HTMLCanvasElement | null
+  if (!canvasEl) return
+  const canvas = canvasEl
   const ctx = canvas.getContext('2d')!
   let W = 0, H = 0
 

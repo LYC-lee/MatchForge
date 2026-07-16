@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { onDemoRefresh } from '@/composables/useDemoRefresh'
 import {
   getSupplierLeads,
   viewLead,
@@ -45,6 +46,8 @@ async function fetchLeads(companyId: number) {
 watch(currentEnterpriseId, (id) => {
   if (id) fetchLeads(id)
 }, { immediate: true })
+
+onDemoRefresh(() => fetchLeads(currentEnterpriseId.value))
 
 const filteredLeads = computed(() => {
   if (activeTab.value === 'all') return leads.value

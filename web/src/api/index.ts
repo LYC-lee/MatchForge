@@ -54,6 +54,11 @@ api.interceptors.response.use(
       return Promise.reject(normalizeError(error))
     }
 
+    const auth = useAuthStore()
+    if (auth.user?.is_demo || auth.token === 'demo-token') {
+      return Promise.reject(normalizeError(error))
+    }
+
     // 标记当前请求已重试过
     originalRequest._retry = true
 

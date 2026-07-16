@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { onDemoRefresh } from '@/composables/useDemoRefresh'
 import {
   getCompanyProducts,
   getProductBom,
@@ -78,6 +79,12 @@ watch(currentEnterpriseId, (id) => {
     fetchData(id)
   }
 }, { immediate: true })
+
+onDemoRefresh(() => {
+  bomMap.value = {}
+  expandedProduct.value = null
+  return fetchData(currentEnterpriseId.value)
+})
 
 function riskClass(isCritical: boolean) {
   return isCritical ? 'sev sev--high' : 'sev sev--low'

@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { onDemoRefresh } from '@/composables/useDemoRefresh'
 import { getSupplierLeads, type SupplierLead } from '@/api/enterprise'
 import AppButton from '@/components/ui/AppButton.vue'
 
@@ -29,6 +30,8 @@ async function fetchLeads(companyId: number) {
 watch(currentEnterpriseId, (id) => {
   if (id) fetchLeads(id)
 }, { immediate: true })
+
+onDemoRefresh(() => fetchLeads(currentEnterpriseId.value))
 
 const stats = computed(() => ({
   activeLeads: leads.value.filter((l) => l.status !== 'declined' && l.status !== 'quoted').length,

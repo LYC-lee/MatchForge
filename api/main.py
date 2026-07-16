@@ -14,6 +14,7 @@ MatchForge API 主入口 (FastAPI)
   /api/v1/supplier-leads/*       - 供应商线索动作
   /api/v1/enterprise-context/*   - 当前企业驾驶舱上下文
   /api/v1/companies/*/dashboard  - 经营驾驶舱 Phase2 (BOM/订单/预测/缺件/推荐动作/聚合)
+  /api/v1/demo/*                 - 演示场景沙盘 (主视角企业控制台推进运营, 仅写 demo_* 表)
   /api/v1/health                 - 健康检查
 """
 
@@ -56,6 +57,7 @@ def create_app() -> FastAPI:
         chat,
         companies,
         dashboard,
+        demo,
         enterprise_context,
         kb_admin,
         relationships,
@@ -86,6 +88,8 @@ def create_app() -> FastAPI:
     app.include_router(rfqs.router, prefix=api_prefix)
     app.include_router(supplier_leads.router, prefix=api_prefix)
     app.include_router(audit.router, prefix=api_prefix)
+    # 演示场景沙盘 (主视角企业控制台推进运营, 仅写 demo_* 表, 不污染基线)
+    app.include_router(demo.router, prefix=api_prefix)
 
     @app.get("/api/v1/health")
     def health():

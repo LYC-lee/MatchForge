@@ -10,6 +10,7 @@ import {
 import { getMockDashboard } from '@/mock/dashboardAdapter'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 import { defaultEnterpriseId, getEnterpriseContext as getMockCtx } from '@/mock/enterpriseContext'
+import { onDemoRefresh } from '@/composables/useDemoRefresh'
 
 /** 风险等级排序辅助 (critical > high > medium > low) */
 export function severityRank(severity: string): number {
@@ -77,6 +78,8 @@ export function useDashboard() {
   watch(currentEnterpriseId, (id) => {
     if (id) fetchDashboard(id)
   }, { immediate: true })
+
+  onDemoRefresh(() => fetchDashboard(currentEnterpriseId.value))
 
   /** 风险等级排序辅助 (critical > high > medium > low) -- 模块级导出版 */
   const severityRankFn = severityRank
