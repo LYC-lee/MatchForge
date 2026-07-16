@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { useAuthStore, type AuthUser } from '@/stores/auth'
+import { useAuthStore } from '@/stores/auth'
 import AppButton from '@/components/ui/AppButton.vue'
 
 const router = useRouter()
@@ -12,9 +12,20 @@ const company = ref('')
 const account = ref('')
 const password = ref('')
 const confirmPassword = ref('')
-const role = ref<AuthUser['role']>('buyer')
+const enterpriseType = ref('manufacturer')
 const error = ref('')
 const loading = ref(false)
+
+// 企业类型: 供需角色由订单/RFQ/BOM/服务关系动态派生, 不在注册时固化
+const ENTERPRISE_TYPES = [
+  { value: 'manufacturer', label: '制造商' },
+  { value: 'component_material', label: '元器件/材料' },
+  { value: 'oem_brand', label: 'OEM/品牌' },
+  { value: 'channel_customer', label: '渠道/客户' },
+  { value: 'logistics_service', label: '物流/服务' },
+  { value: 'government_park', label: '政府/园区' },
+  { value: 'other', label: '其他' },
+]
 
 async function submit() {
   error.value = ''
@@ -28,7 +39,7 @@ async function submit() {
     company: company.value,
     account: account.value,
     password: password.value,
-    role: role.value,
+    enterpriseType: enterpriseType.value,
   })
   loading.value = false
   if (result.ok) {
@@ -230,14 +241,14 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
         <span class="register-brand__mark" />
         <span class="register-brand__text">MatchForge · 智配</span>
       </div>
-      <h1>创建你的采购寻源工作区</h1>
+      <h1>创建你的产业链协同工作区</h1>
       <p>
         注册后即可使用 AI 装配寻源、替代料推荐、供应商匹配与 RFQ 生成。
       </p>
       <div class="register-roadmap">
-        <span>采购端 AI 寻源</span>
+        <span>AI 装配寻源</span>
         <span>供应商能力匹配</span>
-        <span>运营审核后台留白</span>
+        <span>多角色协同审核</span>
       </div>
       </div>
     </section>
@@ -258,24 +269,12 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
         </div>
 
         <form v-else class="register-form" @submit.prevent="submit">
-          <div class="role-tabs" role="radiogroup" aria-label="账号角色">
-            <button
-              type="button"
-              class="role-tab"
-              :class="{ 'is-active': role === 'buyer' }"
-              @click="role = 'buyer'"
-            >
-              采购方
-            </button>
-            <button
-              type="button"
-              class="role-tab"
-              :class="{ 'is-active': role === 'supplier' }"
-              @click="role = 'supplier'"
-            >
-              供应商
-            </button>
-          </div>
+          <label class="register-field">
+            <span>企业类型</span>
+            <select v-model="enterpriseType" class="register-input register-select">
+              <option v-for="t in ENTERPRISE_TYPES" :key="t.value" :value="t.value">{{ t.label }}</option>
+            </select>
+          </label>
 
           <label class="register-field">
             <span>姓名</span>
@@ -494,26 +493,21 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
   background: #151924;
   border: 1px solid #343a4d;
 }
-.role-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-1);
-  padding: 4px;
-  background: #0d1017;
-  border: 1px solid #343a4d;
-  border-radius: var(--radius-md);
+.register-select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 32px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #aeb5c4 50%),
+    linear-gradient(135deg, #aeb5c4 50%, transparent 50%);
+  background-position: calc(100% - 16px) 17px, calc(100% - 11px) 17px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
 }
-.role-tab {
-  height: 32px;
-  color: #aeb5c4;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  transition: all var(--transition-fast);
-}
-.role-tab.is-active {
-  color: #f4f7ff;
-  background: #1c2030;
-  box-shadow: var(--shadow-sm);
+.register-select option {
+  color: #151924;
+  background: #fff;
 }
 .register-field {
   display: flex;

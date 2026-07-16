@@ -120,6 +120,6 @@ export interface SseCallbacks {
 export interface StreamProcureParams {
   query?: string
   thread_id?: string
-  confirmed_spec?: Record<string, SpecField> | null
+  confirmed_spec?: Record<string, SpecField | string> | null
   phase: 'spec' | 'match'
 }

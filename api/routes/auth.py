@@ -31,9 +31,8 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         username=req.account,
         email=req.account,
         password_hash=hash_password(req.password),
-        name=req.name,
-        company=req.company,
         role=req.role,
+        enterprise_type=req.enterprise_type,
     )
     db.add(user)
     await db.commit()
@@ -42,7 +41,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(
         token=create_access_token(user.id),
         refresh_token=create_refresh_token(user.id),
-        user={"id": user.id, "name": user.name, "account": user.username, "company": user.company, "role": user.role},
+        user={"id": user.id, "name": req.name, "account": user.username, "company": req.company, "role": user.role, "enterprise_type": user.enterprise_type},
     )
 
 

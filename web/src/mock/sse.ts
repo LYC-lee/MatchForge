@@ -8,7 +8,7 @@ import {
   buildVagueState,
   isVagueQuery,
 } from './data'
-import type { SseCallbacks, StreamProcureParams } from '@/types/procure'
+import type { SseCallbacks, StreamProcureParams, SpecField } from '@/types/procure'
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -86,7 +86,7 @@ export async function mockSseProcure(
   // gen_rfq:逐 token 流式
   cb.onProgress?.('gen_rfq', 'running')
   await wait(200)
-  const rfqText = buildRfqStream({ spec, alternatives, suppliers })
+  const rfqText = buildRfqStream({ spec: spec as Record<string, SpecField>, alternatives, suppliers })
   const chunks = rfqText.match(/[\s\S]{1,8}/g) || []
   for (const c of chunks) {
     if (aborted()) return

@@ -14,8 +14,9 @@ export interface AuthUser {
   company_name?: string
   company_role?: string
   company_segment?: string
+  enterprise_type?: string
   is_demo?: boolean
-  role?: 'buyer' | 'supplier' | 'admin'
+  role?: 'buyer' | 'supplier' | 'admin' | 'member' | 'enterprise_admin' | 'platform_admin'
 }
 
 interface AuthSession {
@@ -98,7 +99,7 @@ export const useAuthStore = defineStore('auth', () => {
     account: string
     password: string
     company: string
-    role: AuthUser['role']
+    enterpriseType: string
   }): Promise<{ ok: boolean; msg?: string }> {
     const account = payload.account.trim().toLowerCase()
     if (!payload.name.trim() || !account || !payload.password.trim() || !payload.company.trim()) {
@@ -115,16 +116,24 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     try {
+      // 自注册用户默认权限角色为 member; 供需角色由业务关系动态派生, 不在注册时固化
       const res = await axios.post('/api/v1/auth/register', {
         name: payload.name.trim(),
         account,
         password: payload.password,
         company: payload.company.trim(),
-        role: payload.role || 'buyer',
+        role: 'member',
+        enterprise_type: payload.enterpriseType,
       })
 
-      const { token: newToken, name, role, account: acc } = res.data
-      persistSession(newToken, { name, account: acc, company: payload.company.trim(), role })
+      const { token: newToken, name, role, account: acc, enterprise_type } = res.data
+      persistSession(newToken, {
+        name,
+        account: acc,
+        company: payload.company.trim(),
+        role,
+        enterprise_type,
+      })
       return { ok: true }
     } catch (err: any) {
       const status = err?.response?.status
