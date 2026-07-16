@@ -117,13 +117,13 @@ const router = createRouter({
 })
 
 // ── 路由守卫: 认证 + 角色 ──
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   document.title = `${String(to.meta.title || 'MatchForge')} - MatchForge 智配`
 
   const auth = useAuthStore()
   if (to.meta.public) return true
 
-  if (!auth.validateSession()) {
+  if (!(await auth.validateSession())) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 

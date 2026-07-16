@@ -23,26 +23,13 @@ async function submit() {
     return
   }
   loading.value = true
-  const IS_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
-  if (IS_MOCK) {
-    setTimeout(() => {
-      const result = auth.register({
-        name: name.value, company: company.value,
-        account: account.value, password: password.value, role: role.value,
-      })
-      loading.value = false
-      if (result.ok) { router.push('/app') }
-      else { error.value = result.msg || '注册失败' }
-    }, 300)
-  } else {
-    const result = await auth.registerWithApi({
-      name: name.value, company: company.value,
-      account: account.value, password: password.value, role: role.value,
-    })
-    loading.value = false
-    if (result.ok) { router.push('/app') }
-    else { error.value = result.msg || '注册失败' }
-  }
+  const result = await auth.register({
+    name: name.value, company: company.value,
+    account: account.value, password: password.value, role: role.value,
+  })
+  loading.value = false
+  if (result.ok) { router.push('/app') }
+  else { error.value = result.msg || '注册失败' }
 }
 
 // 全息投影动画 (与登录页一致)
