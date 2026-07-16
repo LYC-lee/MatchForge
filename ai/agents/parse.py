@@ -8,6 +8,7 @@ Agent ① — 需求解析
 from __future__ import annotations
 
 import json
+import logging
 import re
 
 from ai.state import ProcureState
@@ -15,6 +16,8 @@ from ai import base_agent as agent_engine
 from ai.tools.regex_utils import extract_part_number_with_brand
 from ai.prompts.parse import PARSE_SYSTEM_PROMPT, PARSE_USER_TEMPLATE
 from ai.monitor import AgentLogger
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -82,18 +85,28 @@ async def parse_agent(state: ProcureState) -> ProcureState:
     try:
         part_number, brand_hint = extract_part_number_with_brand(raw_query)
 
-        llm = agent_engine.get_agent_llm(heavy=True)
-        prompt = PARSE_USER_TEMPLATE.format(raw_query=raw_query)
-        messages = [("system", PARSE_SYSTEM_PROMPT), ("human", prompt)]
-        response = await llm.ainvoke(messages)
-        content = response.content.strip()
+        # 尝试用重模型解析，失败则降级到轻量模型
+        llm_spec = None
+        for heavy_try in (True, False):
+            try:
+                llm = agent_engine.get_agent_llm(heavy=heavy_try)
+                prompt = PARSE_USER_TEMPLATE.format(raw_query=raw_query)
+                messages = [("system", PARSE_SYSTEM_PROMPT), ("human", prompt)]
+                response = await llm.ainvoke(messages)
+                content = response.content.strip()
 
-        if content.startswith("```"):
-            content = re.sub(r"^```(?:json)?\s*", "", content)
-            content = re.sub(r"\s*```$", "", content)
+                if content.startswith("```"):
+                    content = re.sub(r"^```(?:json)?\s*", "", content)
+                    content = re.sub(r"\s*```$", "", content)
 
-        llm_spec = json.loads(content) if isinstance(content, str) else content
-        llm_spec = _validate_spec(llm_spec)
+                llm_spec = json.loads(content) if isinstance(content, str) else content
+                llm_spec = _validate_spec(llm_spec)
+                if llm_spec:
+                    break  # 解析成功，跳出循环
+            except (json.JSONDecodeError, Exception) as e:
+                if not heavy_try:
+                    raise  # 轻量模型也失败则抛出
+                logger.warning("parse 重模型 JSON 解析失败 (%s)，降级到轻量模型", str(e)[:60])
 
         if part_number and "part_number" not in llm_spec:
             llm_spec["part_number"] = part_number

@@ -148,7 +148,7 @@ async function recalculate() {
 }
 
 function goFlow() {
-  router.push({ path: '/flow', query: selectedShortage.value ? { part: selectedShortage.value.part_number || '' } : undefined })
+  router.push({ path: '/chat', query: selectedShortage.value ? { part: selectedShortage.value.part_number || '' } : undefined })
 }
 </script>
 

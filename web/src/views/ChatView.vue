@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, onUnmounted } from 'vue'
+import { ref, nextTick, watch, onUnmounted, computed } from 'vue'
 import { useProcureStore } from '@/stores/procure'
 import { useHistory, type HistoryRecord } from '@/composables/useHistory'
 import type { SpecField, Alternative, Supplier } from '@/types/procure'
@@ -195,6 +195,31 @@ function onGenerateRfq() {
 // ── 清理 ──
 onUnmounted(() => store.abort())
 
+// ── 监听流式结束（兜底: 强制 finalize）──
+watch(() => store.isStreaming, (streaming) => {
+  if (!streaming) {
+    finalizeMsg()
+  }
+})
+
+// ── 兜底: 所有已触发的 Agent 完成后自动触发门控 ──
+// 注意: store.onEnd 已负责 phase → gating 的转换，此兜底只预防 onEnd 未触发的情况
+let gatingGuard = false
+const nonPendingAgentsDone = computed(() => {
+  const nonPending = store.agents.filter((a) => a.status !== 'pending')
+  return nonPending.length > 0 && nonPending.every((a) => a.status === 'done' || a.status === 'error')
+})
+
+watch(nonPendingAgentsDone, (done) => {
+  if (!done || store.phase !== 'spec' || gatingGuard) return
+  gatingGuard = true
+  store.isStreaming = false
+  finalizeMsg()
+  if (store.parsedSpec && store.errors.length === 0) {
+    store.phase = 'gating'
+  }
+})
+
 // ── 示例 ──
 const examples = [
   'TMK212BJ105KG-T 缺货，找替代',
@@ -243,8 +268,14 @@ const examples = [
             v-if="showSuppliers && store.matchedSuppliers.length"
             :suppliers="store.matchedSuppliers as Supplier[]"
             :selected-ids="store.selectedSupplierIds"
+            :streaming="false"
+            :stream-progress="''"
+            :error="null"
             @toggle="store.toggleSupplier"
+            @select-all="store.selectAllSuppliers"
+            @deselect-all="store.deselectAllSuppliers"
             @generate="onGenerateRfq"
+            @retry="() => {}"
           />
 
           <!-- 询价单 -->
@@ -260,6 +291,7 @@ const examples = [
             :streaming="store.agents.find(a => a.name === 'gen_rfq')?.status === 'running'"
             @update="store.setRfqDoc"
             @sent="store.markRfqSent"
+            @regenerate="store.regenerateRfq"
           />
 
           <!-- 线索分级 -->
@@ -312,7 +344,7 @@ const examples = [
 .chat-view {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 56px);
+  min-height: calc(100vh - 56px);
   max-width: 900px;
   margin: 0 auto;
 }

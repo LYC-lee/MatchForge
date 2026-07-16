@@ -13,6 +13,28 @@ import type {
 
 type Phase = 'idle' | 'spec' | 'gating' | 'match' | 'done'
 
+/**
+ * 将后端返回的简单键值对格式转为前端 SpecConfirm 组件期望的 SpecField 格式。
+ */
+function toSpecFieldFormat(spec: Record<string, any> | null): Record<string, SpecField> | null {
+  if (!spec) return null
+  const result: Record<string, SpecField> = {}
+  for (const [key, val] of Object.entries(spec)) {
+    if (typeof val === 'object' && val !== null && 'value' in val) {
+      result[key] = val as SpecField
+    } else {
+      const strVal = val != null ? String(val) : ''
+      result[key] = {
+        value: strVal,
+        confidence: strVal ? 0.9 : 0,
+        missing: !strVal,
+        editable: true,
+      }
+    }
+  }
+  return result
+}
+
 const AGENT_ORDER: AgentName[] = ['parse', 'normalize', 'alternatives', 'match', 'gen_rfq', 'grade']
 
 export const useProcureStore = defineStore('procure', () => {
@@ -33,15 +55,19 @@ export const useProcureStore = defineStore('procure', () => {
   const leadGrade = ref<LeadGrade | null>(null)
   const errors = ref<string[]>([])
 
-  // Compatibility state for the multi-page flow merged from main.
-  const progress = ref<{ agent: string; status: string }[]>([])
+  // ── 流式进度 / 错误状态 ──
   const isStreaming = ref(false)
+  const streamProgress = ref('')
+  const matchError = ref<string | null>(null)
+  const progress = ref<{ agent: string; status: string }[]>([])
+
+  // ── 兼容性状态 (同步自 selectedSupplierIds / alternatives) ──
   const selectedAlternative = ref<any | null>(null)
   const selectedSuppliers = ref<any[]>([])
 
   let controller: AbortController | null = null
 
-  /** 信息不足:无解析结果且无替代料 */
+  /** 信息不足: 无解析结果且无替代料 */
   const isVague = computed(
     () => errors.value.length > 0 && alternatives.value.length === 0 && !parsedSpec.value,
   )
@@ -51,17 +77,36 @@ export const useProcureStore = defineStore('procure', () => {
     if (!agent) return
     agent.status = status
     agent.message = message
-    if (status === 'running') agent.startedAt = Date.now()
-    if (status === 'done' || status === 'error') agent.endedAt = Date.now()
+    if (status === 'running') {
+      agent.startedAt = Date.now()
+      agent.endedAt = undefined
+    }
+    if (status === 'done' || status === 'error') {
+      agent.endedAt = Date.now()
+    }
   }
 
   function applyState(state: Partial<ProcureState>) {
     if (state.thread_id) threadId.value = state.thread_id
     if (state.raw_query !== undefined) rawQuery.value = state.raw_query
-    if (state.parsed_spec !== undefined) parsedSpec.value = state.parsed_spec
-    if (state.normalized_spec !== undefined) normalizedSpec.value = state.normalized_spec
-    if (state.alternatives !== undefined) alternatives.value = state.alternatives
-    if (state.matched_suppliers !== undefined) matchedSuppliers.value = state.matched_suppliers
+    if (state.parsed_spec !== undefined) {
+      parsedSpec.value = toSpecFieldFormat(state.parsed_spec as Record<string, any>)
+    }
+    if (state.normalized_spec !== undefined) {
+      normalizedSpec.value = toSpecFieldFormat(state.normalized_spec as Record<string, any>)
+    }
+    if (state.alternatives !== undefined) {
+      alternatives.value = state.alternatives
+      // 同步 selectedAlternative
+      if (state.alternatives.length > 0 && !selectedAlternative.value) {
+        const best = state.alternatives.find((a: any) => a.level === 'L1') || state.alternatives[0]
+        selectedAlternative.value = best
+      }
+    }
+    if (state.matched_suppliers !== undefined) {
+      matchedSuppliers.value = state.matched_suppliers
+      matchError.value = null
+    }
     if (state.rfq_doc !== undefined && state.rfq_doc !== null) rfqDoc.value = state.rfq_doc
     if (state.rfq_id !== undefined) rfqId.value = state.rfq_id
     if (state.lead_grade !== undefined) leadGrade.value = state.lead_grade
@@ -84,18 +129,21 @@ export const useProcureStore = defineStore('procure', () => {
     rfqSent.value = false
     leadGrade.value = null
     errors.value = []
-    progress.value = []
     isStreaming.value = false
+    streamProgress.value = ''
+    progress.value = []
+    matchError.value = null
     selectedAlternative.value = null
     selectedSuppliers.value = []
   }
 
-  /** 阶段1:发起寻源,跑 parse + normalize,然后停在规格确认门控 */
+  /** 阶段1: 发起寻源, 跑 parse + normalize, 然后停在规格确认门控 */
   function startProcure(query: string) {
     reset()
     rawQuery.value = query
     phase.value = 'spec'
     isStreaming.value = true
+    streamProgress.value = '正在解析需求…'
 
     controller = streamProcure({ query, phase: 'spec' }, {
       onStart: (tid, rid) => {
@@ -105,11 +153,17 @@ export const useProcureStore = defineStore('procure', () => {
       onProgress: (agent, status, result) => {
         setAgent(agent, status)
         progress.value.push({ agent, status })
+        if (agent === 'parse' && status === 'running') {
+          streamProgress.value = '正在解析需求…'
+        }
+        if (agent === 'normalize' && status === 'running') {
+          streamProgress.value = '正在标准化规格…'
+        }
         if (agent === 'parse' && status === 'done' && result) {
-          parsedSpec.value = result as Record<string, SpecField>
+          parsedSpec.value = toSpecFieldFormat(result as Record<string, any>)
         }
         if (agent === 'normalize' && status === 'done' && result) {
-          normalizedSpec.value = result as Record<string, SpecField>
+          normalizedSpec.value = toSpecFieldFormat(result as Record<string, any>)
         }
       },
       onError: (agent, message) => {
@@ -120,6 +174,7 @@ export const useProcureStore = defineStore('procure', () => {
       onResult: (state) => applyState(state),
       onEnd: () => {
         isStreaming.value = false
+        streamProgress.value = ''
         if (phase.value === 'spec' && !errors.value.length) {
           phase.value = 'gating'
         } else if (phase.value === 'match') {
@@ -129,17 +184,24 @@ export const useProcureStore = defineStore('procure', () => {
     })
   }
 
-  /** 阶段2:用户确认规格后,继续 alternatives + match + gen_rfq + grade */
+  /** 阶段2: 用户确认规格后, 继续 alternatives + match + gen_rfq + grade */
   function confirmSpec(editedSpec: Record<string, SpecField>) {
     normalizedSpec.value = editedSpec
     phase.value = 'match'
     isStreaming.value = true
+    streamProgress.value = '正在查找替代料…'
     const restAgents: AgentName[] = ['alternatives', 'match', 'gen_rfq', 'grade']
     restAgents.forEach((name) => setAgent(name, 'pending'))
     rfqDoc.value = ''
+    matchError.value = null
 
+    // 将 SpecField 格式转回后端期望的简单键值对
+    const simpleSpec: Record<string, string> = {}
+    for (const [k, v] of Object.entries(editedSpec)) {
+      simpleSpec[k] = v.value
+    }
     controller = streamProcure(
-      { thread_id: threadId.value, confirmed_spec: editedSpec, phase: 'match' },
+      { query: rawQuery.value, thread_id: threadId.value, confirmed_spec: simpleSpec, phase: 'match' },
       {
         onStart: (tid, rid) => {
           threadId.value = tid
@@ -147,19 +209,42 @@ export const useProcureStore = defineStore('procure', () => {
         },
         onProgress: (agent, status, result) => {
           setAgent(agent, status)
-          progress.value.push({ agent, status })
+
+          // 流式进度提示
+          if (agent === 'alternatives' && status === 'running') {
+            streamProgress.value = '正在查找替代料…'
+          }
+          if (agent === 'match' && status === 'running') {
+            streamProgress.value = '正在匹配供应商…'
+          }
+          if (agent === 'gen_rfq' && status === 'running') {
+            streamProgress.value = '正在生成询价单…'
+          }
+
           if (agent === 'alternatives' && status === 'done' && result) {
             alternatives.value = result as Alternative[]
+            // 设置默认选中替代料
+            if (Array.isArray(result) && result.length > 0 && !selectedAlternative.value) {
+              const best = (result as Alternative[]).find((a) => a.level === 'L1') || (result as Alternative[])[0]
+              selectedAlternative.value = best
+            }
+            streamProgress.value = `已找到 ${Array.isArray(result) ? result.length : 0} 个替代料，正在匹配供应商…`
           }
           if (agent === 'match' && status === 'done' && result) {
             matchedSuppliers.value = result as Supplier[]
+            const count = Array.isArray(result) ? result.length : 0
+            streamProgress.value = `已匹配 ${count} 家供应商，正在生成询价单…`
           }
         },
-        onToken: (text) => { rfqDoc.value += text },
+        onToken: (text) => {
+          rfqDoc.value += text
+        },
         onError: (agent, message) => {
           if (agent) setAgent(agent, 'error', message)
           errors.value.push(message)
-          // gen_rfq 失败 -> 提示错误
+          if (agent === 'match') {
+            matchError.value = `供应商匹配失败: ${message}`
+          }
           if (agent === 'gen_rfq') {
             rfqDoc.value = `# RFQ 生成失败\n\n后端寻源服务暂时不可用，请稍后重试。\n\n错误信息: ${message}`
           }
@@ -167,12 +252,14 @@ export const useProcureStore = defineStore('procure', () => {
         onResult: (state) => applyState(state),
         onEnd: () => {
           isStreaming.value = false
+          streamProgress.value = ''
           phase.value = 'done'
         },
       },
     )
   }
 
+  // ── 供应商选择操作 ──
   function toggleSupplier(id: string) {
     const ids = new Set(selectedSupplierIds.value)
     if (ids.has(id)) {
@@ -181,22 +268,154 @@ export const useProcureStore = defineStore('procure', () => {
       ids.add(id)
     }
     selectedSupplierIds.value = ids
+    syncSelectedSuppliers()
   }
 
-  function setRfqDoc(text: string) { rfqDoc.value = text }
-  function markRfqSent() { rfqSent.value = true }
+  function selectAllSuppliers() {
+    const ids = new Set<string>()
+    matchedSuppliers.value.forEach((s) => ids.add(s.id))
+    selectedSupplierIds.value = ids
+    syncSelectedSuppliers()
+  }
+
+  function deselectAllSuppliers() {
+    selectedSupplierIds.value = new Set()
+    syncSelectedSuppliers()
+  }
+
+  function syncSelectedSuppliers() {
+    selectedSuppliers.value = matchedSuppliers.value.filter((s) =>
+      selectedSupplierIds.value.has(s.id),
+    )
+  }
+
+  // ── RFQ 操作 ──
+  function setRfqDoc(text: string) {
+    rfqDoc.value = text
+  }
+
+  function markRfqSent() {
+    rfqSent.value = true
+  }
+
+  function regenerateRfq() {
+    // 重新触发 gen_rfq：通过 SSE 重新生成
+    if (!normalizedSpec.value) return
+    rfqDoc.value = ''
+    isStreaming.value = true
+    streamProgress.value = '正在重新生成询价单…'
+    setAgent('gen_rfq', 'running')
+
+    controller = streamProcure(
+      { thread_id: threadId.value, confirmed_spec: normalizedSpec.value as Record<string, SpecField>, phase: 'match' },
+      {
+        onStart: () => {},
+        onProgress: (agent, status, result) => {
+          setAgent(agent, status)
+          if (agent === 'gen_rfq' && status === 'done' && result) {
+            rfqDoc.value = result as string
+          }
+        },
+        onToken: (text) => {
+          rfqDoc.value += text
+        },
+        onError: (agent, message) => {
+          if (agent) setAgent(agent, 'error', message)
+          if (agent === 'gen_rfq') {
+            rfqDoc.value = `# RFQ 生成失败\n\n错误信息: ${message}`
+          }
+        },
+        onResult: (state) => applyState(state),
+        onEnd: () => {
+          isStreaming.value = false
+          streamProgress.value = ''
+        },
+      },
+    )
+  }
+
+  // ── 重试匹配 ──
+  function retryMatch() {
+    if (!normalizedSpec.value) return
+    matchError.value = null
+    isStreaming.value = true
+    streamProgress.value = '正在重新匹配供应商…'
+    setAgent('match', 'running')
+    setAgent('gen_rfq', 'pending')
+    setAgent('grade', 'pending')
+
+    controller = streamProcure(
+      { thread_id: threadId.value, confirmed_spec: normalizedSpec.value as Record<string, SpecField>, phase: 'match' },
+      {
+        onStart: () => {},
+        onProgress: (agent, status, result) => {
+          setAgent(agent, status)
+          if (agent === 'match' && status === 'done' && result) {
+            matchedSuppliers.value = result as Supplier[]
+            matchError.value = null
+            streamProgress.value = '正在生成询价单…'
+          }
+          if (agent === 'gen_rfq' && status === 'done' && result) {
+            // result 可能是 rfq_doc string
+          }
+        },
+        onToken: (text) => {
+          rfqDoc.value += text
+        },
+        onError: (agent, message) => {
+          if (agent) setAgent(agent, 'error', message)
+          if (agent === 'match') {
+            matchError.value = `供应商匹配失败: ${message}`
+          }
+        },
+        onResult: (state) => applyState(state),
+        onEnd: () => {
+          isStreaming.value = false
+          streamProgress.value = ''
+        },
+      },
+    )
+  }
+
   function abort() {
     controller?.abort()
     isStreaming.value = false
+    streamProgress.value = ''
   }
 
   return {
-    threadId, rfqId, rawQuery, phase, agents,
-    parsedSpec, normalizedSpec, alternatives, matchedSuppliers,
-    selectedSupplierIds, rfqDoc, rfqSent, leadGrade, errors,
-    progress, isStreaming, selectedAlternative, selectedSuppliers,
+    threadId,
+    rfqId,
+    rawQuery,
+    phase,
+    agents,
+    progress,
+    parsedSpec,
+    normalizedSpec,
+    alternatives,
+    matchedSuppliers,
+    selectedSupplierIds,
+    rfqDoc,
+    rfqSent,
+    leadGrade,
+    errors,
+    isStreaming,
+    streamProgress,
+    matchError,
+    selectedAlternative,
+    selectedSuppliers,
     isVague,
-    startProcure, confirmSpec, reset, abort,
-    toggleSupplier, setRfqDoc, markRfqSent, applyState,
+    startProcure,
+    confirmSpec,
+    reset,
+    abort,
+    toggleSupplier,
+    selectAllSuppliers,
+    deselectAllSuppliers,
+    setRfqDoc,
+    markRfqSent,
+    regenerateRfq,
+    retryMatch,
+    applyState,
   }
 })

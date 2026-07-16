@@ -106,11 +106,22 @@ async def match_agent(state: ProcureState) -> ProcureState:
         location = normalized_spec.get("location", "")
 
         # ── 阶段 2: 确定性调用 MySQL 查询供应商 ──
-        suppliers = filter_suppliers_raw(
+        raw_suppliers = filter_suppliers_raw(
             category=category,
             brands=brand_pref if brand_pref else None,
             location=location if location else None,
         )
+        # 序列化 RowMapping 中的日期字段
+        import datetime
+        suppliers = []
+        for row in raw_suppliers:
+            ser = {}
+            for k, v in dict(row).items():
+                if isinstance(v, (datetime.date, datetime.datetime)):
+                    ser[k] = v.isoformat()
+                else:
+                    ser[k] = v
+            suppliers.append(ser)
 
         if not suppliers:
             state["matched_suppliers"] = []
@@ -136,57 +147,66 @@ async def match_agent(state: ProcureState) -> ProcureState:
                 "rag_insight": rag_insight[:1500],  # 截断保护
             })
 
-        # ── 阶段 4: 将所有数据交给 LLM 评分排序 ──
-        context = {
-            "requirement": {
-                "category": category,
-                "brand_pref": brand_pref,
-                "location": location,
-                "normalized_spec": normalized_spec,
-            },
-            "suppliers": enriched_suppliers,
-        }
-
-        user_msg = (
-            f"请根据以下供应商数据（含数据库查询结果 + 知识库检索结果）进行评分排序：\n"
-            f"{json.dumps(context, ensure_ascii=False, indent=2)}"
-        )
-
-        tool_state = {"messages": [{"role": "user", "content": user_msg}]}
-
-        result = await agent_engine.run_direct_agent(
-            state=tool_state,
-            system_prompt=MATCH_SYSTEM_PROMPT,
-            heavy=False,
-        )
-
-        content = result["messages"][0].content
-        parsed = agent_engine.parse_json_from_llm(content)
-
-        if parsed and isinstance(parsed, dict) and "matched_suppliers" in parsed:
-            matched = parsed["matched_suppliers"]
-        elif parsed and isinstance(parsed, list):
-            matched = parsed
-        else:
-            matched = []
-
-        # 后处理：确保字段完整性
-        for m in matched:
-            m.setdefault("confirmed_stock", False)
-            m.setdefault("confirmed_lead", False)
-            m.setdefault("confirmed_price", False)
-            m.setdefault("in_stock", False)
-            if m.get("updated_at"):
+        # ── 阶段 4: 确定性评分排序（绕过 LLM，直接基于品牌覆盖度 + 地区匹配 + RAG 结果计算评分）
+        matched = []
+        for sup in enriched_suppliers:
+            # 品牌覆盖度计算
+            sup_brands_raw = sup.get("brands") or sup.get("brand_coverage") or ""
+            if isinstance(sup_brands_raw, str):
                 try:
-                    from datetime import datetime
-                    days_ago = (datetime.now() - datetime.strptime(
-                        str(m["updated_at"])[:10], "%Y-%m-%d"
-                    )).days
-                    if days_ago > 90:
-                        m["data_source"] = m.get("data_source", "平台数据") + " (信息可能过期)"
-                except Exception:
-                    pass
+                    sup_brands = json.loads(sup_brands_raw) if sup_brands_raw.startswith("[") else [sup_brands_raw]
+                except (json.JSONDecodeError, TypeError):
+                    sup_brands = [sup_brands_raw] if sup_brands_raw else []
+            elif isinstance(sup_brands_raw, (list, tuple)):
+                sup_brands = list(sup_brands_raw)
+            else:
+                sup_brands = []
+            sup_brands = [str(b).strip() for b in sup_brands if b]
 
+            brand_score = 0.0
+            if brand_pref and sup_brands:
+                matched_brands = [b for b in brand_pref if b in sup_brands]
+                brand_score = len(matched_brands) / len(brand_pref) if brand_pref else 0.0
+
+            # 地区匹配
+            location_score = 0.15 if location and sup.get("location") and location in str(sup.get("location", "")) else 0.0
+
+            # RAG 洞察加分（只要有内容就给分）
+            rag = sup.get("rag_insight", "") or ""
+            rag_score = 0.05 if rag and rag != "知识库检索异常" and "未找到" not in rag else 0.0
+
+            # 综合评分（满分 1.0）
+            match_score = min(1.0, brand_score * 0.7 + location_score + rag_score + 0.1)
+
+            sup_brand_str = json.dumps(sup_brands, ensure_ascii=False) if sup_brands else ""
+
+            categories_list = [c.strip() for c in str(sup.get("category", "")).split(",") if c.strip()] or ["MLCC"]
+
+            matched.append({
+                "id": str(sup.get("id", "")),
+                "name": sup.get("name", ""),
+                "match_score": round(match_score, 2),
+                "category": sup.get("category", ""),
+                "categories": categories_list,
+                "region": sup.get("location", ""),
+                "location": sup.get("location", ""),
+                "brands": sup_brands,
+                "brand_coverage": sup_brand_str,
+                "qualifications": [],
+                "moq": sup.get("moq"),
+                "lead_time_weeks": sup.get("lead_time_weeks"),
+                "in_stock": False,
+                "response_speed": "暂无数据",
+                "data_source": sup.get("data_source", "平台数据"),
+                "updated_at": sup.get("updated_at", ""),
+                "confirmed_stock": False,
+                "confirmed_lead": False,
+                "confirmed_price": False,
+                "rag_insights": rag[:500] if rag else "",
+            })
+
+        # 按评分降序排列
+        matched.sort(key=lambda x: x["match_score"], reverse=True)
         state["matched_suppliers"] = matched
         log.end(state)
 

@@ -22,7 +22,8 @@ export async function fetchSSE(
   })
 
   if (!res.ok || !res.body) {
-    throw new Error(`SSE 请求失败: HTTP ${res.status}`)
+    const detail = res.status === 422 ? await res.text().catch(() => '') : ''
+    throw new Error(`SSE 请求失败: HTTP ${res.status}${detail ? ' ' + detail : ''}`)
   }
 
   const reader = res.body.getReader()

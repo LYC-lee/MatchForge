@@ -15,19 +15,14 @@ const mainNav = [
   { to: '/app', icon: 'D', label: '经营驾驶舱' },
   { to: '/products-bom', icon: 'B', label: '产品与 BOM' },
   { to: '/shortage-procurement', icon: '!', label: '缺件与采购' },
+  { to: '/chat', icon: '🔍', label: 'AI 寻源' },
   { to: '/company-chat', icon: 'C', label: '上下游协同' },
   { to: '/company-assistant', icon: 'AI', label: '企业内部问答' },
   { to: '/admin/knowledge', icon: 'K', label: '数据与知识库' },
   { to: '/supplier', icon: 'S', label: '供应商工作台' },
-  { to: '/admin/audit', icon: 'A', label: '审核管理' },
 ]
 
-const flowNav = [
-  { to: '/flow', icon: 'P', label: '采购寻源流程' },
-  { to: '/alternatives', icon: 'R', label: '替代料推荐' },
-  { to: '/supplier-match', icon: 'M', label: '供应商匹配' },
-  { to: '/rfq-edit', icon: 'Q', label: 'RFQ 编辑' },
-]
+const flowNav: Array<{ to: string; icon: string; label: string }> = []
 
 const sourceLabel = computed(() =>
   dataSource.value === 'api' ? '后端 API' : dataSource.value === 'loading' ? '加载中' : '暂无数据',
@@ -66,7 +61,7 @@ function logout() {
       </RouterLink>
     </nav>
 
-    <div class="sidebar__section">
+    <div v-if="flowNav.length" class="sidebar__section">
       <p class="sidebar__label">保留流程入口</p>
       <RouterLink v-for="item in flowNav" :key="item.to" :to="item.to" class="nav__link">
         <span class="nav__icon">{{ item.icon }}</span>
