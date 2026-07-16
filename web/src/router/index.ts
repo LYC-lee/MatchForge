@@ -50,13 +50,4 @@ router.beforeEach(async (to) => {
   }
 })
 
-// 路由导航失败兜底: 动态 import 失败时延时重试
-router.onError((err) => {
-  const msg = (err as Error).message || ''
-  if (msg.includes('Failed to fetch dynamically imported module')) {
-    console.warn('[router] 模块加载失败，尝试重试...')
-    setTimeout(() => window.location.reload(), 500)
-  }
-})
-
 export default router

@@ -67,10 +67,13 @@ api.interceptors.response.use(
       }
       return api(originalRequest)
     } catch {
-      // 刷新失败 -> 登出
+      // 刷新失败 -> 登出（防并发：只跳转一次）
       const auth = useAuthStore()
       auth.logout()
-      window.location.href = '/login'
+      if (!(window as any)._authRedirecting) {
+        (window as any)._authRedirecting = true
+        window.location.replace('/login')
+      }
       return Promise.reject(normalizeError(error))
     }
   },
