@@ -12,17 +12,22 @@ import re
 from ai.state import ProcureState
 from ai import base_agent as agent_engine
 from ai.tools.mysql_client import lookup_std_code as lookup_std_code_tool
+from ai.tools.kb_client import search_knowledge_base as search_knowledge_base_tool
 from ai.monitor import AgentLogger
 
-NORMALIZE_SYSTEM_PROMPT = """你是电子元器件标准化专家。你的任务是将用户输入的元器件规格参数映射到标准字典编码。
+NORMALIZE_SYSTEM_PROMPT = """你是电子元器件标准化专家。你的任务是将用户输入的元器件规格参数映射到标准字典编码，并利用知识库补充缺失信息。
 
 ## 可用工具
 - lookup_std_code: 在标准字典 material_dictionary 中查询匹配的标准编码
   参数: category(品类), package(封装), capacitance(容值), temp_coeff(温度系数), rated_voltage(额定电压)
+- search_knowledge_base: 查询指定企业的知识库信息（产品规格、型号参数、标准编码）
+  参数: company_name(企业名称), query(查询问题)
+  用于在字典查询未命中时，从知识库中查找标准编码和规格补充信息
 
 ## 工作流程
 1. 根据用户提供的规格参数，调用 lookup_std_code 工具查询标准编码
-2. 根据查询结果，输出标准化后的规格 JSON
+2. 如果字典查询未命中或返回信息不完整，必须调用 search_knowledge_base 从知识库中查找补充信息
+3. 根据查询结果，输出标准化后的规格 JSON
 
 ## 输出格式
 严格返回 JSON 对象，包含以下字段：
@@ -73,7 +78,7 @@ async def normalize_agent(state: ProcureState) -> ProcureState:
         result = await agent_engine.run_tool_agent(
             state=tool_state,
             system_prompt=NORMALIZE_SYSTEM_PROMPT,
-            tools=[lookup_std_code_tool],
+            tools=[lookup_std_code_tool, search_knowledge_base_tool],
             max_tool_rounds=3,
             heavy=False,
         )

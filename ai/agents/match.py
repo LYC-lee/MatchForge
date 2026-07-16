@@ -1,11 +1,12 @@
 """
 Agent ④ — 供应商匹配
-LLM 自主调用 MySQL 供应商查询 + 评分排序
+确定性流程: MySQL 查询 → RAG 知识库检索 → LLM 评分排序
 
 流程:
-  1. LLM 自主调用 filter_suppliers 查询符合条件的供应商
-  2. LLM 根据品牌覆盖度、资质等级、响应速度进行评分排序
-  3. LLM 生成最终匹配结果
+  1. 从 normalized_spec 提取品类/品牌/地区参数
+  2. 确定性调用 filter_suppliers_raw 查询供应商 (MySQL)
+  3. 对每个匹配到的供应商，确定性调用 search_knowledge_base 检索知识库 (RAG)
+  4. 将 MySQL 数据 + RAG 结果一并交给 LLM 评分排序
 
 红线: 供应商必须来自 DB，首期库存/交期/价格一律标"未确认"
 
@@ -18,24 +19,28 @@ import json
 
 from ai.state import ProcureState
 from ai import base_agent as agent_engine
-from ai.tools.mysql_client import filter_suppliers as filter_suppliers_tool
+from ai.tools.mysql_client import filter_suppliers_raw
+from ai.tools.kb_client import search_knowledge_base as search_knowledge_base_tool
 from ai.monitor import AgentLogger
 
-MATCH_SYSTEM_PROMPT = """你是电子元器件供应商匹配专家。你可以查询数据库中的供应商信息，并根据用户需求进行评分排序。
+MATCH_SYSTEM_PROMPT = """你是电子元器件供应商匹配专家。根据提供的供应商数据库查询结果和知识库检索结果，进行评分排序。
 
-## 可用工具
-- filter_suppliers: 查询符合品类、品牌、地区条件的供应商列表
-  参数: category(品类), brands(品牌名称，逗号分隔), location(地区)
+## 输入数据说明
+- 每个供应商包含两部分信息：
+  1. 数据库字段: id, name, category, brands, location, moq, lead_time_weeks, data_source, updated_at
+  2. 知识库检索: 从该企业知识库中检索到的产品线、认证资质、业务能力等文本信息
 
-## 工作流程
-1. 从用户提供的元器件规格中提取品类、品牌偏好、地区等信息
-2. 调用 filter_suppliers 工具查询符合条件的供应商
-3. 对供应商进行评分排序：
-   - 品牌覆盖度: 匹配的品牌数 / 需求品牌数 × 0.4
-   - 资质等级: IATF16949=3分, ISO14001=2分, ISO9001=2分, 原厂授权=3分 → 归一化 /3 × 0.3
-   - 响应速度: 24h/12h内响应 +0.2, 48h内 +0.1
-   - 数据新鲜度: 30天内更新 +0.1, 90天内 +0.05
-4. 输出排序后的匹配结果
+## 评分标准 (必须严格按此权重)
+- 品牌覆盖度: 匹配的品牌数 / 需求品牌数 × 0.4
+- 资质等级: IATF16949=3分, ISO14001=2分, ISO9001=2分, 原厂授权=3分 → 归一化 /3 × 0.3
+- 响应速度: 24h/12h内响应 +0.2, 48h内 +0.1
+- 数据新鲜度: 30天内更新 +0.1, 90天内 +0.05
+- 知识库匹配度: RAG 检索结果与需求的匹配程度 × 0.1
+
+## 关键规则
+- 知识库检索结果为空或"未找到"时，该供应商仍可评分，但知识库匹配度计为 0
+- 知识库中明确提到认证资质、原厂授权、产品线匹配的，相应加分
+- 知识库中明确提到负面信息（如停产、质量问题）的，降低评分
 
 ## 输出格式
 严格返回 JSON 对象，包含 matched_suppliers 数组：
@@ -59,13 +64,14 @@ MATCH_SYSTEM_PROMPT = """你是电子元器件供应商匹配专家。你可以�
       "updated_at": "更新时间",
       "confirmed_stock": false,
       "confirmed_lead": false,
-      "confirmed_price": false
+      "confirmed_price": false,
+      "rag_insights": "从知识库中提取的关键信息摘要"
     }
   ]
 }
 
 ## 红线规则
-- 供应商必须来自数据库查询结果，不得编造
+- 供应商必须来自提供的数据库查询结果，不得编造
 - 库存、交期、价格一律标 "未确认" (confirmed_stock/confirmed_lead/confirmed_price = false)
 - 数据超过 90 天未更新，标注 "信息可能过期"
 - 按 match_score 降序排列
@@ -73,7 +79,7 @@ MATCH_SYSTEM_PROMPT = """你是电子元器件供应商匹配专家。你可以�
 
 
 async def match_agent(state: ProcureState) -> ProcureState:
-    """供应商匹配 Agent — LLM 自主调用 MySQL 查询 + 评分排序。"""
+    """供应商匹配 Agent — 确定性: MySQL 查询 → RAG 检索 → LLM 评分。"""
     log = AgentLogger("match", thread_id=state.get("thread_id", ""))
     normalized_spec = state.get("normalized_spec") or {}
     alternatives = state.get("alternatives", [])
@@ -85,35 +91,72 @@ async def match_agent(state: ProcureState) -> ProcureState:
     log.start(state)
 
     try:
-        # 从 alternatives 中收集品牌信息
-        brand_hints = []
+        # ── 阶段 1: 从 normalized_spec 提取查询参数 ──
+        category = normalized_spec.get("category", "")
+        brand_pref = normalized_spec.get("brand_pref", [])
+        if isinstance(brand_pref, str):
+            brand_pref = [brand_pref] if brand_pref else []
+
+        # 从 alternatives 中补充品牌信息
         for alt in alternatives:
             b = alt.get("brand", "")
-            if b and b not in brand_hints:
-                brand_hints.append(b)
-        brand_pref = normalized_spec.get("brand_pref", [])
-        if isinstance(brand_pref, list):
-            for b in brand_pref:
-                if b not in brand_hints:
-                    brand_hints.append(b)
+            if b and b not in brand_pref:
+                brand_pref.append(b)
 
+        location = normalized_spec.get("location", "")
+
+        # ── 阶段 2: 确定性调用 MySQL 查询供应商 ──
+        suppliers = filter_suppliers_raw(
+            category=category,
+            brands=brand_pref if brand_pref else None,
+            location=location if location else None,
+        )
+
+        if not suppliers:
+            state["matched_suppliers"] = []
+            log.end(state)
+            return state
+
+        # ── 阶段 3: 对每个供应商确定性调用 RAG 知识库检索 ──
+        enriched_suppliers = []
+        for supplier in suppliers:
+            supplier_name = supplier.get("name", "")
+            rag_insight = ""
+            if supplier_name:
+                try:
+                    rag_result = search_knowledge_base_tool.invoke({
+                        "company_name": supplier_name,
+                        "query": f"主营产品、认证资质、{category}产品线、业务能力",
+                    })
+                    rag_insight = str(rag_result) if rag_result else ""
+                except Exception as e:
+                    rag_insight = f"知识库检索异常: {str(e)[:100]}"
+            enriched_suppliers.append({
+                **supplier,
+                "rag_insight": rag_insight[:1500],  # 截断保护
+            })
+
+        # ── 阶段 4: 将所有数据交给 LLM 评分排序 ──
         context = {
-            "normalized_spec": normalized_spec,
-            "brand_hints": brand_hints,
+            "requirement": {
+                "category": category,
+                "brand_pref": brand_pref,
+                "location": location,
+                "normalized_spec": normalized_spec,
+            },
+            "suppliers": enriched_suppliers,
         }
 
         user_msg = (
-            f"请为以下元器件需求匹配供应商：\n"
+            f"请根据以下供应商数据（含数据库查询结果 + 知识库检索结果）进行评分排序：\n"
             f"{json.dumps(context, ensure_ascii=False, indent=2)}"
         )
 
         tool_state = {"messages": [{"role": "user", "content": user_msg}]}
 
-        result = await agent_engine.run_tool_agent(
+        result = await agent_engine.run_direct_agent(
             state=tool_state,
             system_prompt=MATCH_SYSTEM_PROMPT,
-            tools=[filter_suppliers_tool],
-            max_tool_rounds=3,
             heavy=False,
         )
 

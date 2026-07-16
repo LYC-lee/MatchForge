@@ -67,10 +67,9 @@ api.interceptors.response.use(
       }
       return api(originalRequest)
     } catch {
-      // 刷新失败 -> 登出
+      // 刷新失败 -> 仅清除登录态，不跳转（由路由守卫负责跳转）
       const auth = useAuthStore()
       auth.logout()
-      window.location.href = '/login'
       return Promise.reject(normalizeError(error))
     }
   },
