@@ -1,48 +1,56 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { getSupplierLeads, type SupplierLead } from '@/api/enterprise'
 import AppButton from '@/components/ui/AppButton.vue'
 
 const router = useRouter()
-const auth = useAuthStore()
+const { current, currentEnterpriseId } = useEnterpriseContext()
 
-const stats = ref({
-  activeLeads: 0,
-  totalProducts: 0,
-  newInquiries: 0,
-  responseRate: 0,
-})
-
-const recentLeads = ref<
-  { id: string; title: string; grade: string; score: number; date: string; status: string }[]
->([])
-
+const leads = ref<SupplierLead[]>([])
 const loading = ref(true)
+const error = ref<string | null>(null)
 
-// 模拟数据
-onMounted(() => {
-  setTimeout(() => {
-    stats.value = {
-      activeLeads: 4,
-      totalProducts: 26,
-      newInquiries: 2,
-      responseRate: 78,
-    }
-    recentLeads.value = [
-      { id: 'L001', title: 'MLCC 0805 10uF X7R 50V', grade: 'A', score: 88, date: '2026-07-14', status: 'new' },
-      { id: 'L002', title: 'TMK212BJ105KG-T 替代料', grade: 'B', score: 72, date: '2026-07-13', status: 'contacted' },
-      { id: 'L003', title: 'GRM188R61A106KE69D 寻源', grade: 'C', score: 55, date: '2026-07-12', status: 'won' },
-    ]
+async function fetchLeads(companyId: number) {
+  loading.value = true
+  error.value = null
+  try {
+    const res = await getSupplierLeads(companyId)
+    leads.value = (res.data?.items || []) as SupplierLead[]
+  } catch (e: any) {
+    error.value = e?.message || '接口不可用'
+    leads.value = []
+  } finally {
     loading.value = false
-  }, 600)
-})
+  }
+}
 
-function gradeClass(grade: string) {
-  if (grade === 'A') return 'grade-A'
-  if (grade === 'B') return 'grade-B'
-  if (grade === 'C') return 'grade-c'
-  return 'grade-d'
+watch(currentEnterpriseId, (id) => {
+  if (id) fetchLeads(id)
+}, { immediate: true })
+
+const stats = computed(() => ({
+  activeLeads: leads.value.filter((l) => l.status !== 'declined' && l.status !== 'quoted').length,
+  totalLeads: leads.value.length,
+  newInquiries: leads.value.filter((l) => l.status === 'sent' || l.status === 'pending').length,
+  quoted: leads.value.filter((l) => l.status === 'quoted').length,
+}))
+
+const recentLeads = computed(() => leads.value.slice(0, 5))
+
+function statusLabel(s: string) {
+  const map: Record<string, string> = {
+    pending: '待发送', sent: '新线索', viewed: '已查看', quoted: '已报价', declined: '已拒绝',
+  }
+  return map[s] || s
+}
+
+function statusClass(s: string) {
+  const map: Record<string, string> = {
+    pending: 'state-pending', sent: 'state-new', viewed: 'state-contacted', quoted: 'state-won', declined: 'state-lost',
+  }
+  return map[s] || 'state-pending'
 }
 </script>
 
@@ -50,69 +58,69 @@ function gradeClass(grade: string) {
   <div class="supplier-page">
     <div class="page-head">
       <div>
+        <span class="eyebrow">{{ current.company.name }}</span>
         <h2 class="page-title">供应商工作台</h2>
-        <p class="page-desc">{{ auth.user?.company || '您的企业' }} · 供应商端</p>
+        <p class="page-desc">当前企业作为供应商, 查看收到的 RFQ 线索并在线报价。</p>
       </div>
-      <AppButton variant="primary" @click="router.push('/supplier/products')">
-        管理产品
+      <AppButton variant="primary" @click="router.push('/supplier/leads')">
+        管理线索
       </AppButton>
     </div>
 
+    <div v-if="loading" class="loading-bar">正在拉取供应商线索…</div>
+    <div v-else-if="error" class="notice-bar">线索接口不可用: {{ error }}</div>
+
     <!-- 统计卡片 -->
-    <div class="stats-grid">
+    <div v-if="!loading" class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-card__value">{{ stats.totalLeads }}</div>
+        <div class="stat-card__label">线索总数</div>
+      </div>
       <div class="stat-card">
         <div class="stat-card__value">{{ stats.activeLeads }}</div>
         <div class="stat-card__label">活跃线索</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card__value">{{ stats.totalProducts }}</div>
-        <div class="stat-card__label">产品总数</div>
       </div>
       <div class="stat-card">
         <div class="stat-card__value stat-card__value--warn">{{ stats.newInquiries }}</div>
         <div class="stat-card__label">新询价待处理</div>
       </div>
       <div class="stat-card">
-        <div class="stat-card__value">{{ stats.responseRate }}%</div>
-        <div class="stat-card__label">历史响应率</div>
+        <div class="stat-card__value">{{ stats.quoted }}</div>
+        <div class="stat-card__label">已报价</div>
       </div>
     </div>
 
     <!-- 最近线索 -->
-    <div class="card">
+    <div v-if="!loading" class="card">
       <div class="card__head">
         <h3>最近线索</h3>
         <AppButton variant="ghost" size="sm" @click="router.push('/supplier/leads')">
-          查看全部 →
+          查看全部 ->
         </AppButton>
       </div>
       <div class="card__body">
         <table v-if="recentLeads.length" class="table">
           <thead>
             <tr>
-              <th>线索</th>
-              <th>分级</th>
-              <th>时间</th>
+              <th>RFQ</th>
+              <th>采购方</th>
+              <th>零件</th>
+              <th>数量</th>
               <th>状态</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="lead in recentLeads" :key="lead.id">
-              <td>{{ lead.title }}</td>
+              <td class="mono">{{ lead.rfq_number }}</td>
+              <td>{{ lead.buyer_name || '-' }}</td>
+              <td>{{ lead.part_name || lead.part_number || '-' }}</td>
+              <td>{{ lead.quantity?.toLocaleString() || '-' }}</td>
               <td>
-                <span class="inline-grade" :class="gradeClass(lead.grade)">
-                  {{ lead.grade }} {{ lead.score }}分
-                </span>
-              </td>
-              <td class="text-muted">{{ lead.date }}</td>
-              <td>
-                <span class="state-tag" :class="`state-${lead.status}`">
-                  {{ lead.status === 'new' ? '新线索' : lead.status === 'contacted' ? '已联系' : '已成交' }}
-                </span>
+                <span class="state-tag" :class="statusClass(lead.status)">{{ statusLabel(lead.status) }}</span>
               </td>
               <td>
-                <AppButton variant="ghost" size="sm">查看</AppButton>
+                <AppButton variant="ghost" size="sm" @click="router.push('/supplier/leads')">处理</AppButton>
               </td>
             </tr>
           </tbody>
@@ -125,20 +133,20 @@ function gradeClass(grade: string) {
 
     <!-- 快速入口 -->
     <div class="quick-links">
-      <div class="quick-card" @click="router.push('/supplier/products')">
-        <div class="quick-card__icon">📦</div>
-        <div class="quick-card__title">产品管理</div>
-        <div class="quick-card__desc">管理您的元器件产品目录</div>
-      </div>
       <div class="quick-card" @click="router.push('/supplier/leads')">
         <div class="quick-card__icon">📋</div>
         <div class="quick-card__title">线索管理</div>
-        <div class="quick-card__desc">查看和处理采购询价</div>
+        <div class="quick-card__desc">查看和处理采购询价, 在线提交报价</div>
       </div>
-      <div class="quick-card" @click="router.push('/supplier/profile')">
+      <div class="quick-card" @click="router.push('/products-bom')">
+        <div class="quick-card__icon">📦</div>
+        <div class="quick-card__title">产品与 BOM</div>
+        <div class="quick-card__desc">查看当前企业的可生产产品与 BOM</div>
+      </div>
+      <div class="quick-card" @click="router.push('/company-assistant')">
         <div class="quick-card__icon">🏢</div>
-        <div class="quick-card__title">企业信息</div>
-        <div class="quick-card__desc">更新资质和经营信息</div>
+        <div class="quick-card__title">企业内部问答</div>
+        <div class="quick-card__desc">基于企业知识回答经营问题</div>
       </div>
     </div>
   </div>
@@ -157,8 +165,11 @@ function gradeClass(grade: string) {
   gap: var(--space-4);
   margin-bottom: var(--space-5);
 }
-.page-title { font-size: var(--font-size-xl); font-weight: 700; }
+.eyebrow { color: var(--text-tertiary); font-size: var(--font-size-xs); font-weight: 700; }
+.page-title { font-size: var(--font-size-xl); font-weight: 700; margin-top: 4px; }
 .page-desc { color: var(--text-secondary); margin-top: 4px; font-size: var(--font-size-sm); }
+.loading-bar { padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border-radius: 6px; border: 1px solid var(--border-subtle); background: var(--bg-2); color: var(--text-tertiary); font-size: var(--font-size-sm); }
+.notice-bar { padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border-radius: 6px; border: 1px solid rgba(234, 179, 8, 0.25); background: var(--warning-soft); color: var(--warning); font-size: var(--font-size-sm); }
 
 /* 统计卡片 */
 .stats-grid {
@@ -194,27 +205,23 @@ function gradeClass(grade: string) {
 .card__head h3 { font-size: var(--font-size-md); font-weight: 600; }
 .card__body { padding: var(--space-4); }
 
-.text-muted { color: var(--text-tertiary); }
-
-.inline-grade {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: var(--font-size-sm);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-}
-.grade-A { color: var(--success); background: var(--success-soft); }
-.grade-B { color: var(--success); background: var(--success-soft); }
-.grade-c { color: var(--warning); background: var(--warning-soft); }
+.table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+.table th { text-align: left; color: var(--text-tertiary); font-size: var(--font-size-xs); padding: 8px 12px; border-bottom: 1px solid var(--border-default); font-weight: 600; }
+.table td { padding: 10px 12px; border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); }
+.mono { font-family: var(--font-mono); font-size: var(--font-size-xs); }
 
 .state-tag {
   font-size: var(--font-size-xs);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
 }
+.state-pending { color: var(--text-tertiary); background: var(--bg-3); }
 .state-new { color: var(--accent); background: var(--accent-soft); }
 .state-contacted { color: var(--warning); background: var(--warning-soft); }
 .state-won { color: var(--success); background: var(--success-soft); }
+.state-lost { color: var(--text-tertiary); background: var(--bg-3); }
+
+.empty-state { text-align: center; padding: var(--space-6); color: var(--text-tertiary); }
 
 /* 快速入口 */
 .quick-links {

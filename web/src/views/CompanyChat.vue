@@ -1,18 +1,46 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
-import type { RelationCompany } from '@/mock/enterpriseContext'
+import { getChatPartners, partnerChat, type ChatPartner } from '@/api/enterprise'
 
-const { current } = useEnterpriseContext()
+const { current, currentEnterpriseId } = useEnterpriseContext()
+const partners = ref<ChatPartner[]>([])
 const selectedId = ref<number | null>(null)
 const mode = ref<'product' | 'business'>('product')
 const query = ref('')
 const sending = ref(false)
 const chatBody = ref<HTMLElement | null>(null)
-const messages = ref<{ role: 'user' | 'assistant'; content: string }[]>([])
+const messages = ref<{ role: 'user' | 'assistant'; content: string; source?: 'api' | 'mock' }[]>([])
+const loading = ref(true)
+const error = ref<string | null>(null)
 
-const selectedRelation = computed<RelationCompany | undefined>(() =>
-  current.value.relations.find((item) => item.id === (selectedId.value ?? current.value.relations[0]?.id)),
+async function fetchPartners(companyId: number) {
+  loading.value = true
+  error.value = null
+  try {
+    const res = await getChatPartners(companyId)
+    partners.value = (res.data?.items || []) as ChatPartner[]
+    if (partners.value.length && !selectedId.value) {
+      selectedId.value = partners.value[0].company_id
+    }
+  } catch (e: any) {
+    error.value = e?.message || '协同伙伴接口不可用'
+    partners.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(currentEnterpriseId, (id) => {
+  if (id) {
+    selectedId.value = null
+    messages.value = []
+    fetchPartners(id)
+  }
+}, { immediate: true })
+
+const selectedPartner = computed<ChatPartner | undefined>(() =>
+  partners.value.find((p) => p.company_id === (selectedId.value ?? partners.value[0]?.company_id)),
 )
 
 const quickQuestions = computed(() => {
@@ -20,35 +48,53 @@ const quickQuestions = computed(() => {
   return ['合作流程是什么？', '供货区域和售后责任怎么划分？', '付款方式和合同条款有哪些注意点？']
 })
 
-function selectRelation(id: number) {
+function selectPartner(id: number) {
   selectedId.value = id
   messages.value = []
 }
 
-function buildMockAnswer(text: string) {
-  const relation = selectedRelation.value
-  if (!relation) return '请先选择一个直接上下游企业。'
-  const scope = relation.scope.join('、')
-  return `这是 ${current.value.company.name} 与直接${relation.direction}企业 ${relation.name} 的协同问答。当前只围绕 ${scope} 等授权协同范围回答。关于“${text}”，建议先确认 ${relation.products} 的交期、责任边界和是否需要 RFQ/合同补充条款。`
+function buildFallbackAnswer(text: string) {
+  const partner = selectedPartner.value
+  if (!partner) return '请先选择一个直接上下游企业。'
+  const scope = mode.value === 'product' ? partner.product_scope.join('、') : partner.business_scope.join('、')
+  return `这是 ${current.value.company.name} 与直接${partner.direction === 'upstream' ? '上游' : partner.direction === 'downstream' ? '下游' : '支撑'}企业 ${partner.company_name} 的协同问答。当前围绕 ${scope} 等授权协同范围回答。关于"${text}", 建议先确认 ${partner.product_scope.join('、')} 的交期、责任边界和是否需要 RFQ/合同补充条款。(后端 RAG 不可用, 此为本地降级回答)`
 }
 
 async function send(q?: string) {
   const text = (q ?? query.value).trim()
-  if (!text || sending.value || !selectedRelation.value) return
+  if (!text || sending.value || !selectedPartner.value) return
   query.value = ''
   messages.value.push({ role: 'user', content: text })
   sending.value = true
   await scrollBottom()
-  window.setTimeout(async () => {
-    messages.value.push({ role: 'assistant', content: buildMockAnswer(text) })
+
+  try {
+    const res = await partnerChat(currentEnterpriseId.value, {
+      partner_company_id: selectedPartner.value.company_id,
+      query: text,
+      scope: mode.value,
+    })
+    const answer = res.data?.answer || res.data?.response || res.data?.message
+    if (answer) {
+      messages.value.push({ role: 'assistant', content: answer, source: 'api' })
+    } else {
+      messages.value.push({ role: 'assistant', content: buildFallbackAnswer(text), source: 'mock' })
+    }
+  } catch {
+    messages.value.push({ role: 'assistant', content: buildFallbackAnswer(text), source: 'mock' })
+  } finally {
     sending.value = false
     await scrollBottom()
-  }, 260)
+  }
 }
 
 async function scrollBottom() {
   await nextTick()
   if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
+}
+
+function directionLabel(d: string) {
+  return { upstream: '上游', downstream: '下游', support: '支撑' }[d] || d
 }
 </script>
 
@@ -58,22 +104,25 @@ async function scrollBottom() {
       <div class="panel-head">
         <span class="eyebrow">{{ current.company.name }}</span>
         <h2>直接上下游</h2>
-        <p>只能选择与当前企业直接相关的企业，不能全链路任意选择。</p>
+        <p>只能选择与当前企业直接相关的企业, 不能全链路任意选择。</p>
       </div>
-      <div class="relation-list">
+      <div v-if="loading" class="loading-line">加载协同伙伴中…</div>
+      <div v-else-if="error" class="loading-line">协同伙伴接口不可用: {{ error }}</div>
+      <div v-else class="relation-list">
         <button
-          v-for="relation in current.relations"
-          :key="relation.id"
+          v-for="partner in partners"
+          :key="partner.company_id"
           class="relation-item"
-          :class="{ active: selectedRelation?.id === relation.id }"
-          @click="selectRelation(relation.id)"
+          :class="{ active: selectedPartner?.company_id === partner.company_id }"
+          @click="selectPartner(partner.company_id)"
         >
           <div>
-            <b>{{ relation.name }}</b>
-            <span>{{ relation.direction }} · {{ relation.segment }}</span>
+            <b>{{ partner.company_name }}</b>
+            <span>{{ directionLabel(partner.direction) }} · {{ partner.segment_name || partner.role }}</span>
           </div>
-          <small>{{ relation.products }}</small>
+          <small>{{ partner.product_scope.join('、') }}</small>
         </button>
+        <div v-if="!partners.length" class="loading-line">当前企业暂无直接上下游</div>
       </div>
     </aside>
 
@@ -81,9 +130,10 @@ async function scrollBottom() {
       <header class="chat-header">
         <div>
           <span class="eyebrow">上下游协同问答</span>
-          <h1>{{ selectedRelation?.name || '请选择协同对象' }}</h1>
-          <p v-if="selectedRelation">
-            {{ selectedRelation.direction }} · {{ selectedRelation.segment }} · 范围：{{ selectedRelation.scope.join('、') }}
+          <h1>{{ selectedPartner?.company_name || '请选择协同对象' }}</h1>
+          <p v-if="selectedPartner">
+            {{ directionLabel(selectedPartner.direction) }} · {{ selectedPartner.segment_name || selectedPartner.role }}
+            · 范围: {{ mode === 'product' ? selectedPartner.product_scope.join('、') : selectedPartner.business_scope.join('、') }}
           </p>
         </div>
         <div class="mode-switch">
@@ -95,14 +145,18 @@ async function scrollBottom() {
       <div class="chat-panel">
         <div class="chat-body" ref="chatBody">
           <div v-if="!messages.length" class="chat-empty">
-            <p>协同问答是 AI 基于企业知识的问答，不是真人聊天。</p>
+            <p>协同问答是 AI 基于伙伴企业私域知识的问答, 不是真人聊天。后端不可用时降级到本地回答。</p>
             <div class="quick-questions">
               <button v-for="item in quickQuestions" :key="item" class="chip" @click="send(item)">{{ item }}</button>
             </div>
           </div>
           <div v-for="(message, index) in messages" :key="index" class="msg" :class="`msg--${message.role}`">
             <div class="msg__avatar">{{ message.role === 'user' ? '我' : 'AI' }}</div>
-            <div class="msg__content">{{ message.content }}</div>
+            <div class="msg__content">
+              {{ message.content }}
+              <span v-if="message.source === 'mock'" class="msg__source">本地降级</span>
+              <span v-else-if="message.source === 'api'" class="msg__source msg__source--api">RAG</span>
+            </div>
           </div>
           <div v-if="sending" class="msg msg--assistant">
             <div class="msg__avatar">AI</div>
@@ -117,7 +171,7 @@ async function scrollBottom() {
             :placeholder="mode === 'product' ? '询问型号、规格、价格、MOQ、交期、替代品...' : '询问合作流程、合同条款、售后、付款方式...'"
             @keydown.enter="send()"
           />
-          <button class="btn-send" :disabled="sending || !query.trim() || !selectedRelation" @click="send()">发送</button>
+          <button class="btn-send" :disabled="sending || !query.trim() || !selectedPartner" @click="send()">发送</button>
         </div>
       </div>
     </section>
@@ -147,6 +201,7 @@ h2 { color: var(--text-primary); }
 .panel-head h2 { font-size: var(--font-size-lg); margin-top: 4px; }
 .panel-head p,
 .chat-header p { margin-top: 6px; color: #c7cfdd; font-size: var(--font-size-sm); line-height: 1.6; }
+.loading-line { padding: var(--space-3) var(--space-4); color: var(--text-tertiary); font-size: var(--font-size-sm); text-align: center; }
 .relation-list { display: grid; gap: var(--space-1); padding: var(--space-2); }
 .relation-item {
   display: grid;
@@ -157,6 +212,8 @@ h2 { color: var(--text-primary); }
   border: 1px solid transparent;
   border-radius: 6px;
   color: #c7cfdd;
+  background: none;
+  cursor: pointer;
 }
 .relation-item:hover,
 .relation-item.active { background: #171b26; border-color: var(--border-default); }
@@ -186,6 +243,9 @@ h2 { color: var(--text-primary); }
   border-radius: 4px;
   color: #c7cfdd;
   font-size: var(--font-size-xs);
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 .mode-switch button.active { color: var(--text-primary); background: var(--bg-3); }
 .chat-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -199,7 +259,9 @@ h2 { color: var(--text-primary); }
   border-radius: 999px;
   padding: 5px 9px;
   font-size: var(--font-size-xs);
+  cursor: pointer;
 }
+.chip:hover { border-color: var(--accent-border); color: var(--text-primary); }
 .msg { display: flex; gap: var(--space-3); margin-bottom: var(--space-3); }
 .msg__avatar {
   width: 30px;
@@ -227,6 +289,19 @@ h2 { color: var(--text-primary); }
   white-space: pre-wrap;
 }
 .muted { color: #aeb7c8; }
+.msg__source {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--warning);
+  background: var(--warning-soft);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  vertical-align: middle;
+}
+.msg__source--api { color: var(--success); background: var(--success-soft); border-color: rgba(34, 197, 94, 0.3); }
 .chat-input {
   display: flex;
   gap: var(--space-2);
@@ -251,6 +326,8 @@ h2 { color: var(--text-primary); }
   color: #fff;
   font-size: var(--font-size-sm);
   font-weight: 600;
+  border: none;
+  cursor: pointer;
 }
 .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
 @media (max-width: 920px) {

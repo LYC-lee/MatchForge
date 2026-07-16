@@ -2,17 +2,19 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { getEnterpriseContext as getMockCtx } from '@/mock/enterpriseContext'
 
 const route = useRoute()
-const { current } = useEnterpriseContext()
+const { currentEnterpriseId } = useEnterpriseContext()
 
-const selectedPart = computed(() => String(route.query.part || current.value.shortages[0]?.code || ''))
+const mockCtx = computed(() => getMockCtx(currentEnterpriseId.value))
+const selectedPart = computed(() => String(route.query.part || mockCtx.value.shortages[0]?.code || ''))
 const shortage = computed(() =>
-  current.value.shortages.find((item) => item.code === selectedPart.value) || current.value.shortages[0],
+  mockCtx.value.shortages.find((item) => item.code === selectedPart.value) || mockCtx.value.shortages[0],
 )
 
 const alternatives = computed(() =>
-  (shortage.value?.substitutes || []).map((part, index) => ({
+  (shortage.value?.substitutes || []).map((part: string, index: number) => ({
     part,
     level: index === 0 ? '优先验证' : '备选验证',
     confidence: index === 0 ? 86 : 74,
@@ -26,7 +28,7 @@ const alternatives = computed(() =>
   <div class="alt-page">
     <header class="page-head">
       <div>
-        <span class="eyebrow">{{ current.company.name }}</span>
+        <span class="eyebrow">{{ mockCtx.company.name }}</span>
         <h1>替代料推荐</h1>
         <p>围绕当前缺件给出可验证替代料、风险说明和下一步供应商/RFQ入口。</p>
       </div>

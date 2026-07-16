@@ -2,102 +2,167 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
-import { riskRank, type RiskLevel } from '@/mock/enterpriseContext'
+import { useDashboard } from '@/composables/useDashboard'
+import type { DashboardShortage, DashboardAction } from '@/api/enterprise'
 
 const router = useRouter()
-const { companies, current, currentEnterpriseId, setCurrentEnterprise } = useEnterpriseContext()
+const { current, dataSource } = useEnterpriseContext()
+const { dashboard, orders, forecasts, loading, topShortages, sortedActions } = useDashboard()
 
-const topShortages = computed(() =>
-  [...current.value.shortages].sort((a, b) => riskRank(b.risk) - riskRank(a.risk)).slice(0, 4),
+const company = computed(() => dashboard.value?.company)
+const metrics = computed(() => {
+  const d = dashboard.value
+  if (!d) return null
+  const urgent = d.orders_summary?.by_priority?.urgent || 0
+  return {
+    pendingOrders: d.orders_summary?.active_count || 0,
+    forecastDemand: d.forecast_summary?.total_forecast_quantity || 0,
+    urgentOrders: urgent,
+    shortageParts: (d.shortages?.items || []).filter((s) => s.shortage_type === 'shortage').length,
+    availableProducts: d.products_summary?.active_count || 0,
+    atRiskProducts: (d.products_summary?.items || []).filter((p) => p.status === 'at_risk').length,
+  }
+})
+
+const atRiskProducts = computed(() =>
+  (dashboard.value?.products_summary?.items || []).filter((p) => p.status === 'at_risk'),
 )
-const atRiskProducts = computed(() => current.value.products.filter((item) => item.risk !== '低'))
 
-function riskClass(risk: RiskLevel) {
-  return `risk risk--${risk}`
+function severityLabel(s: string) {
+  return { critical: '紧急', high: '高', medium: '中', low: '低' }[s] || s
 }
 
-function goProcure(shortageCode?: string) {
-  router.push({ path: '/shortage-procurement', query: shortageCode ? { part: shortageCode } : undefined })
+function severityClass(s: string) {
+  return `sev sev--${s}`
+}
+
+function priorityLabel(p: string) {
+  return { urgent: '紧急', high: '高', medium: '中', low: '低' }[p] || p
+}
+
+function categoryLabel(c: string) {
+  return { sourcing: '采购', production: '生产', sales: '销售', collaboration: '协同' }[c] || c
+}
+
+function formatDate(iso: string | null) {
+  if (!iso) return '-'
+  try {
+    return new Date(iso).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+  } catch {
+    return iso
+  }
+}
+
+function goProcure(shortage?: DashboardShortage) {
+  router.push({
+    path: '/shortage-procurement',
+    query: shortage ? { part: shortage.part_number || shortage.part_name || '' } : undefined,
+  })
+}
+
+function goRfqFromAction(action: DashboardAction) {
+  router.push({
+    path: '/shortage-procurement',
+    query: {
+      part: action.part_number || '',
+      action_id: action.action_type,
+      supplier: action.suggested_supplier_company_id ? String(action.suggested_supplier_company_id) : '',
+    },
+  })
 }
 </script>
 
 <template>
   <div class="dashboard">
+    <!-- 企业上下文条 -->
     <section class="context-bar">
       <div class="context-main">
         <span class="eyebrow">当前企业经营驾驶舱</span>
         <div class="context-title">
-          <select
-            :value="currentEnterpriseId"
-            class="enterprise-select"
-            aria-label="切换当前企业"
-            @change="setCurrentEnterprise(Number(($event.target as HTMLSelectElement).value))"
-          >
-            <option v-for="company in companies" :key="company.id" :value="company.id">
-              {{ company.name }} / {{ company.segment }}
-            </option>
-          </select>
-          <span class="role">{{ current.company.role }}</span>
+          <h1>{{ company?.name || '加载中…' }}</h1>
+          <span class="role">{{ company?.role || current.role || '' }}</span>
+          <span class="source-tag" :class="`source-tag--${dataSource}`">
+            {{ dataSource === 'api' ? '实时接口' : dataSource === 'mock' ? 'Mock 降级' : '加载中' }}
+          </span>
         </div>
-        <p>{{ current.company.note }}</p>
+        <p>{{ company?.description || current.company.description || '' }}</p>
       </div>
       <div class="context-meta">
-        <span>{{ current.company.location }}</span>
-        <span>{{ current.company.segment }}</span>
+        <span>{{ company?.region || current.company.region || '-' }}</span>
+        <span>{{ current.segment_name || company?.segment_name || '-' }}</span>
+        <span v-if="current.chain_position">链路: {{ current.chain_position }}</span>
       </div>
     </section>
 
-    <section class="metrics-grid" aria-label="经营概览">
+    <!-- 指标卡 -->
+    <section v-if="metrics" class="metrics-grid" aria-label="经营概览">
       <div class="metric">
         <span>待交付订单</span>
-        <b>{{ current.metrics.pendingOrders }}</b>
-        <small>{{ current.metrics.urgentOrders }} 个紧急订单</small>
+        <b>{{ metrics.pendingOrders }}</b>
+        <small>{{ metrics.urgentOrders }} 个紧急订单</small>
       </div>
       <div class="metric">
         <span>预测需求</span>
-        <b>{{ current.metrics.forecastDemand.toLocaleString() }}</b>
-        <small>未来 30 天滚动</small>
+        <b>{{ metrics.forecastDemand.toLocaleString() }}</b>
+        <small>未来滚动预测</small>
       </div>
       <div class="metric">
         <span>可生产产品</span>
-        <b>{{ current.metrics.availableProducts }}</b>
-        <small>{{ current.metrics.atRiskProducts }} 个受缺件影响</small>
+        <b>{{ metrics.availableProducts }}</b>
+        <small>{{ metrics.atRiskProducts }} 个受缺件影响</small>
       </div>
       <div class="metric metric--risk">
         <span>缺件风险</span>
-        <b>{{ current.metrics.shortageParts }}</b>
+        <b>{{ metrics.shortageParts }}</b>
         <small>需采购/替代/协同处理</small>
       </div>
     </section>
 
-    <section class="first-screen">
+    <!-- 加载骨架 -->
+    <div v-if="loading" class="loading-bar">正在拉取经营驾驶舱数据…</div>
+
+    <!-- 主面板 -->
+    <section v-if="dashboard" class="first-screen">
+      <!-- 订单与预测 -->
       <div class="panel panel--orders">
         <div class="panel-head">
           <div>
             <span class="eyebrow">订单与预测需求</span>
-            <h2>今天需要老板关注的交付</h2>
+            <h2>需要关注的交付</h2>
           </div>
         </div>
         <div class="dense-table">
           <div class="table-row table-row--head">
-            <span>类型</span>
-            <span>客户/对象</span>
+            <span>单号/周期</span>
+            <span>客户/来源</span>
             <span>产品</span>
             <span>数量</span>
             <span>交期</span>
-            <span>风险</span>
+            <span>优先级</span>
           </div>
-          <div v-for="item in current.demands" :key="item.id" class="table-row">
-            <span class="pill">{{ item.type }}</span>
-            <span>{{ item.customer }}</span>
-            <span>{{ item.product }}</span>
+          <div v-for="item in orders.slice(0, 8)" :key="`o${item.id}`" class="table-row">
+            <span class="mono">{{ item.order_number }}</span>
+            <span>{{ item.customer_name || `企业${item.customer_company_id || ''}` }}</span>
+            <span>{{ item.product_model || item.product_name || '-' }}</span>
             <span>{{ item.quantity.toLocaleString() }}</span>
-            <span>{{ item.due }}</span>
-            <span :class="riskClass(item.risk)">{{ item.risk }}</span>
+            <span>{{ formatDate(item.due_date) }}</span>
+            <span :class="severityClass(item.priority)">{{ priorityLabel(item.priority) }}</span>
+          </div>
+          <div v-for="item in forecasts.slice(0, 4)" :key="`f${item.id}`" class="table-row table-row--forecast">
+            <span class="mono">{{ item.forecast_period }}</span>
+            <span>预测需求</span>
+            <span>{{ item.product_model || item.product_name || '-' }}</span>
+            <span>{{ item.forecast_quantity.toLocaleString() }}</span>
+            <span>置信度 {{ Math.round((item.confidence || 0) * 100) }}%</span>
+            <span class="sev sev--low">预测</span>
+          </div>
+          <div v-if="!orders.length && !forecasts.length" class="table-row table-row--empty">
+            <span>暂无订单与预测数据</span>
           </div>
         </div>
       </div>
 
+      <!-- 可生产产品 -->
       <div class="panel">
         <div class="panel-head">
           <div>
@@ -107,22 +172,26 @@ function goProcure(shortageCode?: string) {
           <RouterLink to="/products-bom" class="text-link">查看 BOM</RouterLink>
         </div>
         <div class="product-list">
-          <div v-for="product in current.products" :key="product.id" class="product-line">
+          <div v-for="product in dashboard.products_summary.items" :key="product.id" class="product-line">
             <div>
-              <b>{{ product.model }}</b>
-              <span>{{ product.name }} · {{ product.capacity }}</span>
+              <b>{{ product.product_model }}</b>
+              <span>{{ product.product_name }} · 月产 {{ product.monthly_capacity?.toLocaleString() || '-' }} {{ product.unit || '' }}</span>
             </div>
             <div class="product-line__right">
-              <small>{{ product.status }}</small>
-              <span :class="riskClass(product.risk)">{{ product.risk }}</span>
+              <small>{{ product.status === 'at_risk' ? '受缺件影响' : product.status || '正常' }}</small>
+              <span :class="severityClass(product.status === 'at_risk' ? 'high' : 'low')">
+                {{ product.status === 'at_risk' ? '风险' : '正常' }}
+              </span>
             </div>
           </div>
+          <div v-if="!dashboard.products_summary.items.length" class="empty-line">暂无可生产产品</div>
         </div>
         <div v-if="atRiskProducts.length" class="inline-note">
-          {{ atRiskProducts.map((item) => item.model).join('、') }} 需要结合缺件清单重新排产。
+          {{ atRiskProducts.map((p) => p.product_model).join('、') }} 需要结合缺件清单重新排产。
         </div>
       </div>
 
+      <!-- 缺件风险 -->
       <div class="panel">
         <div class="panel-head">
           <div>
@@ -132,16 +201,18 @@ function goProcure(shortageCode?: string) {
           <button class="text-link" @click="goProcure()">进入采购</button>
         </div>
         <div class="shortage-list">
-          <button v-for="item in topShortages" :key="item.code" class="shortage-line" @click="goProcure(item.code)">
+          <button v-for="item in topShortages" :key="item.id" class="shortage-line" @click="goProcure(item)">
             <div>
-              <b>{{ item.part }}</b>
-              <span>缺口 {{ item.gap.toLocaleString() }} · 影响 {{ item.affectedProducts.join('、') }}</span>
+              <b>{{ item.part_name || item.part_number }}</b>
+              <span>缺口 {{ item.shortage_qty.toLocaleString() }} {{ item.unit || '' }} · 影响 {{ item.affected_order_numbers.join('、') || '无' }}</span>
             </div>
-            <span :class="riskClass(item.risk)">{{ item.risk }}</span>
+            <span :class="severityClass(item.severity)">{{ severityLabel(item.severity) }}</span>
           </button>
+          <div v-if="!topShortages.length" class="empty-line">暂无缺件风险</div>
         </div>
       </div>
 
+      <!-- 推荐动作 -->
       <div class="panel">
         <div class="panel-head">
           <div>
@@ -150,28 +221,40 @@ function goProcure(shortageCode?: string) {
           </div>
         </div>
         <div class="action-list">
-          <div v-for="action in current.actions" :key="action.id" class="action-line">
-            <span class="action-type">{{ action.category }}</span>
+          <div v-for="action in sortedActions.slice(0, 6)" :key="action.title" class="action-line">
+            <span class="action-type" :class="`action-type--${action.category}`">{{ categoryLabel(action.category) }}</span>
             <div>
               <b>{{ action.title }}</b>
               <p>{{ action.detail }}</p>
-              <small v-if="action.target">建议联系：{{ action.target }}</small>
+              <small v-if="action.suggested_supplier_name">建议联系：{{ action.suggested_supplier_name }}</small>
             </div>
-            <span :class="riskClass(action.priority)">{{ action.priority }}</span>
+            <button v-if="action.category === 'sourcing'" class="action-go" @click="goRfqFromAction(action)">发起 RFQ →</button>
+            <span v-else :class="severityClass(action.priority)">{{ priorityLabel(action.priority) }}</span>
           </div>
+          <div v-if="!sortedActions.length" class="empty-line">暂无推荐动作</div>
         </div>
       </div>
     </section>
 
-    <section class="network-strip">
+    <!-- 上下游概况 -->
+    <section v-if="dashboard" class="network-strip">
       <div>
         <span class="eyebrow">直接上下游</span>
         <h2>协同问答只面向当前企业相关对象</h2>
       </div>
-      <div class="relation-chips">
-        <span v-for="relation in current.relations" :key="relation.id" class="relation-chip">
-          {{ relation.direction }} · {{ relation.name }}
-        </span>
+      <div class="relation-groups">
+        <div v-if="dashboard.upstream_summary.items.length" class="rel-group">
+          <span class="rel-label">上游</span>
+          <span v-for="u in dashboard.upstream_summary.items" :key="`u${u.company_id}`" class="relation-chip">{{ u.company_name }}</span>
+        </div>
+        <div v-if="dashboard.downstream_summary.items.length" class="rel-group">
+          <span class="rel-label">下游</span>
+          <span v-for="d in dashboard.downstream_summary.items" :key="`d${d.company_id}`" class="relation-chip">{{ d.company_name }}</span>
+        </div>
+        <div v-if="dashboard.support_summary.items.length" class="rel-group">
+          <span class="rel-label">支撑</span>
+          <span v-for="s in dashboard.support_summary.items" :key="`s${s.company_id}`" class="relation-chip">{{ s.company_name }}</span>
+        </div>
       </div>
       <RouterLink to="/company-chat" class="primary-link">进入上下游协同问答</RouterLink>
     </section>
@@ -207,22 +290,21 @@ function goProcure(shortageCode?: string) {
   flex-wrap: wrap;
   margin: 4px 0 6px;
 }
-.enterprise-select {
-  min-width: 260px;
-  max-width: 100%;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  padding: 8px 10px;
-  color: var(--text-primary);
-  background: var(--bg-2);
-  font-size: var(--font-size-lg);
-  font-weight: 700;
-}
+.context-title h1 { font-size: var(--font-size-xl); font-weight: 700; color: var(--text-primary); }
 .role { color: var(--text-secondary); font-size: var(--font-size-sm); }
-.context-main p { color: var(--text-tertiary); font-size: var(--font-size-sm); }
+.source-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
+}
+.source-tag--api { color: var(--success); background: var(--success-soft); border-color: rgba(34, 197, 94, 0.35); }
+.source-tag--mock { color: var(--warning); background: var(--warning-soft); border-color: rgba(234, 179, 8, 0.35); }
+.source-tag--loading { color: var(--text-tertiary); }
+.context-main p { color: var(--text-tertiary); font-size: var(--font-size-sm); line-height: 1.6; }
 .context-meta { display: flex; gap: var(--space-2); align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
 .context-meta span,
-.pill,
 .relation-chip,
 .action-type {
   border: 1px solid var(--border-subtle);
@@ -237,6 +319,15 @@ function goProcure(shortageCode?: string) {
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   font-weight: 700;
+}
+.loading-bar {
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
 }
 .metrics-grid {
   display: grid;
@@ -274,11 +365,11 @@ function goProcure(shortageCode?: string) {
 .dense-table { overflow-x: auto; }
 .table-row {
   display: grid;
-  grid-template-columns: 70px 120px minmax(180px, 1fr) 82px 82px 58px;
+  grid-template-columns: 110px 120px minmax(160px, 1fr) 80px 90px 64px;
   gap: var(--space-3);
   align-items: center;
-  min-width: 720px;
-  padding: 11px 0;
+  min-width: 660px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
@@ -288,6 +379,9 @@ function goProcure(shortageCode?: string) {
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
 }
+.table-row--forecast { opacity: 0.85; }
+.table-row--empty { color: var(--text-tertiary); grid-template-columns: 1fr; justify-content: center; }
+.mono { font-family: var(--font-mono); font-size: var(--font-size-xs); }
 .product-list,
 .shortage-list,
 .action-list { display: grid; gap: var(--space-2); }
@@ -304,6 +398,8 @@ function goProcure(shortageCode?: string) {
   background: var(--bg-2);
   text-align: left;
 }
+.shortage-line { cursor: pointer; transition: border-color var(--transition-fast); }
+.shortage-line:hover { border-color: var(--accent-border); }
 .product-line b,
 .shortage-line b,
 .action-line b { display: block; color: var(--text-primary); font-size: var(--font-size-sm); }
@@ -313,6 +409,7 @@ function goProcure(shortageCode?: string) {
 .action-line small { color: var(--text-tertiary); font-size: var(--font-size-xs); line-height: 1.5; }
 .product-line__right { text-align: right; flex: 0 0 auto; }
 .product-line__right small { display: block; margin-bottom: 6px; }
+.empty-line { padding: var(--space-3); color: var(--text-tertiary); font-size: var(--font-size-sm); text-align: center; }
 .inline-note {
   margin-top: var(--space-3);
   padding: var(--space-3);
@@ -326,7 +423,20 @@ function goProcure(shortageCode?: string) {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
-.risk {
+.action-type--sourcing { color: var(--accent); background: var(--accent-soft); }
+.action-type--production { color: var(--warning); background: var(--warning-soft); }
+.action-type--sales { color: var(--success); background: var(--success-soft); }
+.action-type--collaboration { color: #a78bfa; background: rgba(167, 139, 250, 0.12); }
+.action-go {
+  color: var(--accent-hover);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.action-go:hover { background: var(--accent-soft); }
+.sev {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -336,9 +446,11 @@ function goProcure(shortageCode?: string) {
   font-size: var(--font-size-xs);
   border: 1px solid var(--border-subtle);
 }
-.risk--高 { color: var(--danger); background: var(--danger-soft); border-color: rgba(239, 68, 68, 0.35); }
-.risk--中 { color: var(--warning); background: var(--warning-soft); border-color: rgba(234, 179, 8, 0.35); }
-.risk--低 { color: var(--success); background: var(--success-soft); border-color: rgba(34, 197, 94, 0.35); }
+.sev--critical { color: var(--danger); background: var(--danger-soft); border-color: rgba(239, 68, 68, 0.35); }
+.sev--high { color: var(--danger); background: var(--danger-soft); border-color: rgba(239, 68, 68, 0.3); }
+.sev--urgent { color: var(--danger); background: var(--danger-soft); border-color: rgba(239, 68, 68, 0.35); }
+.sev--medium { color: var(--warning); background: var(--warning-soft); border-color: rgba(234, 179, 8, 0.35); }
+.sev--low { color: var(--success); background: var(--success-soft); border-color: rgba(34, 197, 94, 0.35); }
 .network-strip {
   display: grid;
   grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.4fr) auto;
@@ -348,7 +460,9 @@ function goProcure(shortageCode?: string) {
   padding: var(--space-4);
 }
 .network-strip h2 { color: var(--text-primary); font-size: var(--font-size-md); margin-top: 4px; }
-.relation-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.relation-groups { display: grid; gap: var(--space-2); }
+.rel-group { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.rel-label { color: var(--text-tertiary); font-size: var(--font-size-xs); font-weight: 700; min-width: 36px; }
 .primary-link {
   padding: 8px 12px;
   border: 1px solid var(--accent-border);

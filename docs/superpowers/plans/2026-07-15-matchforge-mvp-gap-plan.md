@@ -486,3 +486,99 @@ KB 模块可独立演示，但不替代 MVP 寻源主链路。MVP 演示优先�
 5. 后续再验证 MySQL / Milvus / Neo4j 真实环境（Docker 部署 + 迁移脚本）。
 6. 修复 kb_rag 2 个历史测试（test_rebuild 断言 + test_stats 隔离）。
 7. 集成分支核心测试全过 + 前端 build 通过，建议合并回 `main`。
+
+---
+
+## 17. 2026-07-16 MVP 前端接入与演示闭环更新
+
+> 本节为 2026-07-16 前端接入与演示闭环的增量更新, 不重写旧内容。
+
+### 17.1 完成事项
+
+将 MatchForge 前端从"全 mock 驱动"升级为"优先真实接口 + mock 降级"的企业经营驾驶舱, 形成可演示闭环。
+
+**新增前端文件:**
+- `web/src/api/enterprise.ts` -- 企业驾驶舱 / RFQ / 供应商 / 审核 / 协同问答 全量 API 客户端 + 类型定义; 含 admin 专用 axios 实例 (审核队列)。
+- `web/src/composables/useDashboard.ts` -- 驾驶舱聚合数据 composable (真实接口 + mock 降级 + 订单/预测补全)。
+- `web/src/composables/useRfq.ts` -- RFQ 闭环 composable (列表/创建/发送/报价对比)。
+- `web/src/mock/dashboardAdapter.ts` -- mock EnterpriseContext -> DashboardData 形状适配器 (降级时统一数据结构)。
+- `docs/superpowers/plans/matchforge-mvp-demo-script.md` -- 3 分钟 MVP 演示脚本。
+
+**重构前端文件:**
+- `web/src/composables/useEnterpriseContext.ts` -- 企业切换器从 mock 改为真实 `/enterprise-context/companies`, 降级到 mock; 默认企业改为 9003 鼎云整机。
+- `web/src/components/layout/AppHeader.vue` -- 主导航扩展为 8 项 (新增供应商工作台/审核管理); 企业卡片显示数据来源标签。
+- `web/src/views/HomeView.vue` -- 经营驾驶舱首页接入 `/companies/{id}/dashboard` 聚合接口。
+- `web/src/views/ProductsBomView.vue` -- 接入 `/companies/{id}/products` + `/products/{id}/bom` + `/companies/{id}/bom-summary`。
+- `web/src/views/ShortageProcurementView.vue` -- 接入缺件 + 推荐动作 + RFQ 创建/发送/报价对比全闭环。
+- `web/src/views/supplier/SupplierLeads.vue` -- 接入 `/suppliers/{id}/leads` + 查看/拒绝 + 在线报价提交。
+- `web/src/views/supplier/SupplierDashboard.vue` -- 接入真实线索统计。
+- `web/src/views/P7AdminAudit.vue` -- 接入 `/admin/audit-queue` (admin token) + approve/reject。
+- `web/src/views/CompanyAssistant.vue` -- 接入 `/chat/ask` RAG 问答 + mock 降级 + 来源标签。
+- `web/src/views/CompanyChat.vue` -- 接入 `/companies/{id}/chat-partners` + `/partner-chat` + mock 降级。
+- `web/src/views/P1Home.vue` / `P3Alternatives.vue` -- 适配新 enterprise context 结构 (使用 mock 兜底)。
+
+### 17.2 接入的后端接口清单
+
+| 模块 | 接口 | 前端视图 |
+|------|------|----------|
+| 企业上下文 | `GET /enterprise-context/companies` | AppHeader 企业切换器 |
+| 企业上下文 | `GET /enterprise-context/{id}` | useEnterpriseContext |
+| 驾驶舱聚合 | `GET /companies/{id}/dashboard` | HomeView |
+| 订单 | `GET /companies/{id}/orders` | HomeView (补全) |
+| 预测 | `GET /companies/{id}/forecasts` | HomeView (补全) |
+| 缺件 | `GET /companies/{id}/shortages` | ShortageProcurementView |
+| 缺件重算 | `POST /companies/{id}/shortages/recalculate` | ShortageProcurementView |
+| 推荐动作 | `GET /companies/{id}/recommended-actions` | HomeView / ShortageProcurementView |
+| 产品 | `GET /companies/{id}/products` | ProductsBomView |
+| BOM | `GET /products/{id}/bom` | ProductsBomView |
+| BOM 汇总 | `GET /companies/{id}/bom-summary` | ProductsBomView |
+| RFQ 创建 | `POST /rfqs` | ShortageProcurementView |
+| RFQ 列表 | `GET /companies/{id}/rfqs` | ShortageProcurementView |
+| RFQ 发送 | `POST /rfqs/{id}/send` | ShortageProcurementView |
+| 报价对比 | `GET /rfqs/{id}/quote-comparison` | ShortageProcurementView |
+| 报价提交 | `POST /rfqs/{id}/quotations` | SupplierLeads |
+| 供应商线索 | `GET /suppliers/{id}/leads` | SupplierLeads / SupplierDashboard |
+| 线索查看 | `POST /supplier-leads/{id}/view` | SupplierLeads |
+| 线索拒绝 | `POST /supplier-leads/{id}/decline` | SupplierLeads |
+| 审核队列 | `GET /admin/audit-queue` | P7AdminAudit |
+| 审核通过 | `POST /admin/audit-queue/{id}/approve` | P7AdminAudit |
+| 审核驳回 | `POST /admin/audit-queue/{id}/reject` | P7AdminAudit |
+| 协同伙伴 | `GET /companies/{id}/chat-partners` | CompanyChat |
+| 协同问答 | `POST /companies/{id}/partner-chat` | CompanyChat |
+| 企业内部问答 | `POST /chat/ask` | CompanyAssistant |
+
+### 17.3 mock/降级数据说明
+
+| 场景 | 降级策略 | 标识 |
+|------|----------|------|
+| 企业列表 | 后端不可用 -> mock 4 家企业 (101/301/401/501) | AppHeader "本地 Mock" 标签 |
+| 驾驶舱数据 | 后端不可用 -> mockToDashboard 适配 | HomeView "Mock 降级" 标签 |
+| 企业内部问答 | RAG 不可用 -> 本地经营数据模板回答 | 消息 "本地降级" 标签 |
+| 上下游协同问答 | RAG 不可用 -> 本地关系范围模板回答 | 消息 "本地降级" 标签 |
+| 审核队列 | admin 接口不可用 -> 空列表 + 错误提示 | P7AdminAudit 错误栏 |
+
+**降级边界:** 所有 mock 降级仅在前端发生, 不改变后端接口/数据库/业务逻辑。后端恢复后自动切回真实接口 (刷新页面即可)。
+
+### 17.4 测试与构建结果
+
+- **后端核心测试:** `pytest tests/test_enterprise_phase1.py tests/test_enterprise_phase2.py tests/test_rfq_supplier_loop.py` -> **45 passed**。
+- **前端类型检查:** `vue-tsc --noEmit` -> **无错误**。
+- **前端构建:** `npm run build` -> **成功** (1.49s)。
+- **后端启动验证:** `uvicorn api.main:main` -> health=ok, dashboard 9003 返回 2 产品/5 订单/3 缺件/6 动作。
+
+### 17.5 未完成项
+
+1. 企业内部问答 / 协同问答的 RAG 在本地环境 (无 Milvus) 可能降级到模板回答。
+2. SupplierProducts 页仍为旧 mock, 未接入真实产品接口。
+3. 采购寻源 SSE 流程 (`/flow`) 仍为独立流程, 未深度集成到驾驶舱主线。
+4. 认证未收紧: admin 用 demo token (`kb-admin-demo`), 生产需真实登录。
+5. kpi_snapshots / risk_alerts 模型与接口未实现。
+
+### 17.6 下一阶段建议
+
+1. 接入真实 LLM RAG (Milvus + Embedding), 让问答从"本地降级"升级为真实 RAG。
+2. 认证体系: 真实登录 -> token -> role, 替换 demo token 硬编码。
+3. KPI/风险监控: 新增 `kpi_snapshots` / `risk_alerts` 模型与接口。
+4. SupplierProducts 接入 `/companies/{id}/products`。
+5. 采购寻源深度集成: 作为缺件页"高级寻源"入口。
+6. 生产部署: Docker Compose + 迁移脚本验证。

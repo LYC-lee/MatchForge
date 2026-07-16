@@ -2,16 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { getEnterpriseContext as getMockCtx } from '@/mock/enterpriseContext'
 import { useProcureStore } from '@/stores/procure'
 
 const route = useRoute()
 const router = useRouter()
 const store = useProcureStore()
-const { current } = useEnterpriseContext()
+const { current, currentEnterpriseId } = useEnterpriseContext()
 
-const selectedCode = ref(String(route.query.part || current.value.shortages[0]?.code || ''))
+const mockCtx = computed(() => getMockCtx(currentEnterpriseId.value))
+const selectedCode = ref(String(route.query.part || mockCtx.value.shortages[0]?.code || ''))
 const selectedShortage = computed(() =>
-  current.value.shortages.find((item) => item.code === selectedCode.value) || current.value.shortages[0],
+  mockCtx.value.shortages.find((item) => item.code === selectedCode.value) || mockCtx.value.shortages[0],
 )
 const query = ref('')
 
@@ -21,8 +23,8 @@ const suggestedQuery = computed(() => {
   return `${current.value.company.name} 当前 ${item.part} 缺口 ${item.gap.toLocaleString()}，影响 ${item.affectedOrders.join('、')}，请推荐替代料、供应商和 RFQ 要点。`
 })
 
-watch(() => current.value.company.id, () => {
-  selectedCode.value = current.value.shortages[0]?.code || ''
+watch(() => currentEnterpriseId.value, () => {
+  selectedCode.value = mockCtx.value.shortages[0]?.code || ''
   query.value = ''
 })
 
@@ -64,7 +66,7 @@ function saveDraft() {
 
         <div class="shortage-list">
           <button
-            v-for="item in current.shortages"
+            v-for="item in mockCtx.shortages"
             :key="item.code"
             type="button"
             class="shortage-card"

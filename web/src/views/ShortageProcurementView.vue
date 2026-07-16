@@ -1,25 +1,154 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
-import type { RiskLevel } from '@/mock/enterpriseContext'
+import { useDashboard } from '@/composables/useDashboard'
+import { severityRank } from '@/composables/useDashboard'
+import { useRfq } from '@/composables/useRfq'
+import { recalculateShortages } from '@/api/enterprise'
+import type { DashboardShortage, DashboardAction } from '@/api/enterprise'
 
 const route = useRoute()
 const router = useRouter()
-const { current } = useEnterpriseContext()
+const { current, currentEnterpriseId } = useEnterpriseContext()
+const { dashboard, loading, dataSource, refresh: refreshDashboard } = useDashboard()
+const { rfqs, create: createRfq, send: sendRfq, loadComparison, comparison } = useRfq()
 
-const selectedPart = computed(() => String(route.query.part || current.value.shortages[0]?.code || ''))
-const selectedShortage = computed(() =>
-  current.value.shortages.find((item) => item.code === selectedPart.value) || current.value.shortages[0],
-)
+const selectedPart = computed(() => String(route.query.part || ''))
+const selectedShortage = computed<DashboardShortage | undefined>(() => {
+  const items = dashboard.value?.shortages?.items || []
+  if (selectedPart.value) {
+    const found = items.find(
+      (s) => s.part_number === selectedPart.value || s.part_name === selectedPart.value,
+    )
+    if (found) return found
+  }
+  return items[0]
+})
 
-function riskTone(risk: RiskLevel) {
-  return risk === '高' ? 'danger' : risk === '中' ? 'warning' : 'success'
+// RFQ 创建表单
+const showRfqForm = ref(false)
+const rfqForm = ref({
+  title: '',
+  part_number: '',
+  part_name: '',
+  quantity: 1,
+  unit: '个',
+  target_price: undefined as number | undefined,
+  lead_time_days: undefined as number | undefined,
+  supplier_candidates: [] as number[],
+})
+const creating = ref(false)
+const createError = ref<string | null>(null)
+const lastCreatedRfqId = ref<number | null>(null)
+
+// 报价对比
+const compareRfqId = ref<number | null>(null)
+
+const shortages = computed(() => dashboard.value?.shortages?.items || [])
+const actions = computed(() => {
+  const items = dashboard.value?.recommended_actions?.items || []
+  return [...items].sort((a, b) => severityRank(b.priority) - severityRank(a.priority))
+})
+
+function severityLabel(s: string) {
+  return { critical: '紧急', high: '高', medium: '中', low: '低' }[s] || s
+}
+function severityTone(s: string) {
+  return s === 'critical' || s === 'high' ? 'danger' : s === 'medium' ? 'warning' : 'success'
+}
+function categoryLabel(c: string) {
+  return { sourcing: '采购', production: '生产', sales: '销售', collaboration: '协同' }[c] || c
+}
+
+function selectShortage(shortage: DashboardShortage) {
+  router.push({ path: '/shortage-procurement', query: { part: shortage.part_number || shortage.part_name || '' } })
+}
+
+function openRfqForm(shortage?: DashboardShortage) {
+  showRfqForm.value = true
+  createError.value = null
+  if (shortage) {
+    rfqForm.value = {
+      title: `询价: ${shortage.part_name || shortage.part_number}`,
+      part_number: shortage.part_number || '',
+      part_name: shortage.part_name || '',
+      quantity: shortage.shortage_qty || 1,
+      unit: shortage.unit || '个',
+      target_price: undefined,
+      lead_time_days: undefined,
+      supplier_candidates: shortage.preferred_supplier_company_id ? [shortage.preferred_supplier_company_id] : [],
+    }
+  }
+}
+
+function openRfqFromAction(action: DashboardAction) {
+  showRfqForm.value = true
+  createError.value = null
+  rfqForm.value = {
+    title: action.title,
+    part_number: action.part_number || '',
+    part_name: action.part_number || '',
+    quantity: 1,
+    unit: '个',
+    target_price: undefined,
+    lead_time_days: undefined,
+    supplier_candidates: action.suggested_supplier_company_id ? [action.suggested_supplier_company_id] : [],
+  }
+}
+
+async function submitRfq() {
+  creating.value = true
+  createError.value = null
+  try {
+    const res = await createRfq({
+      buyer_company_id: currentEnterpriseId.value,
+      title: rfqForm.value.title,
+      part_number: rfqForm.value.part_number || undefined,
+      part_name: rfqForm.value.part_name || undefined,
+      quantity: rfqForm.value.quantity,
+      unit: rfqForm.value.unit,
+      target_price: rfqForm.value.target_price,
+      lead_time_days: rfqForm.value.lead_time_days,
+      supplier_candidates: rfqForm.value.supplier_candidates.length ? rfqForm.value.supplier_candidates : undefined,
+      shortage_id: selectedShortage.value ? String(selectedShortage.value.id) : undefined,
+    })
+    lastCreatedRfqId.value = res?.rfq?.id || null
+    showRfqForm.value = false
+  } catch (e: any) {
+    createError.value = e?.message || '创建 RFQ 失败'
+  } finally {
+    creating.value = false
+  }
+}
+
+async function sendCreatedRfq(rfqId: number) {
+  try {
+    await sendRfq(rfqId)
+    lastCreatedRfqId.value = null
+  } catch {
+    // 静默失败, 用户可重试
+  }
+}
+
+async function viewComparison(rfqId: number) {
+  compareRfqId.value = compareRfqId.value === rfqId ? null : rfqId
+  if (compareRfqId.value) {
+    await loadComparison(rfqId)
+  }
+}
+
+async function recalculate() {
+  try {
+    await recalculateShortages(currentEnterpriseId.value)
+    await refreshDashboard()
+  } catch {
+    // 静默失败
+  }
 }
 
 function goFlow() {
-  const item = selectedShortage.value
-  router.push({ path: '/flow', query: item ? { part: item.code } : undefined })
+  router.push({ path: '/flow', query: selectedShortage.value ? { part: selectedShortage.value.part_number || '' } : undefined })
 }
 </script>
 
@@ -29,95 +158,183 @@ function goFlow() {
       <div>
         <span class="eyebrow">{{ current.company.name }}</span>
         <h1>缺件与采购</h1>
-        <p>从订单和预测需求导致的缺件出发，串起替代料、供应商匹配和 RFQ。</p>
+        <p>从订单和预测需求导致的缺件出发, 串起推荐动作、RFQ 创建与报价对比闭环。</p>
       </div>
-      <button class="action-link" @click="goFlow">进入采购寻源流程</button>
+      <div class="head-actions">
+        <button class="action-link action-link--ghost" @click="recalculate">重算缺件</button>
+        <button class="action-link" @click="goFlow">进入寻源流程</button>
+      </div>
     </header>
 
+    <div v-if="loading" class="loading-bar">正在拉取缺件与采购数据…</div>
+    <div v-if="dataSource === 'mock'" class="notice-bar">后端不可用, 已降级到 mock 数据</div>
+
     <section class="layout">
+      <!-- 缺件清单 -->
       <aside class="shortage-picker">
-        <div class="picker-head">缺件清单</div>
-        <RouterLink
-          v-for="item in current.shortages"
-          :key="item.code"
-          :to="{ path: '/shortage-procurement', query: { part: item.code } }"
+        <div class="picker-head">缺件清单 ({{ shortages.length }})</div>
+        <button
+          v-for="item in shortages"
+          :key="item.id"
           class="shortage-item"
-          :class="{ active: selectedShortage?.code === item.code }"
+          :class="{ active: selectedShortage?.id === item.id }"
+          @click="selectShortage(item)"
         >
           <div class="shortage-item__main">
             <div class="shortage-item__title">
-              <b>{{ item.part }}</b>
-              <span class="risk-dot" :class="`risk-dot--${riskTone(item.risk)}`" />
+              <b>{{ item.part_name || item.part_number }}</b>
+              <span class="risk-dot" :class="`risk-dot--${severityTone(item.severity)}`" />
             </div>
-            <span>{{ item.code }} · 缺口 {{ item.gap.toLocaleString() }} · {{ item.risk }}风险</span>
+            <span>{{ item.part_number }} · 缺口 {{ item.shortage_qty.toLocaleString() }} · {{ severityLabel(item.severity) }}</span>
           </div>
-        </RouterLink>
+        </button>
+        <div v-if="!shortages.length" class="empty-line">暂无缺件</div>
       </aside>
 
-      <main v-if="selectedShortage" class="detail">
-        <section class="summary-panel">
+      <!-- 详情 + RFQ -->
+      <main class="detail">
+        <!-- 缺件详情 -->
+        <section v-if="selectedShortage" class="summary-panel">
           <div>
             <span class="eyebrow">当前缺件</span>
-            <h2>{{ selectedShortage.part }}</h2>
-            <p>{{ selectedShortage.action }}</p>
+            <h2>{{ selectedShortage.part_name || selectedShortage.part_number }}</h2>
+            <p class="hint">
+              {{ selectedShortage.category_name || '物料' }}
+              · 缺口 {{ selectedShortage.shortage_qty.toLocaleString() }} {{ selectedShortage.unit || '' }}
+              · 需求 {{ selectedShortage.required_qty.toLocaleString() }} · 可用 {{ selectedShortage.available_qty.toLocaleString() }}
+            </p>
           </div>
           <div class="gap-number">
             <span>缺口</span>
-            <b>{{ selectedShortage.gap.toLocaleString() }}</b>
+            <b>{{ selectedShortage.shortage_qty.toLocaleString() }}</b>
+            <button class="btn-rfq" @click="openRfqForm(selectedShortage)">从此缺件创建 RFQ</button>
           </div>
         </section>
 
-        <section class="detail-grid">
+        <!-- 缺件影响 -->
+        <section v-if="selectedShortage" class="detail-grid">
           <div class="panel">
             <h3>影响订单和产品</h3>
             <div class="line-list">
               <div>
-                <span>订单</span>
-                <b>{{ selectedShortage.affectedOrders.join('、') }}</b>
+                <span>影响订单</span>
+                <b>{{ selectedShortage.affected_order_numbers.join('、') || '无' }}</b>
               </div>
               <div>
-                <span>产品</span>
-                <b>{{ selectedShortage.affectedProducts.join('、') }}</b>
+                <span>影响产品</span>
+                <b>{{ selectedShortage.product_name || '-' }}</b>
               </div>
               <div>
                 <span>风险等级</span>
-                <b class="risk-pill" :class="`risk-pill--${riskTone(selectedShortage.risk)}`">{{ selectedShortage.risk }}</b>
+                <b class="risk-pill" :class="`risk-pill--${severityTone(selectedShortage.severity)}`">{{ severityLabel(selectedShortage.severity) }}</b>
+              </div>
+              <div>
+                <span>首选供应商</span>
+                <b>{{ selectedShortage.preferred_supplier_name || '未配置' }}</b>
+              </div>
+              <div v-if="selectedShortage.relationship_missing">
+                <span>关系状态</span>
+                <b class="danger">上游关系缺失</b>
               </div>
             </div>
           </div>
 
           <div class="panel">
-            <h3>推荐替代料</h3>
-            <div class="chips">
-              <RouterLink
-                v-for="item in selectedShortage.substitutes"
-                :key="item"
-                :to="{ path: '/alternatives', query: { part: selectedShortage.code } }"
-                class="chip"
-              >
-                {{ item }}
-              </RouterLink>
+            <h3>推荐动作</h3>
+            <div class="action-mini-list">
+              <div v-for="action in actions.filter(a => !selectedShortage?.part_number || a.part_number === selectedShortage?.part_number).slice(0, 4)" :key="action.title" class="action-mini">
+                <span class="action-tag" :class="`action-tag--${action.category}`">{{ categoryLabel(action.category) }}</span>
+                <div>
+                  <b>{{ action.title }}</b>
+                  <p>{{ action.detail }}</p>
+                </div>
+                <button v-if="action.category === 'sourcing'" class="btn-mini" @click="openRfqFromAction(action)">发 RFQ</button>
+              </div>
+              <div v-if="!actions.length" class="empty-line">暂无推荐动作</div>
             </div>
-            <p class="hint">替代前需由工程确认规格、认证和客户接受度。</p>
           </div>
+        </section>
 
-          <div class="panel">
-            <h3>推荐供应商</h3>
-            <div class="supplier-list">
-              <div v-for="supplier in selectedShortage.suppliers" :key="supplier" class="supplier-row">
-                <b>{{ supplier }}</b>
-                <span>能力匹配 · 建议询价</span>
+        <!-- RFQ 创建表单 -->
+        <section v-if="showRfqForm" class="rfq-form-panel">
+          <div class="rfq-form-head">
+            <h3>创建 RFQ</h3>
+            <button class="btn-close" @click="showRfqForm = false">✕</button>
+          </div>
+          <div class="rfq-form-grid">
+            <label><span>标题</span><input v-model="rfqForm.title" class="input" placeholder="RFQ 标题" /></label>
+            <label><span>零件号</span><input v-model="rfqForm.part_number" class="input" placeholder="part_number" /></label>
+            <label><span>零件名</span><input v-model="rfqForm.part_name" class="input" placeholder="零件名称" /></label>
+            <label><span>数量</span><input v-model.number="rfqForm.quantity" type="number" class="input" /></label>
+            <label><span>单位</span><input v-model="rfqForm.unit" class="input" /></label>
+            <label><span>目标单价</span><input v-model.number="rfqForm.target_price" type="number" class="input" placeholder="可选" /></label>
+            <label><span>交期(天)</span><input v-model.number="rfqForm.lead_time_days" type="number" class="input" placeholder="可选" /></label>
+            <label><span>候选供应商ID</span><input :value="rfqForm.supplier_candidates.join(',')" class="input" placeholder="逗号分隔, 如 9002,9006" @input="rfqForm.supplier_candidates = String(($event.target as HTMLInputElement).value).split(',').map(Number).filter(Boolean)" /></label>
+          </div>
+          <div v-if="createError" class="form-error">{{ createError }}</div>
+          <div class="rfq-form-actions">
+            <button class="btn-cancel" @click="showRfqForm = false">取消</button>
+            <button class="btn-submit" :disabled="creating || !rfqForm.title" @click="submitRfq">{{ creating ? '创建中…' : '创建 RFQ' }}</button>
+          </div>
+        </section>
+
+        <!-- 创建成功提示 -->
+        <section v-if="lastCreatedRfqId" class="success-bar">
+          <span>RFQ #{{ lastCreatedRfqId }} 创建成功!</span>
+          <button class="btn-send" @click="sendCreatedRfq(lastCreatedRfqId!)">发送给供应商</button>
+        </section>
+
+        <!-- RFQ 列表 -->
+        <section class="rfq-list-panel">
+          <div class="rfq-list-head">
+            <h3>本企业 RFQ 列表 ({{ rfqs.length }})</h3>
+          </div>
+          <div v-if="rfqs.length === 0" class="empty-line">暂无 RFQ, 可从缺件创建</div>
+          <div v-else class="rfq-table">
+            <div class="rfq-row rfq-row--head">
+              <span>RFQ 编号</span>
+              <span>标题</span>
+              <span>零件</span>
+              <span>数量</span>
+              <span>状态</span>
+              <span>操作</span>
+            </div>
+            <div v-for="rfq in rfqs.slice(0, 10)" :key="rfq.id" class="rfq-row">
+              <span class="mono">{{ rfq.rfq_number }}</span>
+              <span>{{ rfq.title }}</span>
+              <span class="mono">{{ rfq.part_number || rfq.part_name || '-' }}</span>
+              <span>{{ rfq.quantity }}</span>
+              <span class="status-pill" :class="`status--${rfq.status}`">{{ rfq.status }}</span>
+              <div class="rfq-actions">
+                <button v-if="rfq.status === 'draft'" class="btn-mini" @click="sendRfq(rfq.id)">发送</button>
+                <button class="btn-mini" @click="viewComparison(rfq.id)">{{ compareRfqId === rfq.id ? '收起' : '报价对比' }}</button>
               </div>
             </div>
           </div>
 
-          <div class="panel">
-            <h3>生成 RFQ</h3>
-            <p class="hint">把缺口、目标交期、替代料和候选供应商带入现有 RFQ 流程。</p>
-            <div class="rfq-actions">
-              <RouterLink :to="{ path: '/alternatives', query: { part: selectedShortage.code } }" class="secondary">查看替代料结果</RouterLink>
-              <RouterLink to="/supplier-match" class="secondary">供应商匹配</RouterLink>
-              <RouterLink to="/rfq-edit" class="primary">生成 RFQ</RouterLink>
+          <!-- 报价对比 -->
+          <div v-if="compareRfqId && comparison" class="comparison-panel">
+            <h4>{{ comparison.rfq_number }} 报价对比</h4>
+            <div v-if="comparison.items.length === 0" class="empty-line">暂无报价</div>
+            <div v-else class="quote-table">
+              <div class="quote-row quote-row--head">
+                <span>排名</span>
+                <span>供应商</span>
+                <span>单价</span>
+                <span>MOQ</span>
+                <span>交期(天)</span>
+                <span>库存</span>
+                <span>达标</span>
+              </div>
+              <div v-for="q in comparison.items" :key="q.id" class="quote-row" :class="{ 'quote-row--best': q.is_lowest }">
+                <span>{{ q.rank }}</span>
+                <span>{{ q.supplier_name }}</span>
+                <span class="strong">¥{{ q.unit_price }}</span>
+                <span>{{ q.moq || '-' }}</span>
+                <span>{{ q.lead_time_days || '-' }}</span>
+                <span>{{ q.is_in_stock ? '有货' : '无货' }}</span>
+                <span :class="q.meets_target === false ? 'danger' : 'success'">{{ q.meets_target === null ? '-' : q.meets_target ? '达标' : '超目标' }}</span>
+              </div>
             </div>
           </div>
         </section>
@@ -135,7 +352,9 @@ function goFlow() {
 .page-head,
 .shortage-picker,
 .summary-panel,
-.panel {
+.panel,
+.rfq-form-panel,
+.rfq-list-panel {
   border: 1px solid var(--border-default);
   border-radius: 8px;
   background: var(--bg-1);
@@ -152,16 +371,31 @@ function goFlow() {
 h1 { margin-top: 4px; color: var(--text-primary); font-size: var(--font-size-2xl); }
 .page-head p,
 .hint { margin-top: 6px; color: var(--text-secondary); font-size: var(--font-size-sm); line-height: 1.6; }
+.head-actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
 .action-link,
-.primary,
-.secondary {
+.btn-rfq,
+.btn-submit,
+.btn-send {
   border-radius: 6px;
   padding: 8px 12px;
   font-size: var(--font-size-sm);
   white-space: nowrap;
+  color: #fff;
+  background: var(--gradient-accent);
+  border: none;
+  cursor: pointer;
 }
-.action-link,
-.primary { color: #fff; background: var(--gradient-accent); }
+.action-link--ghost { background: var(--bg-2); color: var(--text-secondary); border: 1px solid var(--border-default); }
+.action-link--ghost:hover { border-color: var(--accent-border); }
+.loading-bar,
+.notice-bar {
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  border-radius: 6px;
+  font-size: var(--font-size-sm);
+}
+.loading-bar { border: 1px solid var(--border-subtle); background: var(--bg-2); color: var(--text-tertiary); }
+.notice-bar { border: 1px solid rgba(234, 179, 8, 0.25); background: var(--warning-soft); color: var(--warning); }
 .layout {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
@@ -178,26 +412,21 @@ h1 { margin-top: 4px; color: var(--text-primary); font-size: var(--font-size-2xl
 }
 .shortage-item {
   display: block;
+  width: 100%;
+  text-align: left;
   padding: var(--space-3) var(--space-4);
+  border: none;
   border-bottom: 1px solid var(--border-subtle);
+  background: none;
+  cursor: pointer;
 }
 .shortage-item:hover,
 .shortage-item.active { background: var(--bg-2); }
 .shortage-item__main { display: grid; gap: 5px; }
-.shortage-item__title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
+.shortage-item__title { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .shortage-item b { color: var(--text-primary); font-size: var(--font-size-sm); }
 .shortage-item span { color: var(--text-tertiary); font-size: var(--font-size-xs); }
-.risk-dot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 auto;
-  border-radius: 999px;
-}
+.risk-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 999px; }
 .risk-dot--danger { background: var(--danger); box-shadow: 0 0 0 4px var(--danger-soft); }
 .risk-dot--warning { background: var(--warning); box-shadow: 0 0 0 4px var(--warning-soft); }
 .risk-dot--success { background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); }
@@ -207,68 +436,73 @@ h1 { margin-top: 4px; color: var(--text-primary); font-size: var(--font-size-2xl
   justify-content: space-between;
   gap: var(--space-4);
   padding: var(--space-4);
+  align-items: flex-start;
 }
 .summary-panel h2 { color: var(--text-primary); font-size: var(--font-size-xl); margin-top: 4px; }
-.gap-number { text-align: right; }
+.gap-number { text-align: right; display: grid; gap: var(--space-2); justify-items: end; }
 .gap-number span { color: var(--text-tertiary); font-size: var(--font-size-xs); }
-.gap-number b { display: block; color: var(--danger); font-size: var(--font-size-2xl); }
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
+.gap-number b { color: var(--danger); font-size: var(--font-size-2xl); }
+.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .panel { padding: var(--space-4); }
 .panel h3 { color: var(--text-primary); font-size: var(--font-size-md); margin-bottom: var(--space-3); }
 .line-list { display: grid; gap: var(--space-3); }
-.line-list div {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: var(--space-2);
-}
+.line-list div { display: flex; justify-content: space-between; gap: var(--space-3); border-bottom: 1px solid var(--border-subtle); padding-bottom: var(--space-2); }
 .line-list span { color: var(--text-tertiary); font-size: var(--font-size-xs); }
 .line-list b { color: var(--text-primary); font-size: var(--font-size-sm); text-align: right; }
-.chips,
-.rfq-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.chip,
-.secondary {
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-2);
-  color: var(--text-secondary);
-}
-.chip {
-  border-radius: 999px;
-  padding: 5px 9px;
-  font-size: var(--font-size-xs);
-}
-.supplier-list { display: grid; gap: var(--space-2); }
-.supplier-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  background: var(--bg-2);
-}
-.supplier-row b { color: var(--text-primary); font-size: var(--font-size-sm); }
-.supplier-row span { color: var(--text-tertiary); font-size: var(--font-size-xs); }
-.risk-pill {
-  display: inline-flex;
-  justify-content: center;
-  min-width: 34px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  font-size: var(--font-size-xs);
-  border: 1px solid var(--border-subtle);
-}
+.danger { color: var(--danger); }
+.action-mini-list { display: grid; gap: var(--space-2); }
+.action-mini { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-2); align-items: flex-start; padding: var(--space-2); border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-2); }
+.action-mini b { color: var(--text-primary); font-size: var(--font-size-sm); display: block; }
+.action-mini p { color: var(--text-tertiary); font-size: var(--font-size-xs); margin-top: 2px; }
+.action-tag { padding: 2px 6px; border-radius: 4px; font-size: var(--font-size-xs); font-weight: 600; }
+.action-tag--sourcing { color: var(--accent); background: var(--accent-soft); }
+.action-tag--production { color: var(--warning); background: var(--warning-soft); }
+.action-tag--sales { color: var(--success); background: var(--success-soft); }
+.action-tag--collaboration { color: #a78bfa; background: rgba(167, 139, 250, 0.12); }
+.btn-mini { padding: 4px 8px; border-radius: 4px; font-size: var(--font-size-xs); color: var(--accent-hover); background: var(--accent-soft); border: 1px solid var(--accent-border); cursor: pointer; white-space: nowrap; }
+.empty-line { padding: var(--space-4); color: var(--text-tertiary); font-size: var(--font-size-sm); text-align: center; }
+.rfq-form-panel { padding: var(--space-4); }
+.rfq-form-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }
+.rfq-form-head h3 { color: var(--text-primary); font-size: var(--font-size-md); }
+.btn-close { color: var(--text-tertiary); font-size: var(--font-size-md); cursor: pointer; background: none; border: none; }
+.rfq-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.rfq-form-grid label { display: grid; gap: 4px; }
+.rfq-form-grid span { color: var(--text-tertiary); font-size: var(--font-size-xs); }
+.input { padding: 8px 10px; border: 1px solid var(--border-default); border-radius: 6px; background: var(--bg-2); color: var(--text-primary); font-size: var(--font-size-sm); }
+.form-error { margin-top: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: 4px; background: var(--danger-soft); color: var(--danger); font-size: var(--font-size-xs); }
+.rfq-form-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-3); }
+.btn-cancel { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-default); background: var(--bg-2); color: var(--text-secondary); font-size: var(--font-size-sm); cursor: pointer; }
+.btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.success-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 8px; background: var(--success-soft); color: var(--success); font-size: var(--font-size-sm); }
+.rfq-list-panel { padding: var(--space-4); }
+.rfq-list-head { margin-bottom: var(--space-3); }
+.rfq-list-head h3 { color: var(--text-primary); font-size: var(--font-size-md); }
+.rfq-table { overflow-x: auto; }
+.rfq-row { display: grid; grid-template-columns: 110px minmax(160px, 1fr) 120px 60px 70px 130px; gap: var(--space-3); align-items: center; min-width: 680px; padding: 10px 0; border-bottom: 1px solid var(--border-subtle); font-size: var(--font-size-sm); color: var(--text-secondary); }
+.rfq-row--head { color: var(--text-tertiary); font-size: var(--font-size-xs); }
+.mono { font-family: var(--font-mono); font-size: var(--font-size-xs); }
+.status-pill { padding: 2px 8px; border-radius: 999px; font-size: var(--font-size-xs); font-weight: 600; display: inline-block; text-align: center; }
+.status--draft { color: var(--text-tertiary); background: var(--bg-3); }
+.status--sent { color: var(--accent); background: var(--accent-soft); }
+.status--quoted { color: var(--warning); background: var(--warning-soft); }
+.status--closed { color: var(--success); background: var(--success-soft); }
+.rfq-actions { display: flex; gap: var(--space-1); }
+.comparison-panel { margin-top: var(--space-3); padding: var(--space-3); border: 1px solid var(--accent-border); border-radius: 6px; background: var(--bg-2); }
+.comparison-panel h4 { color: var(--text-primary); font-size: var(--font-size-sm); margin-bottom: var(--space-2); }
+.quote-table { overflow-x: auto; }
+.quote-row { display: grid; grid-template-columns: 50px minmax(120px, 1fr) 80px 60px 70px 60px 60px; gap: var(--space-3); align-items: center; min-width: 520px; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); font-size: var(--font-size-sm); color: var(--text-secondary); }
+.quote-row--head { color: var(--text-tertiary); font-size: var(--font-size-xs); }
+.quote-row--best { background: var(--success-soft); border-radius: 4px; padding-left: var(--space-2); padding-right: var(--space-2); }
+.strong { color: var(--text-primary); font-weight: 600; }
+.success { color: var(--success); }
+.risk-pill { display: inline-flex; justify-content: center; min-width: 34px; padding: 2px 7px; border-radius: 999px; font-size: var(--font-size-xs); border: 1px solid var(--border-subtle); }
 .risk-pill--danger { color: var(--danger); background: var(--danger-soft); border-color: rgba(239, 68, 68, 0.35); }
 .risk-pill--warning { color: var(--warning); background: var(--warning-soft); border-color: rgba(234, 179, 8, 0.35); }
 .risk-pill--success { color: var(--success); background: var(--success-soft); border-color: rgba(34, 197, 94, 0.35); }
 @media (max-width: 980px) {
   .layout,
-  .detail-grid { grid-template-columns: 1fr; }
+  .detail-grid,
+  .rfq-form-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
   .page { padding: var(--space-3); }

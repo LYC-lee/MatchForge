@@ -1,24 +1,31 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { chatAsk } from '@/api/enterprise'
+import { useDashboard } from '@/composables/useDashboard'
+import { useMockInternalQuestions } from '@/composables/useDashboard'
 
-const { current } = useEnterpriseContext()
+const { current, currentEnterpriseId } = useEnterpriseContext()
+const { dashboard } = useDashboard()
 const query = ref('')
 const sending = ref(false)
 const chatBody = ref<HTMLElement | null>(null)
-const messages = ref<{ role: 'user' | 'assistant'; content: string }[]>([])
+const messages = ref<{ role: 'user' | 'assistant'; content: string; source?: 'api' | 'mock' }[]>([])
 
-const quickQuestions = computed(() => [
-  ...current.value.internalQuestions,
-  '当前缺件会影响哪些订单？',
-  '哪些产品本周可以优先生产？',
-  '请给我一份采购、生产、销售联动建议。',
-])
+const quickQuestions = computed(() => {
+  const mockQ = useMockInternalQuestions(currentEnterpriseId.value)
+  return [
+    ...mockQ,
+    '当前缺件会影响哪些订单？',
+    '哪些产品本周可以优先生产？',
+    '请给我一份采购、生产、销售联动建议。',
+  ]
+})
 
-function buildMockAnswer(text: string) {
-  const shortages = current.value.shortages.slice(0, 2).map((item) => `${item.part} 缺口 ${item.gap}`).join('；')
-  const orders = current.value.demands.filter((item) => item.risk !== '低').map((item) => item.id).join('、')
-  return `基于 ${current.value.company.name} 的当前经营数据，建议先处理 ${orders || '高风险订单'}。关键风险是：${shortages}。下一步可以按“先保紧急订单、再锁预测需求、同步上下游承诺”的顺序推进。你刚才问的是：“${text}”。`
+function buildFallbackAnswer(text: string) {
+  const shortages = (dashboard.value?.shortages?.items || []).slice(0, 2).map((item) => `${item.part_name || item.part_number} 缺口 ${item.shortage_qty}`).join('；')
+  const orders = (dashboard.value?.orders_summary?.items || []).filter((o) => o.priority === 'urgent' || o.priority === 'high').map((o) => o.order_number).join('、')
+  return `基于 ${current.value.company.name} 的当前经营数据, 建议先处理 ${orders || '高风险订单'}。关键风险是: ${shortages || '暂无缺件'}。下一步可按"先保紧急订单、再锁预测需求、同步上下游承诺"的顺序推进。你刚才问的是: "${text}"。(后端 RAG 不可用, 此为本地降级回答)`
 }
 
 async function send(q?: string) {
@@ -28,11 +35,21 @@ async function send(q?: string) {
   messages.value.push({ role: 'user', content: text })
   sending.value = true
   await scrollBottom()
-  window.setTimeout(async () => {
-    messages.value.push({ role: 'assistant', content: buildMockAnswer(text) })
+
+  try {
+    const res = await chatAsk(currentEnterpriseId.value, text)
+    const answer = res.data?.answer || res.data?.response || res.data?.message
+    if (answer) {
+      messages.value.push({ role: 'assistant', content: answer, source: 'api' })
+    } else {
+      messages.value.push({ role: 'assistant', content: buildFallbackAnswer(text), source: 'mock' })
+    }
+  } catch {
+    messages.value.push({ role: 'assistant', content: buildFallbackAnswer(text), source: 'mock' })
+  } finally {
     sending.value = false
     await scrollBottom()
-  }, 260)
+  }
 }
 
 async function scrollBottom() {
@@ -46,7 +63,7 @@ async function scrollBottom() {
     <aside class="scope-panel">
       <span class="eyebrow">当前企业内部 AI 助手</span>
       <h2>{{ current.company.name }}</h2>
-      <p>{{ current.company.role }}</p>
+      <p>{{ current.role || current.company.description }}</p>
       <div class="scope-list">
         <span>库存</span>
         <span>订单</span>
@@ -58,7 +75,7 @@ async function scrollBottom() {
         <span>制度流程</span>
       </div>
       <div class="boundary">
-        只回答当前企业内部范围的问题，不跨企业检索；跨企业协同请使用“上下游协同问答”。
+        只回答当前企业内部范围的问题, 不跨企业检索; 跨企业协同请使用"上下游协同问答"。
       </div>
     </aside>
 
@@ -72,18 +89,22 @@ async function scrollBottom() {
 
       <div class="chat-body" ref="chatBody">
         <div v-if="!messages.length" class="chat-empty">
-          <p>我是 {{ current.company.name }} 的内部 AI 助手，可以基于当前企业 mock 经营数据回答问题。</p>
+          <p>我是 {{ current.company.name }} 的内部 AI 助手, 基于企业私域知识库 (RAG) 回答问题。后端不可用时降级到本地数据。</p>
           <div class="quick-questions">
             <button v-for="item in quickQuestions" :key="item" class="chip" @click="send(item)">{{ item }}</button>
           </div>
         </div>
         <div v-for="(message, index) in messages" :key="index" class="msg" :class="`msg--${message.role}`">
           <div class="msg__avatar">{{ message.role === 'user' ? '我' : 'AI' }}</div>
-          <div class="msg__content">{{ message.content }}</div>
+          <div class="msg__content">
+            {{ message.content }}
+            <span v-if="message.source === 'mock'" class="msg__source">本地降级</span>
+            <span v-else-if="message.source === 'api'" class="msg__source msg__source--api">RAG</span>
+          </div>
         </div>
         <div v-if="sending" class="msg msg--assistant">
           <div class="msg__avatar">AI</div>
-          <div class="msg__content muted">正在读取当前企业经营数据...</div>
+          <div class="msg__content muted">正在检索企业私域知识...</div>
         </div>
       </div>
 
@@ -168,6 +189,19 @@ async function scrollBottom() {
   white-space: pre-wrap;
 }
 .muted { color: #aeb7c8; }
+.msg__source {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--warning);
+  background: var(--warning-soft);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  vertical-align: middle;
+}
+.msg__source--api { color: var(--success); background: var(--success-soft); border-color: rgba(34, 197, 94, 0.3); }
 .chat-input {
   display: flex;
   gap: var(--space-2);

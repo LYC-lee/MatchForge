@@ -7,7 +7,7 @@ import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const { companies, current, currentEnterpriseId, setCurrentEnterprise } = useEnterpriseContext()
+const { companies, current, currentEnterpriseId, setCurrentEnterprise, dataSource } = useEnterpriseContext()
 
 const pageTitle = computed(() => String(route.meta.title || '经营驾驶舱'))
 
@@ -18,7 +18,13 @@ const mainNav = [
   { to: '/company-chat', icon: '↔', label: '上下游协同' },
   { to: '/company-assistant', icon: 'AI', label: '企业内部问答' },
   { to: '/admin/knowledge', icon: 'K', label: '数据与知识库' },
+  { to: '/supplier', icon: 'D', label: '供应商工作台' },
+  { to: '/admin/audit', icon: '✓', label: '审核管理' },
 ]
+
+const sourceLabel = computed(() =>
+  dataSource.value === 'api' ? '实时接口' : dataSource.value === 'mock' ? '本地 Mock' : '加载中',
+)
 
 function logout() {
   auth.logout()
@@ -45,11 +51,12 @@ function logout() {
         :value="currentEnterpriseId"
         @change="setCurrentEnterprise(Number(($event.target as HTMLSelectElement).value))"
       >
-        <option v-for="company in companies" :key="company.id" :value="company.id">
-          {{ company.name }}
+        <option v-for="company in companies" :key="company.company_id" :value="company.company_id">
+          {{ company.company.name }}
         </option>
       </select>
-      <p>{{ current.company.segment }} · {{ current.company.role }}</p>
+      <p>{{ current.segment_name }} · {{ current.role }}</p>
+      <p class="enterprise-source">数据来源: {{ sourceLabel }}</p>
     </div>
 
     <nav class="sidebar__nav" aria-label="主导航">
@@ -60,7 +67,7 @@ function logout() {
     </nav>
 
     <div class="sidebar__section">
-      <p class="sidebar__label">保留流程入口</p>
+      <p class="sidebar__label">高级寻源流程</p>
       <RouterLink to="/flow" class="nav__link">
         <span class="nav__icon">S</span>
         <span>采购寻源流程</span>
@@ -79,17 +86,9 @@ function logout() {
       </RouterLink>
     </div>
 
-    <div class="sidebar__section sidebar__section--compact">
-      <p class="sidebar__label">供应商端</p>
-      <RouterLink to="/supplier" class="nav__link">
-        <span class="nav__icon">D</span>
-        <span>供应商工作台</span>
-      </RouterLink>
-    </div>
-
     <div class="sidebar__notice">
       <b>事实边界</b>
-      <p>前端 Demo 使用集中 mock 数据补足企业上下文，不改变后端接口、数据库和真实业务逻辑。</p>
+      <p>经营驾驶舱优先接入真实后端接口; 后端不可用时降级到本地 mock 数据, 不改变后端业务逻辑。</p>
     </div>
   </aside>
 
@@ -168,6 +167,11 @@ function logout() {
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   line-height: 1.5;
+}
+.enterprise-source {
+  margin-top: 4px !important;
+  color: var(--accent) !important;
+  font-weight: 600;
 }
 .sidebar__nav {
   display: flex;
