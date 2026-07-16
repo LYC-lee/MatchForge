@@ -122,6 +122,10 @@ def get_supervisor_llm() -> ChatOpenAI:
 
     使用轻量快速模型（SUPERVISOR_MODEL），temperature 设为 0 保证路由稳定性，
     超时 10s + 2 次重试应对网络抖动。
+
+    注意: glm-5.2 是推理模型，先在 reasoning_content 思考、再在 content 输出最终
+    JSON。max_tokens 必须给足“思考+输出”预算，否则 token 耗尽时 content 为空、
+    finish_reason=length，json_mode 与正则兜底双双失败 -> 分类器形同不可用。
     """
     return ChatOpenAI(
         model=SUPERVISOR_MODEL,
@@ -129,7 +133,7 @@ def get_supervisor_llm() -> ChatOpenAI:
         base_url=LLM_BASE_URL,
         temperature=0,
         max_tokens=1024,
-        timeout=10,
+        timeout=20,
         max_retries=2,
     )
 
