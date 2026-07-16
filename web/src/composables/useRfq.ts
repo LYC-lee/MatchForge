@@ -8,6 +8,7 @@ import {
   type QuotationRecord,
 } from '@/api/enterprise'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { onDemoRefresh } from '@/composables/useDemoRefresh'
 
 /**
  * RFQ 闭环 composable: 当前企业的 RFQ 列表 + 创建 + 发送 + 报价对比。
@@ -39,6 +40,8 @@ export function useRfq() {
   watch(currentEnterpriseId, (id) => {
     if (id) fetchRfqs(id)
   }, { immediate: true })
+
+  onDemoRefresh(() => fetchRfqs(currentEnterpriseId.value))
 
   async function create(payload: Parameters<typeof createRfq>[0]) {
     const res = await createRfq(payload)

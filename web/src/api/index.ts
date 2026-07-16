@@ -1,5 +1,6 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/auth'
+import router from '@/router'
 
 /** 正在刷新 token 的 promise（防并发） */
 let refreshPromise: Promise<boolean> | null = null
@@ -54,6 +55,11 @@ api.interceptors.response.use(
       return Promise.reject(normalizeError(error))
     }
 
+    const auth = useAuthStore()
+    if (auth.user?.is_demo || auth.token === 'demo-token') {
+      return Promise.reject(normalizeError(error))
+    }
+
     // 标记当前请求已重试过
     originalRequest._retry = true
 
@@ -68,9 +74,10 @@ api.interceptors.response.use(
       return api(originalRequest)
     } catch {
       // 刷新失败 -> 登出
-      const auth = useAuthStore()
       auth.logout()
-      window.location.href = '/login'
+      if (router.currentRoute.value.name !== 'login') {
+        router.replace({ name: 'login' })
+      }
       return Promise.reject(normalizeError(error))
     }
   },
