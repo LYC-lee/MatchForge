@@ -412,3 +412,77 @@ KB 模块可独立演示，但不替代 MVP 寻源主链路。MVP 演示优先�
 - Spec coverage: 已覆盖最新复勘后的 schema 收敛完成、FastAPI 部分落地、Procure 契约分叉、KB RAG 并行模块、任务进度更新、五人分工调整。
 - Placeholder scan: 无 TBD/TODO 占位；已完成项已标记 `[x]`。
 - Type consistency: SSE 函数对齐 `ai/graph.py` 的 `run_procure_stream()`；种子路径对齐 `data/init_all.py` 和 `scripts/import_pc_industry_seed.py`。
+
+---
+
+## 16. 2026-07-16 集成进展更新（Dashboard + RFQ 后端集成）
+
+> 本章为追加章节，不改动原文。记录两个后端特性分支集成进展。详见 [backend-integration-dashboard-rfq-summary.md](backend-integration-dashboard-rfq-summary.md)。
+
+### 16.1 集成分支状态
+
+- **集成分支：** `codex/backend-integration-dashboard-rfq`
+- **基线：** `lyc` (2a10c21, Phase 1 已完成)
+- **合并来源：**
+  - `codex/backend-phase2-dashboard` (588792d) -> merge commit 840a2da
+  - `codex/backend-rfq-supplier-loop` (ffa013b) -> merge commit e4e9962
+- **冲突解决：** 2 处
+  - `api/main.py`：同时保留 dashboard + rfqs + supplier_leads + audit 路由注册，procure 优雅降级保留。
+  - `kb/models.py`：保留全部 10 个新模型（6 Dashboard + 4 RFQ），注释重编号 10-19，Phase 1 模型未动。
+- **migration 重命名：** `03_rfq_supplier_loop.sql` -> `04_rfq_supplier_loop.sql`（避免与 Dashboard 分支 03 编号冲突）。
+- **新增总 seed：** `scripts/seed_enterprise_demo_all.py`（顺序执行 Phase1 + Phase2 + RFQ）。
+
+### 16.2 Phase 1 已完成
+
+- enterprise-context（当前企业驾驶舱上下文）
+- company relationships（upstream / downstream / support）
+- partner-chat（直接关系校验协同问答）
+- chat-partners
+
+### 16.3 Phase 2 已完成（Dashboard 数据能力）
+
+- CompanyProduct / ProductBomItem / ProductionOrder / DemandForecast / InventoryItem / Shortage 六个模型
+- products（含 `production_products` + 向后兼容 `items`）/ bom / bom-summary / orders / forecasts / shortages
+- shortages/recalculate 缺件物化计算
+- recommended-actions 推荐动作
+- dashboard 聚合接口
+
+### 16.4 RFQ 闭环已完成
+
+- RfqRecord / RfqSupplierLink / QuotationRecord / AuditQueueItem 四个模型
+- RFQ 创建/查询/发送
+- supplier leads 查看/拒绝
+- quotations 报价 + quote-comparison 对比
+- admin audit queue 批准/拒绝
+- `context_json` 软关联（shortage_id / product_id / recommended_action_id），未对 Dashboard 建强外键
+
+### 16.5 当前测试状态
+
+- **核心三件套：** `pytest tests/test_enterprise_phase1.py tests/test_enterprise_phase2.py tests/test_rfq_supplier_loop.py` -> **45 passed**（Phase1: 15, Phase2: 17, RFQ: 13）
+- **supervisor async：** 39 passed（安装 `pytest-asyncio` 后历史 47 个 ai/ async 失败全部修复）
+- **全量 `pytest tests`：** 171 passed / 2 failed
+  - 2 failed 均在 `test_kb_rag.py`，属**历史环境问题，非本次集成引入**：
+    - `test_stats`（36==30）：测试隔离问题，单独运行通过。
+    - `test_rebuild_from_source_of_truth`（indexed 0）：`rebuild_vector_index(drop_first=False)` 幂等跳过已同步 chunk，测试断言与逻辑不匹配。
+
+### 16.6 当前前端 build 状态
+
+- `cd web && npm install && npm run build` -> **成功**（1.60s，无错误）
+- 产物含 ShortageProcurementView / SupplierLeads / SupplierDashboard / RfqEditor / P7AdminAudit / ProductsBomView 等视图。
+
+### 16.7 已知风险
+
+- **langgraph 冷导入慢：** 约 150s/进程，非失败；procure 路由已优雅降级。
+- **MySQL / Milvus / Neo4j 未在本地真实验证：** 基础测试基于 SQLite + local 向量库 + hashbow 降级。
+- **全量测试 ai/ async 历史失败：** 已通过安装 `pytest-asyncio` 解决；剩余 2 个 kb_rag 失败为历史测试隔离/断言问题，与本次集成无关。
+- **`kb/models.py` 模型注释重编号：** 仅注释序号 10-19 调整，不影响表名/字段/逻辑。
+
+### 16.8 下一阶段建议
+
+1. 前端接入 `/dashboard` 聚合接口（替换 mock）。
+2. 前端接入 RFQ / supplier / audit 真实接口。
+3. 后续再考虑 `kpi_snapshots` / `risk_alerts` 模型与接口。
+4. 后续再考虑认证收紧（当前 admin 校验轻量）和生产部署安全。
+5. 后续再验证 MySQL / Milvus / Neo4j 真实环境（Docker 部署 + 迁移脚本）。
+6. 修复 kb_rag 2 个历史测试（test_rebuild 断言 + test_stats 隔离）。
+7. 集成分支核心测试全过 + 前端 build 通过，建议合并回 `main`。
