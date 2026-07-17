@@ -1,39 +1,47 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useHistory, type HistoryRecord } from '@/composables/useHistory'
+import { useHistory } from '@/composables/useHistory'
+import type { SessionSummary } from '@/types/procure'
 import Card from '@/components/ui/Card.vue'
 import AppButton from '@/components/ui/AppButton.vue'
-import Tag from '@/components/ui/Tag.vue'
 
 const router = useRouter()
-const { list, remove } = useHistory()
-const records = ref<HistoryRecord[]>(list())
-const expanded = ref<Set<string>>(new Set())
+const { sessions, loading, error, load, remove } = useHistory()
 
-function toggle(id: string) {
-  const s = new Set(expanded.value)
-  if (s.has(id)) {
-    s.delete(id)
-  } else {
-    s.add(id)
+const list = ref<SessionSummary[]>([])
+
+onMounted(async () => {
+  list.value = await load()
+})
+
+async function doRemove(threadId: string) {
+  await remove(threadId)
+  list.value = list.value.filter((s) => s.thread_id !== threadId)
+}
+
+function viewSession(threadId: string) {
+  router.push(`/procure/${threadId}`)
+}
+
+function newProcure() {
+  router.push('/')
+}
+
+function formatDate(iso: string) {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    const now = new Date()
+    const diff = now.getTime() - d.getTime()
+    if (diff < 60_000) return '刚刚'
+    if (diff < 3600_000) return `${Math.floor(diff / 60_000)} 分钟前`
+    if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} 小时前`
+    if (diff < 604800_000) return `${Math.floor(diff / 86400_000)} 天前`
+    return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  } catch {
+    return iso.slice(0, 10)
   }
-  expanded.value = s
-}
-
-function reuse(q: string) {
-  router.push(`/app?q=${encodeURIComponent(q)}`)
-}
-
-function del(id: string) {
-  remove(id)
-  records.value = list()
-}
-
-function gradeType(g: string): 'success' | 'warning' | 'danger' {
-  if (g === 'A' || g === 'B') return 'success'
-  if (g === 'C') return 'warning'
-  return 'danger'
 }
 </script>
 
@@ -41,64 +49,55 @@ function gradeType(g: string): 'success' | 'warning' | 'danger' {
   <div class="history">
     <div class="history__head">
       <h1>历史记录</h1>
-      <p class="history__sub">寻源与询价单记录(本地存储于浏览器)</p>
+      <p class="history__sub">寻源会话记录（跨设备同步）</p>
     </div>
 
-    <div v-if="!records.length" class="history__empty">
+    <!-- 加载中 -->
+    <div v-if="loading" class="history__loading">
+      <span class="history__spinner" />
+      <span>加载中…</span>
+    </div>
+
+    <!-- 网络错误提示 -->
+    <div v-if="error && !loading" class="history__notice">
+      <span>⚠ {{ error }}</span>
+    </div>
+
+    <!-- 空状态 -->
+    <div v-if="!loading && !list.length" class="history__empty">
       <div class="history__empty-icon">⊘</div>
       <p class="history__empty-title">还没有寻源记录</p>
       <p class="history__empty-desc">去首页试试</p>
-      <AppButton @click="router.push('/')">开始寻源</AppButton>
+      <AppButton @click="newProcure">开始寻源</AppButton>
     </div>
 
+    <!-- 会话列表 -->
     <div v-else class="history__list">
-      <Card v-for="r in records" :key="r.id">
+      <Card v-for="s in list" :key="s.thread_id">
         <template #header>
-          <div class="rec__head" @click="toggle(r.id)">
-            <span class="rec__query">{{ r.raw_query }}</span>
-            <div class="rec__meta">
-              <Tag
-                v-if="r.state.lead_grade"
-                :type="gradeType(r.state.lead_grade.grade)"
-                :value="`${r.state.lead_grade.grade} 级`"
-              />
-              <span v-if="r.rfq_sent" class="rec__sent">RFQ 已发送</span>
-              <span class="rec__date">{{ r.created_at.slice(0, 10) }}</span>
-              <span class="rec__arrow">{{ expanded.has(r.id) ? '收起' : '展开' }}</span>
+          <div class="rec__head">
+            <div class="rec__info">
+              <span class="rec__title">{{ s.title }}</span>
+              <span class="rec__meta">
+                <span class="rec__id" :title="s.thread_id">ID: {{ s.thread_id.slice(0, 8) }}</span>
+                <span class="rec__sep">·</span>
+                <span class="rec__date">{{ formatDate(s.created_at) }}</span>
+                <span class="rec__sep">·</span>
+                <span :class="s.status === 'error' ? 'rec__status--error' : 'rec__status--ok'">
+                  {{ s.status === 'error' ? '异常' : '完成' }}
+                </span>
+              </span>
+            </div>
+            <div class="rec__actions">
+              <AppButton variant="secondary" size="sm" @click="viewSession(s.thread_id)">
+                查看
+              </AppButton>
+              <AppButton variant="danger" size="sm" @click="doRemove(s.thread_id)">
+                删除
+              </AppButton>
             </div>
           </div>
         </template>
-
-        <div v-if="expanded.has(r.id)" class="rec__detail">
-          <div class="rec__row">
-            <span>替代料</span>
-            <b>{{ r.state.alternatives?.length || 0 }} 个</b>
-          </div>
-          <div class="rec__row">
-            <span>供应商</span>
-            <b>{{ r.state.matched_suppliers?.length || 0 }} 个</b>
-          </div>
-          <div v-if="r.state.alternatives?.length" class="rec__alts">
-            <span class="rec__alts-label">替代型号:</span>
-            <div class="rec__alts-tags">
-              <Tag
-                v-for="a in r.state.alternatives"
-                :key="a.part_name"
-                type="level"
-                :level="a.level"
-                :value="a.part_name"
-              />
-            </div>
-          </div>
-          <div v-if="r.state.rfq_doc" class="rec__rfq">
-            <span class="rec__rfq-label">RFQ 摘要:</span>
-            <pre class="rec__rfq-text">{{ r.state.rfq_doc.slice(0, 200) }}…</pre>
-          </div>
-          <div class="rec__actions">
-            <AppButton variant="secondary" size="sm" @click="reuse(r.raw_query)">复用需求</AppButton>
-            <AppButton variant="danger" size="sm" @click="del(r.id)">删除</AppButton>
-          </div>
-        </div>
       </Card>
     </div>
   </div>
@@ -113,6 +112,33 @@ function gradeType(g: string): 'success' | 'warning' | 'danger' {
 .history__head { margin-bottom: var(--space-5); }
 .history__head h1 { font-size: var(--font-size-2xl); font-weight: 700; }
 .history__sub { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-top: var(--space-1); }
+
+.history__loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  justify-content: center;
+  color: var(--text-tertiary);
+}
+.history__spinner {
+  width: 18px; height: 18px;
+  border: 2px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.history__notice {
+  padding: var(--space-3) var(--space-4);
+  background: var(--warning-soft);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--warning);
+  margin-bottom: var(--space-4);
+}
 
 .history__empty {
   text-align: center;
@@ -129,40 +155,44 @@ function gradeType(g: string): 'success' | 'warning' | 'danger' {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  cursor: pointer;
   width: 100%;
 }
-.rec__query { font-size: var(--font-size-sm); color: var(--text-primary); font-weight: 500; }
-.rec__meta { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; }
-.rec__sent { font-size: var(--font-size-xs); color: var(--success); }
-.rec__date { font-size: var(--font-size-xs); color: var(--text-tertiary); font-family: var(--font-mono); }
-.rec__arrow { font-size: var(--font-size-xs); color: var(--accent-hover); }
-
-.rec__detail { display: flex; flex-direction: column; gap: var(--space-3); }
-.rec__row { display: flex; justify-content: space-between; font-size: var(--font-size-sm); }
-.rec__row span { color: var(--text-tertiary); }
-.rec__row b { color: var(--text-primary); }
-.rec__alts { display: flex; flex-direction: column; gap: var(--space-2); }
-.rec__alts-label { font-size: var(--font-size-xs); color: var(--text-tertiary); }
-.rec__alts-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.rec__rfq { display: flex; flex-direction: column; gap: var(--space-2); }
-.rec__rfq-label { font-size: var(--font-size-xs); color: var(--text-tertiary); }
-.rec__rfq-text {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-  background: var(--bg-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-sm);
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 120px;
-  overflow: hidden;
+.rec__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
 }
-.rec__actions { display: flex; gap: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--border-subtle); }
+.rec__title {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rec__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+.rec__id {
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+}
+.rec__sep { color: var(--border-default); }
+.rec__status--ok { color: var(--success); }
+.rec__status--error { color: var(--danger); }
+.rec__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
 
 @media (max-width: 640px) {
   .rec__head { flex-direction: column; align-items: flex-start; }
-  .rec__meta { flex-wrap: wrap; }
+  .rec__actions { width: 100%; justify-content: flex-end; }
 }
 </style>

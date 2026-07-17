@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { streamProcure } from '@/api/procure'
+import { getUserId, saveToLocal, useHistory } from '@/composables/useHistory'
 import type {
   AgentName,
   AgentState,
@@ -60,6 +61,9 @@ export const useProcureStore = defineStore('procure', () => {
   const streamProgress = ref('')
   const matchError = ref<string | null>(null)
   const progress = ref<{ agent: string; status: string }[]>([])
+
+  // ── 历史记录版本号（每次会话保存后自增，驱动侧边栏刷新）──
+  const historyVersion = ref(0)
 
   // ── 兼容性状态 (同步自 selectedSupplierIds / alternatives) ──
   const selectedAlternative = ref<any | null>(null)
@@ -145,7 +149,9 @@ export const useProcureStore = defineStore('procure', () => {
     isStreaming.value = true
     streamProgress.value = '正在解析需求…'
 
-    controller = streamProcure({ query, phase: 'spec' }, {
+    const userId = getUserId()
+
+    controller = streamProcure({ query, phase: 'spec', user_id: userId }, {
       onStart: (tid, rid) => {
         threadId.value = tid
         if (rid) rfqId.value = rid
@@ -201,7 +207,7 @@ export const useProcureStore = defineStore('procure', () => {
       simpleSpec[k] = v.value
     }
     controller = streamProcure(
-      { query: rawQuery.value, thread_id: threadId.value, confirmed_spec: simpleSpec, phase: 'match' },
+      { query: rawQuery.value, thread_id: threadId.value, confirmed_spec: simpleSpec, phase: 'match', user_id: getUserId() },
       {
         onStart: (tid, rid) => {
           threadId.value = tid
@@ -307,7 +313,7 @@ export const useProcureStore = defineStore('procure', () => {
     setAgent('gen_rfq', 'running')
 
     controller = streamProcure(
-      { thread_id: threadId.value, confirmed_spec: normalizedSpec.value as Record<string, SpecField>, phase: 'match' },
+      { thread_id: threadId.value, confirmed_spec: normalizedSpec.value as Record<string, SpecField>, phase: 'match', user_id: getUserId() },
       {
         onStart: () => {},
         onProgress: (agent, status, result) => {
@@ -345,7 +351,7 @@ export const useProcureStore = defineStore('procure', () => {
     setAgent('grade', 'pending')
 
     controller = streamProcure(
-      { thread_id: threadId.value, confirmed_spec: normalizedSpec.value as Record<string, SpecField>, phase: 'match' },
+      { thread_id: threadId.value, confirmed_spec: normalizedSpec.value as Record<string, SpecField>, phase: 'match', user_id: getUserId() },
       {
         onStart: () => {},
         onProgress: (agent, status, result) => {
@@ -383,6 +389,66 @@ export const useProcureStore = defineStore('procure', () => {
     streamProgress.value = ''
   }
 
+  /** 从历史会话恢复状态（不重新执行 SSE） */
+  async function loadFromSession(sessionId: string): Promise<boolean> {
+    // 使用 useHistory().getDetail() 优先 API、降级 localStorage
+    const { getDetail } = useHistory()
+    const detail = await getDetail(sessionId)
+    if (!detail || !detail.state) return false
+
+    const st = detail.state
+    reset()
+    threadId.value = detail.thread_id
+    rawQuery.value = st.raw_query || detail.title
+    phase.value = 'done'
+
+    // 恢复解析结果
+    if (st.parsed_spec) {
+      parsedSpec.value = toSpecFieldFormat(st.parsed_spec as Record<string, any>)
+    }
+    if (st.normalized_spec) {
+      normalizedSpec.value = toSpecFieldFormat(st.normalized_spec as Record<string, any>)
+    }
+
+    // 恢复替代料
+    if (st.alternatives?.length) {
+      alternatives.value = st.alternatives
+      const best = st.alternatives.find((a: any) => a.level === 'L1') || st.alternatives[0]
+      selectedAlternative.value = best
+    }
+
+    // 恢复供应商
+    if (st.matched_suppliers?.length) {
+      matchedSuppliers.value = st.matched_suppliers
+    }
+
+    // 恢复 RFQ
+    if (st.rfq_doc) {
+      rfqDoc.value = st.rfq_doc
+    }
+    if (st.rfq_id) {
+      rfqId.value = st.rfq_id
+    }
+
+    // 恢复线索分级
+    if (st.lead_grade) {
+      leadGrade.value = st.lead_grade
+    }
+
+    // 恢复错误
+    if (st.errors?.length) {
+      errors.value = st.errors
+    }
+
+    // 标记所有 Agent 为已完成
+    agents.value.forEach((a) => {
+      a.status = 'done'
+      a.endedAt = Date.now()
+    })
+
+    return true
+  }
+
   return {
     threadId,
     rfqId,
@@ -417,5 +483,7 @@ export const useProcureStore = defineStore('procure', () => {
     regenerateRfq,
     retryMatch,
     applyState,
+    loadFromSession,
+    historyVersion,
   }
 })

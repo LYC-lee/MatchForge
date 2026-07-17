@@ -48,6 +48,15 @@ from ai.config import POSTGRESQL_URL
 from ai.supervisor import route, ROUTING_ORDER
 from ai.monitor import TraceLogger
 
+# pg_store 为可选依赖（需要 psycopg2），导入失败不影响主流程
+try:
+    from ai.pg_store import save_session, init_sessions_table
+    _pg_available = True
+except ImportError:
+    _pg_available = False
+    save_session = None  # type: ignore
+    init_sessions_table = None  # type: ignore
+
 from ai.agents.parse import parse_agent
 from ai.agents.normalize import normalize_agent
 from ai.agents.alternatives import alternatives_agent
@@ -334,6 +343,10 @@ async def run_procure_stream(
         state.setdefault("errors", []).append(f"[graph] {str(e)}")
 
     trace.end(state)
+
+    # ── 保存会话到 PostgreSQL（跨会话/跨设备历史记录）──
+    _save_session_safe(state, phase)
+
     yield _sse("result", {
         "state": {
             k: state.get(k) for k in [
@@ -344,3 +357,44 @@ async def run_procure_stream(
         }
     })
     yield _sse("end", {})
+
+
+# ============================================================
+# 会话持久化辅助
+# ============================================================
+def _save_session_safe(state: dict, phase: str):
+    """安全保存会话到 PostgreSQL（失败不影响主流程）。"""
+    if not _pg_available:
+        return
+
+    try:
+        # 确保表已创建（幂等，首次调用自动建表）
+        init_sessions_table()
+    except Exception:
+        pass  # 表初始化失败不阻塞主流程
+
+    try:
+        thread_id = state.get("thread_id", "")
+        user_id = state.get("user_id", "anonymous")
+        raw_query = state.get("raw_query", "")[:200]
+        title = raw_query if raw_query else "未命名会话"
+
+        # 提取可序列化的状态快照
+        state_snapshot = {
+            "raw_query": state.get("raw_query", ""),
+            "parsed_spec": state.get("parsed_spec"),
+            "normalized_spec": state.get("normalized_spec"),
+            "alternatives": state.get("alternatives", []),
+            "matched_suppliers": state.get("matched_suppliers", []),
+            "rag_enrichment": state.get("rag_enrichment"),
+            "rfq_doc": state.get("rfq_doc"),
+            "rfq_id": state.get("rfq_id"),
+            "lead_grade": state.get("lead_grade"),
+            "chat_response": state.get("chat_response"),
+            "errors": state.get("errors", []),
+        }
+
+        status = "completed" if not state.get("errors") else "error"
+        save_session(thread_id, user_id, title, phase, status, state_snapshot)
+    except Exception:
+        pass  # 保存失败不阻塞 SSE 流

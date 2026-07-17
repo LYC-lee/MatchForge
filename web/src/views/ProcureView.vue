@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProcureStore } from '@/stores/procure'
-import { useHistory, type HistoryRecord } from '@/composables/useHistory'
+import { saveToLocal } from '@/composables/useHistory'
 import type { SpecField } from '@/types/procure'
 import Card from '@/components/ui/Card.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -16,6 +16,7 @@ import SuppliersMatch from '@/components/procure/SuppliersMatch.vue'
 import RfqEditor from '@/components/procure/RfqEditor.vue'
 
 const router = useRouter()
+const route = useRoute()
 const store = useProcureStore()
 const {
   threadId,
@@ -36,7 +37,23 @@ const {
   streamProgress,
   matchError,
 } = storeToRefs(store)
-const { saveRecord } = useHistory()
+
+// 历史会话加载状态
+const sessionLoading = ref(false)
+const sessionNotFound = ref(false)
+
+// 如果路由带 thread_id（从历史记录进入），加载会话
+onMounted(async () => {
+  const id = route.params.id as string | undefined
+  if (id) {
+    sessionLoading.value = true
+    const ok = await store.loadFromSession(id)
+    sessionLoading.value = false
+    if (!ok) {
+      sessionNotFound.value = true
+    }
+  }
+})
 
 const originalPart = computed(
   () => normalizedSpec.value?.['型号']?.value || parsedSpec.value?.['型号']?.value || '',
@@ -68,10 +85,10 @@ const gradeType = computed(() => {
   return 'danger'
 })
 
-// 寻源完成时保存历史
+// 寻源完成时保存到 localStorage 作为降级备份
 watch(phase, (p) => {
   if (p === 'done' && !isVague.value) {
-    saveRecord({
+    saveToLocal({
       id: threadId.value,
       thread_id: threadId.value,
       raw_query: rawQuery.value,
@@ -89,7 +106,9 @@ watch(phase, (p) => {
         lead_grade: leadGrade.value,
         errors: errors.value,
       },
-    } as HistoryRecord)
+    })
+    // 触发历史侧边栏刷新
+    store.historyVersion++
   }
 })
 
@@ -119,7 +138,21 @@ function newProcure() {
     </div>
 
     <div class="procure__body">
-      <!-- 无法完成寻源 -->
+      <!-- 加载历史会话中 -->
+      <div v-if="sessionLoading" class="procure__session-loading">
+        <span class="history__spinner" />
+        <span>加载会话中…</span>
+      </div>
+
+      <!-- 会话不存在 -->
+      <div v-else-if="sessionNotFound" class="procure__vague" style="padding-top: 60px;">
+        <div class="procure__vague-icon">⊘</div>
+        <p class="procure__vague-title">会话不存在或已过期</p>
+        <p class="procure__vague-desc">该会话可能已被删除，或后端存储服务暂时不可用。</p>
+        <AppButton @click="router.push('/chat')">返回寻源</AppButton>
+      </div>
+
+      <template v-else>
       <Card v-if="isVague" elevated>
         <template #header><h3>无法完成寻源</h3></template>
         <div class="procure__vague">
@@ -277,6 +310,7 @@ function newProcure() {
           </aside>
         </div>
       </template>
+    </template>
     </div>
   </div>
 </template>
@@ -490,6 +524,24 @@ function newProcure() {
   text-align: center;
   padding: var(--space-4) 0;
 }
+
+.procure__session-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: 80px var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+.procure__session-loading .history__spinner {
+  width: 18px; height: 18px;
+  border: 2px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 768px) {
   .procure__topbar-inner {

@@ -1,0 +1,10 @@
+feat(session-history): cross-session conversation history with PostgreSQL + localStorage
+
+- PostgreSQL session store (ai/pg_store.py) for persistent conversation history
+- Session CRUD API (GET/POST/DELETE /api/v1/procure/sessions)
+- Auto-save session on stream completion in graph.py
+- Frontend SessionHistoryPanel with localStorage fallback for API failure
+- New Chat button to clear conversation and start fresh
+- AgentTimeline integrated into ChatView for real-time progress
+- ProcureView supports loading historical sessions by thread_id
+- psycopg2-binary added to requirements

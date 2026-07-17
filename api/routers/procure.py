@@ -1,9 +1,12 @@
 """
-寻源 Agent API — SSE 流式多 Agent 编排
+寻源 Agent API — SSE 流式多 Agent 编排 + 会话历史
 
-POST /api/v1/procure/stream  — SSE 流式寻源 (parse → normalize → alternatives → match → gen_rfq → grade)
-POST /api/v1/procure/spec     — 仅解析 + 标准化 (非流式，返回结构化 JSON)
-POST /api/v1/procure/match    — 仅替代料 + 供应商匹配 (非流式，返回结构化 JSON)
+POST /api/v1/procure/stream     — SSE 流式寻源 (parse → normalize → alternatives → match → gen_rfq → grade)
+POST /api/v1/procure/spec        — 仅解析 + 标准化 (非流式，返回结构化 JSON)
+POST /api/v1/procure/match       — 仅替代料 + 供应商匹配 (非流式，返回结构化 JSON)
+GET  /api/v1/procure/sessions    — 获取用户会话历史列表
+GET  /api/v1/procure/sessions/{thread_id} — 获取单个会话详情
+DELETE /api/v1/procure/sessions/{thread_id} — 删除会话
 """
 
 from __future__ import annotations
@@ -12,12 +15,22 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ai.graph import init_state, run_procure_stream, get_graph
 from ai.supervisor import ROUTING_ORDER
+
+# pg_store 为可选依赖（需要 psycopg2）
+try:
+    from ai.pg_store import list_sessions, get_session, delete_session
+    _pg_available = True
+except ImportError:
+    _pg_available = False
+    list_sessions = None  # type: ignore
+    get_session = None  # type: ignore
+    delete_session = None  # type: ignore
 
 logger = logging.getLogger("api.procure")
 
@@ -31,6 +44,7 @@ class ProcureRequest(BaseModel):
     phase: str = Field(default="spec", description="spec=解析+标准化+替代 | match=替代+匹配+询价+分级")
     thread_id: str | None = Field(default=None, description="会话 ID，None 则自动生成")
     confirmed_spec: dict | None = Field(default=None, description="已确认的规格（phase=match 时使用）")
+    user_id: str = Field(default="anonymous", description="用户标识（登录用户为账号，匿名用户为设备 ID）")
 
 
 class SpecOnlyRequest(BaseModel):
@@ -65,7 +79,7 @@ async def procure_stream(
       - error:     错误信息
       - end:       流结束
     """
-    user_id = "anonymous"
+    user_id = req.user_id or "anonymous"
 
     async def event_generator():
         thread_id = req.thread_id or uuid.uuid4().hex[:12]
@@ -180,3 +194,39 @@ async def procure_health():
             __import__("ai.config").DASHSCOPE_API_KEY
         ),
     }
+
+
+# ── 会话历史 CRUD ──────────────────────────────────────────────────────────
+
+@router.get("/sessions")
+async def list_user_sessions(
+    user_id: str = Query(..., description="用户标识"),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """获取用户的会话历史列表（按时间倒序）。"""
+    if not _pg_available:
+        return {"sessions": [], "total": 0, "notice": "PostgreSQL 未连接，会话历史不可用"}
+    sessions = list_sessions(user_id, limit)
+    return {"sessions": sessions, "total": len(sessions)}
+
+
+@router.get("/sessions/{thread_id}")
+async def get_session_detail(thread_id: str):
+    """获取单个会话的完整详情（含状态快照）。"""
+    if not _pg_available:
+        raise HTTPException(status_code=503, detail="PostgreSQL 未连接，会话历史不可用")
+    session = get_session(thread_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return session
+
+
+@router.delete("/sessions/{thread_id}")
+async def delete_user_session(thread_id: str):
+    """删除指定会话。"""
+    if not _pg_available:
+        raise HTTPException(status_code=503, detail="PostgreSQL 未连接")
+    ok = delete_session(thread_id)
+    if not ok:
+        raise HTTPException(status_code=500, detail="删除失败")
+    return {"ok": True}
