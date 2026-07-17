@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onUnmounted, computed } from 'vue'
 import { useProcureStore } from '@/stores/procure'
-import { saveToLocal } from '@/composables/useHistory'
-import type { SpecField, Alternative, Supplier } from '@/types/procure'
-import ChatMessage, { type ChatMessageData } from '@/components/chat/ChatMessage.vue'
+import { saveToLocal, loadLocalMessages, useHistory } from '@/composables/useHistory'
+import type { SpecField, Alternative, Supplier, LeadGrade } from '@/types/procure'
+import ChatMessage, { type ChatMessageData, type TurnPayload } from '@/components/chat/ChatMessage.vue'
 import SpecConfirm from '@/components/procure/SpecConfirm.vue'
 import AlternativesList from '@/components/procure/AlternativesList.vue'
 import SuppliersMatch from '@/components/procure/SuppliersMatch.vue'
@@ -24,6 +24,16 @@ const isProcessing = ref(false)
 const chatContainer = ref<HTMLElement | null>(null)
 let msgId = 0
 
+/**
+ * 当前活跃轮次 id (#28)。
+ * 每次发送/重试自增; 仅 turnId 与之一致且未冻结的消息可交互、从 store 实时取数,
+ * 历史轮次的消息一律从各自 payload 冻结渲染 —— 发新消息不再清空历史渲染状态。
+ */
+const activeTurnId = ref(0)
+
+/** 历史会话恢复期间置位: 抑制 phase watcher, 避免 loadFromSession 触发"done"重复加卡片 */
+const restoringSession = ref(false)
+
 function uid() { return `m-${++msgId}-${Date.now()}` }
 function scrollDown() {
   nextTick(() => {
@@ -33,20 +43,170 @@ function scrollDown() {
   })
 }
 
+const deepCopy = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
+
 // ── 添加消息 ──
 function addMsg(role: ChatMessageData['role'], content: string, opts?: Partial<ChatMessageData>) {
-  const msg: ChatMessageData = { id: uid(), role, content, timestamp: Date.now(), ...opts }
+  const msg: ChatMessageData = {
+    id: uid(),
+    role,
+    content,
+    timestamp: Date.now(),
+    turnId: activeTurnId.value,
+    ...opts,
+  }
   messages.value.push(msg)
   scrollDown()
   return msg
 }
 
-// ── 开始在对话中显示结果区块 ──
-const showSpecConfirm = ref(false)
-const showAlternatives = ref(false)
-const showSuppliers = ref(false)
-const showRfq = ref(false)
-const showGrade = ref(false)
+/** 是否当前活跃轮的消息(可交互、卡片从 store 实时取数) */
+function isLiveMsg(msg: ChatMessageData) {
+  return !msg.frozen && msg.turnId === activeTurnId.value
+}
+
+// ── 卡片取数: 冻结消息读 payload, 活跃消息读 store ──
+function specFor(msg: ChatMessageData): Record<string, SpecField> | null {
+  return (msg.frozen ? msg.payload?.normalizedSpec ?? null : store.normalizedSpec) as Record<string, SpecField> | null
+}
+function alternativesFor(msg: ChatMessageData): Alternative[] {
+  return (msg.frozen ? msg.payload?.alternatives ?? [] : store.alternatives) as Alternative[]
+}
+function originalPartFor(msg: ChatMessageData): string {
+  if (msg.frozen) return msg.payload?.originalPart ?? ''
+  return ((store.parsedSpec as any)?.['型号']?.value as string) || ''
+}
+function originalBrandFor(msg: ChatMessageData): string {
+  if (msg.frozen) return msg.payload?.originalBrand ?? ''
+  return ((store.parsedSpec as any)?.['品牌']?.value as string) || ''
+}
+function suppliersFor(msg: ChatMessageData): Supplier[] {
+  return (msg.frozen ? msg.payload?.matchedSuppliers ?? [] : store.matchedSuppliers) as Supplier[]
+}
+function selectedIdsFor(msg: ChatMessageData): Set<string> {
+  return msg.frozen ? new Set(msg.payload?.selectedSupplierIds ?? []) : store.selectedSupplierIds
+}
+function rfqDocFor(msg: ChatMessageData): string {
+  return msg.frozen ? msg.payload?.rfqDoc ?? '' : store.rfqDoc
+}
+function rfqIdFor(msg: ChatMessageData): string | null {
+  return msg.frozen ? msg.payload?.rfqId ?? null : store.rfqId
+}
+function rfqSentFor(msg: ChatMessageData): boolean {
+  return msg.frozen ? !!msg.payload?.rfqSent : store.rfqSent
+}
+function rfqStreaming(msg: ChatMessageData): boolean {
+  return isLiveMsg(msg) && store.agents.find((a) => a.name === 'gen_rfq')?.status === 'running'
+}
+function gradeFor(msg: ChatMessageData): LeadGrade | null {
+  return msg.frozen ? msg.payload?.leadGrade ?? null : store.leadGrade
+}
+function timelineAgents(msg: ChatMessageData) {
+  return msg.payload?.agents ?? []
+}
+function timelineDoneCount(msg: ChatMessageData) {
+  return timelineAgents(msg).filter((a) => a.status === 'done').length
+}
+
+// ── 进度占位文案(沉淀/停止时识别并清除) ──
+const PROGRESS_PLACEHOLDERS = [
+  '思考中…', '⋯',
+  '正在识别型号与参数…', '正在标准化规格…', '正在查询替代料…',
+  '正在匹配供应商…', '正在生成询价单…', '正在评估线索…',
+]
+
+// ── 卡片数据快照 ──
+/** 按消息的结果类型, 从 store 快照一份 payload(不改变冻结状态) */
+function snapshotPayload(msg: ChatMessageData): TurnPayload {
+  const payload: TurnPayload = { ...(msg.payload ?? {}) }
+  switch (msg.resultType) {
+    case 'spec':
+      payload.normalizedSpec = deepCopy(store.normalizedSpec)
+      payload.parsedSpec = deepCopy(store.parsedSpec)
+      break
+    case 'alternatives':
+      payload.alternatives = deepCopy(store.alternatives)
+      payload.originalPart = originalPartFor(msg)
+      payload.originalBrand = originalBrandFor(msg)
+      break
+    case 'suppliers':
+      payload.matchedSuppliers = deepCopy(store.matchedSuppliers)
+      payload.selectedSupplierIds = [...store.selectedSupplierIds]
+      break
+    case 'rfq':
+      payload.rfqDoc = store.rfqDoc
+      payload.rfqId = store.rfqId
+      payload.rfqSent = store.rfqSent
+      payload.normalizedSpec = deepCopy(store.normalizedSpec)
+      payload.alternatives = deepCopy(store.alternatives)
+      payload.matchedSuppliers = deepCopy(store.matchedSuppliers)
+      payload.selectedSupplierIds = [...store.selectedSupplierIds]
+      break
+    case 'grade':
+      payload.leadGrade = deepCopy(store.leadGrade)
+      break
+  }
+  return payload
+}
+
+/** 冻结一条消息: 快照数据进 payload, 之后只读渲染, 不再跟随 store */
+function freezeMsg(msg: ChatMessageData) {
+  if (msg.frozen) return
+  msg.payload = snapshotPayload(msg)
+  msg.frozen = true
+}
+
+/** 为当前轮活跃的结果消息快照 payload(不冻结), 供 localStorage 持久化重建 */
+function captureLivePayloads() {
+  for (const m of messages.value) {
+    if (m.frozen || m.turnId !== activeTurnId.value) continue
+    if (!m.resultType || m.resultType === 'error' || m.resultType === 'progress') continue
+    m.payload = snapshotPayload(m)
+  }
+}
+
+/** 新一轮开始前: 冻结上一轮所有可交互消息, 卡片随消息各自沉淀 (#28, 替代 store.reset) */
+function freezeCurrentTurn() {
+  for (const m of messages.value) {
+    if (m.turnId !== activeTurnId.value || m.frozen) continue
+    if (m.streaming) m.streaming = false
+    sedimentProgressMsg(m)
+    freezeMsg(m)
+  }
+  gatingGuard = false
+}
+
+// ── 过程沉淀 (#28): 生成完成后把 Agent 时间线冻结进消息, 默认折叠可展开回看 ──
+function sedimentProgressMsg(msg: ChatMessageData | undefined) {
+  if (!msg || msg.resultType !== 'progress') return
+  msg.streaming = false
+  msg.payload = {
+    ...(msg.payload ?? {}),
+    agents: deepCopy(store.agents),
+    alternativesCount: store.alternatives.length,
+    suppliersCount: store.matchedSuppliers.length,
+  }
+  const text = msg.content.trim()
+  if (!text || PROGRESS_PLACEHOLDERS.includes(text)) msg.content = ''
+  msg.resultType = undefined
+  msg.frozen = true
+}
+
+/** 终结最后一条流式消息并沉淀其时间线 */
+function finalizeLastMsg() {
+  const last = messages.value[messages.value.length - 1]
+  if (!last) return
+  if (last.streaming) last.streaming = false
+  sedimentProgressMsg(last)
+}
+
+/** 仅清除流式标记(不沉淀), 用于兜底 watcher */
+function finalizeStreamingFlag() {
+  const last = messages.value[messages.value.length - 1]
+  if (last && last.streaming) {
+    last.streaming = false
+  }
+}
 
 // ── 发送 ──
 function handleKeydown(e: KeyboardEvent) {
@@ -61,33 +221,26 @@ function send() {
   if (!q || isProcessing.value) return
   inputText.value = ''
 
+  // #28: 冻结上一轮(卡片/时间线沉淀到各自消息), 不再 store.reset()
+  freezeCurrentTurn()
+  activeTurnId.value++
+
   // 用户消息
   addMsg('user', q)
 
   // 处理中
   isProcessing.value = true
-  resetResultFlags()
-  store.reset()
 
   // AI 占位 → 启动
   addMsg('assistant', '思考中…', { streaming: true })
   store.startProcure(q)
 }
 
-function resetResultFlags() {
-  showSpecConfirm.value = false
-  showAlternatives.value = false
-  showSuppliers.value = false
-  showRfq.value = false
-  showGrade.value = false
-}
-
 // ── 新建对话：清空当前会话，回到初始状态 ──
 function newChat() {
   store.abort()
-  store.reset()
+  store.reset()  // 全量重置: 新会话新 threadId, 实体快照一并清空
   messages.value = []
-  resetResultFlags()
   isProcessing.value = false
   inputText.value = ''
   // 滚动到顶部
@@ -99,19 +252,14 @@ function newChat() {
 }
 
 // ── 停止生成: 中断 SSE,输入框恢复可用 ──
-const PROGRESS_PLACEHOLDERS = [
-  '思考中…', '⋯',
-  '正在识别型号与参数…', '正在标准化规格…', '正在查询替代料…',
-  '正在匹配供应商…', '正在生成询价单…', '正在评估线索…',
-]
-
 function stopSending() {
   const last = messages.value[messages.value.length - 1]
   store.abort()
-  finalizeMsg()
-  // 占位/进度文案被中断后没有实际内容,替换为停止标记;已流出的部分文本保留
   if (last && last.role === 'assistant') {
+    if (last.streaming) last.streaming = false
     const text = last.content.trim()
+    sedimentProgressMsg(last)  // 已执行的部分沉淀为可回看时间线
+    // 占位/进度文案被中断后没有实际内容,替换为停止标记;已流出的部分文本保留
     if (!text || PROGRESS_PLACEHOLDERS.includes(text)) {
       last.content = '已停止生成。'
       last.resultType = undefined
@@ -124,9 +272,9 @@ function stopSending() {
 // ── 以同一用户输入重新发起（重试 / 重新生成共用）──
 function reissue(query: string) {
   if (isProcessing.value) return
+  freezeCurrentTurn()
+  activeTurnId.value++
   isProcessing.value = true
-  resetResultFlags()
-  store.reset()
   addMsg('assistant', '思考中…', { streaming: true })
   store.startProcure(query)
 }
@@ -176,14 +324,6 @@ watch(() => store.chatCitations, (cits) => {
   }
 }, { deep: true })
 
-// ── 终结流式状态 ──
-function finalizeMsg() {
-  const last = messages.value[messages.value.length - 1]
-  if (last && last.streaming) {
-    last.streaming = false
-  }
-}
-
 // ── 将最后一条 AI 进度消息替换为错误消息（SSE 流失败或解析失败时调用）──
 function replaceProgressWithError(errMsg: string) {
   const last = messages.value[messages.value.length - 1]
@@ -204,11 +344,44 @@ function showChatResponse(text: string) {
   }
 }
 
+// ── 本地持久化: 状态快照 + 可重建的多轮消息列表 ──
+function serializeMessages() {
+  return deepCopy(messages.value.map((m) => ({ ...m, streaming: false })))
+}
+
+function persistLocal() {
+  saveToLocal({
+    id: store.threadId,
+    thread_id: store.threadId,
+    raw_query: store.rawQuery,
+    created_at: new Date().toISOString(),
+    rfq_sent: store.rfqSent,
+    state: {
+      thread_id: store.threadId,
+      raw_query: store.rawQuery,
+      parsed_spec: store.parsedSpec,
+      normalized_spec: store.normalizedSpec,
+      alternatives: store.alternatives,
+      matched_suppliers: store.matchedSuppliers,
+      rfq_doc: store.rfqDoc,
+      rfq_id: store.rfqId,
+      lead_grade: store.leadGrade,
+      errors: store.errors,
+      entities_snapshot: store.entitiesSnapshot,  // C4: 恢复会话后追问仍可引用
+    },
+    messages: serializeMessages(),
+  })
+  // 触发历史侧边栏刷新
+  store.historyVersion++
+}
+
 // ── 监听 store 阶段变化 ──
 watch(() => store.phase, (phase) => {
+  if (restoringSession.value) return  // 历史会话恢复触发的 phase 变化不产出新消息
+
   if (phase === 'gating') {
-    // parse + normalize 完成
-    finalizeMsg()
+    // parse + normalize 完成: 沉淀本轮时间线
+    finalizeLastMsg()
     isProcessing.value = false
 
     // 如果是 chat 回复（非寻源内容），直接展示聊天回复，不显示 AgentTimeline
@@ -223,12 +396,11 @@ watch(() => store.phase, (phase) => {
       return
     }
 
-    showSpecConfirm.value = true
-    addMsg('assistant', '已解析出以下规格信息，请核对修正：')
+    addMsg('assistant', '已解析出以下规格信息，请核对修正：', { resultType: 'spec' })
   }
 
   if (phase === 'done') {
-    finalizeMsg()
+    finalizeLastMsg()
     isProcessing.value = false
 
     // SSE 流失败/断流: 只要没有任何可展示的结果,无论是否有 Agent 跑过,
@@ -245,8 +417,6 @@ watch(() => store.phase, (phase) => {
       const partial = last?.role === 'assistant' ? last.content.trim() : ''
       if (!partial || PROGRESS_PLACEHOLDERS.includes(partial)) {
         replaceProgressWithError(store.streamError || store.errors[0] || '连接中断，请重试')
-      } else {
-        finalizeMsg()
       }
       return
     }
@@ -258,46 +428,24 @@ watch(() => store.phase, (phase) => {
       return
     }
 
-    // 保存历史到 localStorage 作为降级备份
-    if (!store.isVague) {
-      saveToLocal({
-        id: store.threadId,
-        thread_id: store.threadId,
-        raw_query: store.rawQuery,
-        created_at: new Date().toISOString(),
-        rfq_sent: store.rfqSent,
-        state: {
-          thread_id: store.threadId,
-          raw_query: store.rawQuery,
-          parsed_spec: store.parsedSpec,
-          normalized_spec: store.normalizedSpec,
-          alternatives: store.alternatives,
-          matched_suppliers: store.matchedSuppliers,
-          rfq_doc: store.rfqDoc,
-          rfq_id: store.rfqId,
-          lead_grade: store.leadGrade,
-          errors: store.errors,
-        },
-      })
-      // 触发历史侧边栏刷新
-      store.historyVersion++
-    }
-
-    // 分段展示所有结果
+    // 分段展示所有结果: 卡片挂在各自消息下, 追问时不消失 (#28)
     if (store.alternatives.length) {
-      addMsg('assistant', '找到以下替代料建议：')
-      showAlternatives.value = true
+      addMsg('assistant', '找到以下替代料建议：', { resultType: 'alternatives' })
     }
     if (store.matchedSuppliers.length) {
-      addMsg('assistant', '以下供应商有相关供应能力（能力匹配，非现货承诺）：')
-      showSuppliers.value = true
+      addMsg('assistant', '以下供应商有相关供应能力（能力匹配，非现货承诺）：', { resultType: 'suppliers' })
     }
     if (store.rfqDoc) {
-      addMsg('assistant', '已为您生成询价单，可编辑后发送：')
-      showRfq.value = true
+      addMsg('assistant', '已为您生成询价单，可编辑后发送：', { resultType: 'rfq' })
     }
     if (store.leadGrade) {
-      showGrade.value = true
+      addMsg('assistant', '线索分级结果：', { resultType: 'grade' })
+    }
+
+    // 保存历史到 localStorage 作为降级备份(含可重建消息列表)
+    if (!store.isVague) {
+      captureLivePayloads()
+      persistLocal()
     }
   }
 })
@@ -333,20 +481,169 @@ watch(() => store.progress.length, () => {
   // chat 的进度文字由流式 token watcher 处理，不在此覆盖
 })
 
-// ── 规格确认回调 ──
-function onSpecConfirm(spec: Record<string, SpecField>) {
-  showSpecConfirm.value = false
-  finalizeMsg()
+// ── 规格确认回调: 冻结确认后的规格卡, 开启本轮 match 阶段 ──
+function onSpecConfirm(msg: ChatMessageData, spec: Record<string, SpecField>) {
+  if (!isLiveMsg(msg)) return
+  msg.payload = {
+    ...(msg.payload ?? {}),
+    normalizedSpec: deepCopy(spec),
+    parsedSpec: deepCopy(store.parsedSpec),
+  }
+  msg.frozen = true
   isProcessing.value = true
   addMsg('assistant', '规格已确认，正在查询替代料与匹配供应商…', { streaming: true, resultType: 'progress' })
   store.confirmSpec(spec)
 }
 
-// ── 供应商 → 询价单 ──
-function onGenerateRfq() {
-  showRfq.value = true
-  addMsg('assistant', '以下是为您生成的询价单，可编辑：')
+// ── 供应商 → 询价单 (仅活跃轮可触发) ──
+function onGenerateRfq(msg: ChatMessageData) {
+  if (!isLiveMsg(msg)) return
+  const exists = messages.value.some(
+    (m) => m.turnId === activeTurnId.value && !m.frozen && m.resultType === 'rfq',
+  )
+  if (!exists) {
+    addMsg('assistant', '以下是为您生成的询价单，可编辑：', { resultType: 'rfq' })
+  }
   scrollDown()
+}
+
+// ── 卡片交互守卫: 仅当前活跃轮的消息允许写回 store ──
+function onToggleSupplier(msg: ChatMessageData, id: string) {
+  if (isLiveMsg(msg)) store.toggleSupplier(id)
+}
+function onSelectAll(msg: ChatMessageData) {
+  if (isLiveMsg(msg)) store.selectAllSuppliers()
+}
+function onDeselectAll(msg: ChatMessageData) {
+  if (isLiveMsg(msg)) store.deselectAllSuppliers()
+}
+function onRetryMatch(msg: ChatMessageData) {
+  if (isLiveMsg(msg)) store.retryMatch()
+}
+function onRfqUpdate(msg: ChatMessageData, text: string) {
+  if (isLiveMsg(msg)) store.setRfqDoc(text)
+}
+function onRfqSent(msg: ChatMessageData) {
+  if (!isLiveMsg(msg)) return
+  store.markRfqSent()
+  if (msg.payload) msg.payload.rfqSent = true
+}
+function onRfqRegenerate(msg: ChatMessageData) {
+  if (isLiveMsg(msg)) store.regenerateRfq()
+}
+
+// ── 历史会话重建 (#28): 对话内恢复聊天气泡, 不再跳转向导页 ──
+const openingSession = ref(false)
+
+async function openSession(threadId: string) {
+  if (openingSession.value) return
+  openingSession.value = true
+  restoringSession.value = true
+  try {
+    if (isProcessing.value) store.abort()
+    isProcessing.value = false
+
+    const { getDetail } = useHistory()
+    const detail = await getDetail(threadId)
+    // 恢复 store (threadId / 实体快照 / 各结果数据), preload 避免重复请求
+    const ok = await store.loadFromSession(threadId, detail)
+    if (!ok) {
+      restoringSession.value = false
+      addMsg('system', '未能加载该会话（可能已被删除，且本地无备份）。')
+      return
+    }
+
+    // 气泡来源: 优先 localStorage 保存的多轮消息列表;
+    // 无则(老会话/跨设备)由服务端状态快照合成单轮气泡 —— 服务端不存逐轮消息, 只能还原最后一轮
+    const localMsgs = loadLocalMessages(threadId)
+    if (localMsgs) {
+      messages.value = localMsgs.map((m: any) => ({
+        ...m,
+        id: m.id || uid(),
+        streaming: false,
+        frozen: true,
+        turnId: -1,
+      }))
+    } else {
+      messages.value = synthesizeFromStore(Date.parse(detail!.updated_at) || Date.now())
+    }
+
+    activeTurnId.value++  // 重建消息均为冻结历史, 后续追问从新一轮开始
+    inputText.value = ''
+    scrollDown()
+    showHistory.value = false
+    await nextTick()  // 让 loadFromSession 触发的 watcher 在抑制标记内冲刷完毕
+  } finally {
+    restoringSession.value = false
+    openingSession.value = false
+  }
+}
+
+/** 服务端/本地状态快照 → 合成单轮气泡(快照不含逐轮消息与时间线, 尽力还原) */
+function synthesizeFromStore(ts: number): ChatMessageData[] {
+  const msgs: ChatMessageData[] = []
+  const frozenCommon: Pick<ChatMessageData, 'frozen' | 'turnId' | 'streaming'> = {
+    frozen: true,
+    turnId: -1,
+    streaming: false,
+  }
+  if (store.rawQuery) {
+    msgs.push({ id: uid(), role: 'user', content: store.rawQuery, timestamp: ts, ...frozenCommon })
+  }
+  if (store.chatResponse) {
+    msgs.push({ id: uid(), role: 'assistant', content: store.chatResponse, timestamp: ts, ...frozenCommon })
+  }
+  if (store.normalizedSpec) {
+    msgs.push({
+      id: uid(), role: 'assistant', content: '已解析出以下规格信息：', timestamp: ts, ...frozenCommon,
+      resultType: 'spec',
+      payload: { normalizedSpec: deepCopy(store.normalizedSpec), parsedSpec: deepCopy(store.parsedSpec) },
+    })
+  }
+  if (store.alternatives.length) {
+    msgs.push({
+      id: uid(), role: 'assistant', content: '找到以下替代料建议：', timestamp: ts, ...frozenCommon,
+      resultType: 'alternatives',
+      payload: {
+        alternatives: deepCopy(store.alternatives),
+        originalPart: ((store.parsedSpec as any)?.['型号']?.value as string) || '',
+        originalBrand: ((store.parsedSpec as any)?.['品牌']?.value as string) || '',
+      },
+    })
+  }
+  if (store.matchedSuppliers.length) {
+    msgs.push({
+      id: uid(), role: 'assistant', content: '以下供应商有相关供应能力（能力匹配，非现货承诺）：', timestamp: ts, ...frozenCommon,
+      resultType: 'suppliers',
+      payload: {
+        matchedSuppliers: deepCopy(store.matchedSuppliers),
+        selectedSupplierIds: [...store.selectedSupplierIds],
+      },
+    })
+  }
+  if (store.rfqDoc) {
+    msgs.push({
+      id: uid(), role: 'assistant', content: '已生成询价单：', timestamp: ts, ...frozenCommon,
+      resultType: 'rfq',
+      payload: {
+        rfqDoc: store.rfqDoc,
+        rfqId: store.rfqId,
+        rfqSent: store.rfqSent,
+        normalizedSpec: deepCopy(store.normalizedSpec),
+        alternatives: deepCopy(store.alternatives),
+        matchedSuppliers: deepCopy(store.matchedSuppliers),
+        selectedSupplierIds: [...store.selectedSupplierIds],
+      },
+    })
+  }
+  if (store.leadGrade) {
+    msgs.push({
+      id: uid(), role: 'assistant', content: '线索分级结果：', timestamp: ts, ...frozenCommon,
+      resultType: 'grade',
+      payload: { leadGrade: deepCopy(store.leadGrade) },
+    })
+  }
+  return msgs
 }
 
 // ── 清理 ──
@@ -355,7 +652,7 @@ onUnmounted(() => store.abort())
 // ── 监听流式结束（兜底: 强制 finalize）──
 watch(() => store.isStreaming, (streaming) => {
   if (!streaming) {
-    finalizeMsg()
+    finalizeStreamingFlag()
   }
 })
 
@@ -371,7 +668,7 @@ watch(nonPendingAgentsDone, (done) => {
   if (!done || store.phase !== 'spec' || gatingGuard) return
   gatingGuard = true
   store.isStreaming = false
-  finalizeMsg()
+  finalizeStreamingFlag()
   if (store.parsedSpec && store.errors.length === 0) {
     store.phase = 'gating'
   }
@@ -410,80 +707,95 @@ const examples = [
       <!-- 消息 -->
       <template v-for="msg in messages" :key="msg.id">
         <ChatMessage :message="msg" @retry="retryLast" @regenerate="regenerate(msg.id)">
-          <!-- Agent 进度时间线 -->
-          <div v-if="msg.resultType === 'progress' && msg === messages[messages.length - 1]" class="chat__timeline">
+          <!-- Agent 进度时间线: 生成中展开; 完成后沉淀进消息, 默认折叠可展开回看 (#28) -->
+          <div v-if="msg.resultType === 'progress' || timelineAgents(msg).length" class="chat__timeline">
             <AgentTimeline
+              v-if="msg.resultType === 'progress'"
               :agents="store.agents"
               :alternatives-count="store.alternatives.length"
               :suppliers-count="store.matchedSuppliers.length"
             />
+            <details v-else class="tl-fold">
+              <summary class="tl-fold__summary">
+                <span class="tl-fold__caret">▸</span>
+                <span>执行过程 · {{ timelineDoneCount(msg) }}/{{ timelineAgents(msg).length }} 阶段完成</span>
+              </summary>
+              <AgentTimeline
+                class="tl-fold__body"
+                :agents="timelineAgents(msg)"
+                :alternatives-count="msg.payload?.alternativesCount ?? 0"
+                :suppliers-count="msg.payload?.suppliersCount ?? 0"
+                :live="false"
+              />
+            </details>
           </div>
 
-          <!-- 规格确认：仅最后一条消息 -->
+          <!-- 规格确认卡: 活跃轮可编辑确认, 冻结后轮次只读展示 -->
           <SpecConfirm
-            v-if="msg === messages[messages.length - 1] && showSpecConfirm && store.normalizedSpec"
-            :spec="store.normalizedSpec as Record<string, SpecField>"
-            :gating="store.phase === 'gating'"
-            @confirm="onSpecConfirm"
+            v-if="msg.resultType === 'spec' && specFor(msg)"
+            :spec="specFor(msg) as Record<string, SpecField>"
+            :gating="isLiveMsg(msg) && store.phase === 'gating'"
+            :readonly="!isLiveMsg(msg)"
+            @confirm="onSpecConfirm(msg, $event)"
           />
 
-          <!-- 替代料：仅最后一条消息 -->
+          <!-- 替代料卡: 挂在各自消息下, 追问不消失 -->
           <AlternativesList
-            v-if="msg === messages[messages.length - 1] && showAlternatives && store.alternatives.length"
-            :alternatives="store.alternatives as Alternative[]"
-            :original-part="(store.parsedSpec as any)?.['型号']?.value as string || ''"
-            :original-brand="(store.parsedSpec as any)?.['品牌']?.value as string || ''"
+            v-if="msg.resultType === 'alternatives' && alternativesFor(msg).length"
+            :alternatives="alternativesFor(msg)"
+            :original-part="originalPartFor(msg)"
+            :original-brand="originalBrandFor(msg)"
           />
 
-          <!-- 供应商：仅最后一条消息 -->
+          <!-- 供应商卡 -->
           <SuppliersMatch
-            v-if="msg === messages[messages.length - 1] && showSuppliers && store.matchedSuppliers.length"
-            :suppliers="store.matchedSuppliers as Supplier[]"
-            :selected-ids="store.selectedSupplierIds"
+            v-if="msg.resultType === 'suppliers' && suppliersFor(msg).length"
+            :suppliers="suppliersFor(msg)"
+            :selected-ids="selectedIdsFor(msg)"
             :streaming="false"
             :stream-progress="''"
             :error="null"
-            @toggle="store.toggleSupplier"
-            @select-all="store.selectAllSuppliers"
-            @deselect-all="store.deselectAllSuppliers"
-            @generate="onGenerateRfq"
-            @retry="store.retryMatch()"
+            @toggle="onToggleSupplier(msg, $event)"
+            @select-all="onSelectAll(msg)"
+            @deselect-all="onDeselectAll(msg)"
+            @generate="onGenerateRfq(msg)"
+            @retry="onRetryMatch(msg)"
           />
 
-          <!-- 询价单：仅最后一条消息 -->
+          <!-- 询价单 -->
           <RfqEditor
-            v-if="msg === messages[messages.length - 1] && showRfq && store.rfqDoc"
-            :rfq-doc="store.rfqDoc"
-            :rfq-id="store.rfqId"
-            :spec="store.normalizedSpec as Record<string, SpecField>"
-            :alternatives="store.alternatives as Alternative[]"
-            :suppliers="store.matchedSuppliers as Supplier[]"
-            :selected-supplier-ids="store.selectedSupplierIds"
-            :sent="store.rfqSent"
-            :streaming="store.agents.find(a => a.name === 'gen_rfq')?.status === 'running'"
-            @update="store.setRfqDoc"
-            @sent="store.markRfqSent"
-            @regenerate="store.regenerateRfq"
+            v-if="msg.resultType === 'rfq'"
+            :rfq-doc="rfqDocFor(msg)"
+            :rfq-id="rfqIdFor(msg)"
+            :spec="specFor(msg)"
+            :alternatives="alternativesFor(msg)"
+            :suppliers="suppliersFor(msg)"
+            :selected-supplier-ids="selectedIdsFor(msg)"
+            :sent="rfqSentFor(msg)"
+            :streaming="rfqStreaming(msg)"
+            @update="onRfqUpdate(msg, $event)"
+            @sent="onRfqSent(msg)"
+            @regenerate="onRfqRegenerate(msg)"
           />
 
-          <!-- 线索分级：仅最后一条消息 -->
-          <div v-if="msg === messages[messages.length - 1] && showGrade && store.leadGrade" class="grade-card">
+          <!-- 线索分级 -->
+          <div v-if="msg.resultType === 'grade' && gradeFor(msg)" class="grade-card">
             <div class="grade-card__head">
               <span class="grade-card__label">线索分级</span>
             </div>
             <div class="grade-card__body">
               <div class="grade-card__main">
-                <span class="grade-letter" :class="`grade-${store.leadGrade.grade}`">
-                  {{ store.leadGrade.grade }}
+                <span class="grade-letter" :class="`grade-${gradeFor(msg)!.grade}`">
+                  {{ gradeFor(msg)!.grade }}
                 </span>
-                <span class="grade-score">{{ store.leadGrade.score }} 分</span>
+                <span class="grade-score">{{ gradeFor(msg)!.score }} 分</span>
                 <Tag
-                  :type="store.leadGrade.grade === 'A' || store.leadGrade.grade === 'B' ? 'success' : store.leadGrade.grade === 'C' ? 'warning' : 'danger'"
-                  :value="`${store.leadGrade.grade} 级`"
+                  :type="gradeFor(msg)!.grade === 'A' || gradeFor(msg)!.grade === 'B' ? 'success' : gradeFor(msg)!.grade === 'C' ? 'warning' : 'danger'"
+                  :value="`${gradeFor(msg)!.grade} 级`"
                 />
               </div>
               <ul class="grade-card__reasons">
-                <li v-for="(r, ri) in store.leadGrade.reasons" :key="ri">{{ r }}</li>
+                <li v-for="(r, ri) in gradeFor(msg)!.reasons" :key="ri">{{ r }}</li>
               </ul>
             </div>
           </div>
@@ -524,7 +836,7 @@ const examples = [
 
     <!-- 历史记录侧边栏 -->
     <aside v-if="showHistory" class="chat__history-sidebar">
-      <SessionHistoryPanel @newChat="newChat" @close="showHistory = false" />
+      <SessionHistoryPanel @newChat="newChat" @close="showHistory = false" @select="openSession" />
     </aside>
   </div>
 </template>
@@ -811,5 +1123,41 @@ const examples = [
   background: var(--bg-1);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
+}
+
+/* 沉淀后的折叠时间线 (#28): 默认折叠, 展开回看"它刚才做了什么" */
+.tl-fold {
+  font-size: var(--font-size-sm);
+}
+.tl-fold__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  padding: var(--space-1) 0;
+  transition: color var(--transition-fast);
+}
+.tl-fold__summary::-webkit-details-marker {
+  display: none;
+}
+.tl-fold__summary:hover {
+  color: var(--text-secondary);
+}
+.tl-fold__caret {
+  display: inline-block;
+  transition: transform var(--transition-fast);
+  font-size: 10px;
+}
+.tl-fold[open] .tl-fold__caret {
+  transform: rotate(90deg);
+}
+.tl-fold__body {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
 }
 </style>

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
 import { useHistory } from '@/composables/useHistory'
 import { useProcureStore } from '@/stores/procure'
 import type { SessionSummary } from '@/types/procure'
@@ -8,10 +7,10 @@ import type { SessionSummary } from '@/types/procure'
 const emit = defineEmits<{
   (e: 'newChat'): void
   (e: 'close'): void
+  /** #28: 点击历史会话, 由 ChatView 在对话内重建聊天气泡(不再跳转向导页) */
+  (e: 'select', threadId: string): void
 }>()
 
-const router = useRouter()
-const route = useRoute()
 const store = useProcureStore()
 const { loading, load, remove } = useHistory()
 
@@ -23,14 +22,11 @@ async function refresh() {
 
 onMounted(refresh)
 
-// 路由变化时刷新列表
-watch(() => route.fullPath, refresh)
-
 // 会话保存后自动刷新（historyVersion 自增）
 watch(() => store.historyVersion, refresh)
 
 function viewSession(threadId: string) {
-  router.push(`/procure/${threadId}`)
+  emit('select', threadId)
 }
 
 async function doRemove(threadId: string) {
@@ -57,8 +53,9 @@ function formatDate(iso: string) {
   } catch { return iso.slice(0, 10) }
 }
 
+// 当前打开的会话与 store.threadId 一致即高亮
 const isActiveSession = (s: SessionSummary) => {
-  return route.params.id === s.thread_id
+  return !!store.threadId && store.threadId === s.thread_id
 }
 </script>
 

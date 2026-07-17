@@ -35,6 +35,8 @@ interface LocalRecord {
   created_at: string
   rfq_sent: boolean
   state: any
+  /** #28: 可渲染的多轮消息列表(含各消息卡片 payload), 供 ChatView 重建聊天气泡 */
+  messages?: any[]
 }
 
 function loadLocalRecords(): LocalRecord[] {
@@ -164,7 +166,12 @@ export function saveToLocal(record: LocalRecord) {
     const list = loadLocalRecords()
     const idx = list.findIndex((r) => r.id === record.id || r.thread_id === record.thread_id)
     if (idx >= 0) {
-      list[idx] = record
+      // 同一会话的多轮更新: 保留首条的标题(首个问题)与创建时间, 其余字段取最新
+      list[idx] = {
+        ...record,
+        raw_query: list[idx].raw_query || record.raw_query,
+        created_at: list[idx].created_at || record.created_at,
+      }
     } else {
       list.push(record)
     }
@@ -172,6 +179,24 @@ export function saveToLocal(record: LocalRecord) {
     if (list.length > 100) {
       list.splice(0, list.length - 100)
     }
-    localStorage.setItem(KEY, JSON.stringify(list))
+    persist(list)
   } catch { /* ignore */ }
+}
+
+/** 写入存储, 超出配额时剔除最旧的一半记录后重试一次 */
+function persist(list: LocalRecord[]) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(list))
+  } catch {
+    try {
+      const half = list.slice(Math.floor(list.length / 2))
+      localStorage.setItem(KEY, JSON.stringify(half))
+    } catch { /* ignore */ }
+  }
+}
+
+/** 读取本地保存的可渲染消息列表 (#28), 无则返回 null */
+export function loadLocalMessages(threadId: string): any[] | null {
+  const rec = loadLocalRecord(threadId)
+  return rec?.messages?.length ? rec.messages : null
 }

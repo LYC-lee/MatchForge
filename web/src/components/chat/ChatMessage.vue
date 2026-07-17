@@ -2,9 +2,32 @@
 import { computed, onUnmounted, ref } from 'vue'
 import MarkdownContent from '@/components/chat/MarkdownContent.vue'
 import CitationList from '@/components/chat/CitationList.vue'
-import type { Citation } from '@/types/procure'
+import type { AgentState, Alternative, Citation, LeadGrade, SpecField, Supplier } from '@/types/procure'
 
 export type MessageRole = 'user' | 'assistant' | 'system'
+
+/**
+ * 单条消息携带的结构化结果快照 (#28)。
+ * 生成中的活跃消息从 store 实时取数; 新轮次开始 / 会话重建时把数据冻结进
+ * payload, 卡片随消息持久, 追问时上一轮卡片不再消失。
+ */
+export interface TurnPayload {
+  parsedSpec?: Record<string, SpecField> | null
+  normalizedSpec?: Record<string, SpecField> | null
+  alternatives?: Alternative[]
+  originalPart?: string
+  originalBrand?: string
+  matchedSuppliers?: Supplier[]
+  selectedSupplierIds?: string[]
+  rfqDoc?: string
+  rfqId?: string | null
+  rfqSent?: boolean
+  leadGrade?: LeadGrade | null
+  /** AgentTimeline 沉淀: 本轮 Agent 执行状态快照(生成完成时冻结, 默认折叠回看) */
+  agents?: AgentState[]
+  alternativesCount?: number
+  suppliersCount?: number
+}
 
 export interface ChatMessageData {
   id: string
@@ -16,6 +39,12 @@ export interface ChatMessageData {
   timestamp?: number
   /** 引用回显(C2): 助手消息附带的 RAG 引用片段 */
   citations?: Citation[]
+  /** 所属轮次 id, 与 ChatView.activeTurnId 相同者为当前活跃轮(可交互) */
+  turnId?: number
+  /** 冻结标记: true 时卡片从 payload 只读渲染, 不再跟随 store 变化 */
+  frozen?: boolean
+  /** 冻结的卡片/时间线数据快照 */
+  payload?: TurnPayload
 }
 
 const props = defineProps<{
