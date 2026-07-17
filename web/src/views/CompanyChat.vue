@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { getChatPartners, partnerChat, type ChatPartner } from '@/api/enterprise'
 import { mapRetrievedToCitations } from '@/api/kb'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { useProgressiveReveal } from '@/composables/useProgressiveReveal'
 import MarkdownContent from '@/components/chat/MarkdownContent.vue'
 import CitationList from '@/components/chat/CitationList.vue'
 import type { Citation } from '@/types/procure'
@@ -14,9 +15,16 @@ const mode = ref<'product' | 'business'>('product')
 const query = ref('')
 const sending = ref(false)
 const chatBody = ref<HTMLElement | null>(null)
-const messages = ref<{ role: 'user' | 'assistant'; content: string; source?: 'api' | 'error'; citations?: Citation[] }[]>([])
+const messages = ref<{ role: 'user' | 'assistant'; content: string; source?: 'api' | 'error'; citations?: Citation[]; streaming?: boolean }[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+
+// kb 协同问答接口暂无流式后端,完整答案到达后客户端渐进式 reveal (过渡方案,见 useProgressiveReveal)
+const { revealing, start: startReveal, stop: stopReveal } = useProgressiveReveal()
+/** 渐进式 reveal 的文本目标,绑定到最后一条 assistant 消息 */
+const revealText = ref('')
+let revealMsg: { content: string; streaming?: boolean } | null = null
+const busy = computed(() => sending.value || revealing.value)
 
 async function fetchPartners(companyId: number) {
   loading.value = true
@@ -36,6 +44,7 @@ async function fetchPartners(companyId: number) {
 
 watch(currentEnterpriseId, (id) => {
   if (!id) return
+  stopRevealing()
   messages.value = []
   fetchPartners(id)
 }, { immediate: true })
@@ -51,12 +60,13 @@ const quickQuestions = computed(() => {
 
 function selectPartner(id: number) {
   selectedId.value = id
+  stopRevealing()
   messages.value = []
 }
 
 async function send(q?: string) {
   const text = (q ?? query.value).trim()
-  if (!text || sending.value || !selectedPartner.value) return
+  if (!text || busy.value || !selectedPartner.value) return
   query.value = ''
   messages.value.push({ role: 'user', content: text })
   sending.value = true
@@ -74,12 +84,19 @@ async function send(q?: string) {
       res.data?.retrieved,
       selectedPartner.value?.company_id ?? currentEnterpriseId.value,
     )
-    messages.value.push({
-      role: 'assistant',
-      content: answer || '伙伴企业知识库暂未返回答案，请换个问法再试。',
-      source: answer ? 'api' : 'error',
+    const msg = {
+      role: 'assistant' as const,
+      content: '',
+      source: (answer ? 'api' : 'error') as 'api' | 'error',
       citations: citations.length ? citations : undefined,
-    })
+      streaming: true,
+    }
+    messages.value.push(msg)
+    revealMsg = msg
+    // 渐进式 reveal: 逐帧写入 revealText → msg.content,期间显示光标
+    await startReveal(revealText, answer || '伙伴企业知识库暂未返回答案，请换个问法再试。')
+    msg.streaming = false
+    revealMsg = null
   } catch (e: any) {
     const detail = e?.response?.status === 403
       ? '当前企业只能与直接上下游或支撑企业协同问答。'
@@ -90,6 +107,25 @@ async function send(q?: string) {
     await scrollBottom()
   }
 }
+
+/** 停止渐进式展示: 保留已 reveal 的部分文本,光标消失,输入框恢复 */
+function stopRevealing() {
+  stopReveal()
+  if (revealMsg) {
+    revealMsg.streaming = false
+    revealMsg = null
+  }
+}
+
+// revealText 同步到最后一条 assistant 消息 (reveal 期间每帧滚动)
+watch(revealText, async (text) => {
+  if (revealMsg) {
+    revealMsg.content = text
+    await scrollBottom()
+  }
+})
+
+onUnmounted(() => stopReveal())
 
 async function scrollBottom() {
   await nextTick()
@@ -157,13 +193,16 @@ function directionLabel(direction: string) {
             <div class="msg__avatar">{{ message.role === 'user' ? '我' : 'AI' }}</div>
             <div class="msg__body">
               <div class="msg__content" :class="{ 'msg__content--md': message.role === 'assistant' }">
-                <MarkdownContent v-if="message.role === 'assistant'" :content="message.content" />
+                <MarkdownContent v-if="message.role === 'assistant'" :content="message.content" :streaming="message.streaming" />
                 <template v-else>{{ message.content }}</template>
-                <span v-if="message.source === 'api' && !message.citations?.length" class="msg__source msg__source--api">RAG</span>
-                <span v-else-if="message.source === 'error'" class="msg__source">未生成</span>
+                <span v-if="message.streaming" class="msg__cursor">▌</span>
+                <template v-if="!message.streaming">
+                  <span v-if="message.source === 'api' && !message.citations?.length" class="msg__source msg__source--api">RAG</span>
+                  <span v-else-if="message.source === 'error'" class="msg__source">未生成</span>
+                </template>
               </div>
               <CitationList
-                v-if="message.role === 'assistant' && message.citations?.length"
+                v-if="message.role === 'assistant' && !message.streaming && message.citations?.length"
                 class="msg__citations"
                 :citations="message.citations"
               />
@@ -180,10 +219,11 @@ function directionLabel(direction: string) {
             v-model="query"
             class="input"
             :placeholder="mode === 'product' ? '询问型号、规格、价格、MOQ、交期、替代品...' : '询问合作流程、合同条款、售后、付款方式...'"
-            :disabled="sending"
+            :disabled="busy"
             @keydown.enter="send()"
           />
-          <button class="btn-send" :disabled="sending || !query.trim() || !selectedPartner" @click="send()">{{ sending ? '发送中…' : '发送' }}</button>
+          <button v-if="revealing" class="btn-send btn-send--stop" @click="stopRevealing"><span class="stop-icon" />停止</button>
+          <button v-else class="btn-send" :disabled="busy || !query.trim() || !selectedPartner" @click="send()">{{ sending ? '发送中…' : '发送' }}</button>
         </div>
       </div>
     </section>
@@ -349,6 +389,27 @@ h2 { color: var(--text-primary); }
   cursor: pointer;
 }
 .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
+/* 流式光标 (与 ChatView / CompanyAssistant 一致) */
+.msg__cursor {
+  animation: blink 0.8s step-end infinite;
+  color: var(--accent);
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+/* 停止键 (与 ChatView 一致: 方形图标) */
+.btn-send--stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.stop-icon {
+  display: block;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 2px;
+}
 @media (max-width: 920px) {
   .chat-page { grid-template-columns: 1fr; height: auto; }
 }

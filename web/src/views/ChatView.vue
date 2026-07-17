@@ -115,6 +115,7 @@ function stopSending() {
     if (!text || PROGRESS_PLACEHOLDERS.includes(text)) {
       last.content = '已停止生成。'
       last.resultType = undefined
+      last.citations = undefined  // abort 后 citation 帧若到达,不再挂到停止标记上
     }
   }
   isProcessing.value = false
@@ -157,9 +158,10 @@ function updateProgressText(label: string) {
 watch(() => store.chatStreamingText, (text) => {
   if (!text) return
   const last = messages.value[messages.value.length - 1]
-  if (last && last.role === 'assistant') {
+  // 仅更新仍处于流式状态的 AI 消息: 结构化卡片消息 (SpecConfirm/RfqEditor 等)
+  // streaming=false, token 流不会影响它们;abort 后 finalize 同样置 false,天然忽略迟到帧
+  if (last && last.role === 'assistant' && last.streaming) {
     last.content = text
-    last.streaming = true
     scrollDown()
   }
 })
@@ -237,7 +239,15 @@ watch(() => store.phase, (phase) => {
       store.matchedSuppliers.length > 0 ||
       !!store.rfqDoc
     if (!hasResult && store.errors.length > 0) {
-      replaceProgressWithError(store.streamError || store.errors[0] || '连接中断，请重试')
+      // token 流中途断开: 已流出实质文本则保留在气泡里,断流由 streamError 条 + 重试承载;
+      // 仅占位/进度文案替换为错误气泡
+      const last = messages.value[messages.value.length - 1]
+      const partial = last?.role === 'assistant' ? last.content.trim() : ''
+      if (!partial || PROGRESS_PLACEHOLDERS.includes(partial)) {
+        replaceProgressWithError(store.streamError || store.errors[0] || '连接中断，请重试')
+      } else {
+        finalizeMsg()
+      }
       return
     }
 
