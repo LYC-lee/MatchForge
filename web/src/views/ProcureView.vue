@@ -33,7 +33,6 @@ const {
   leadGrade,
   errors,
   isVague,
-  isStreaming,
   streamProgress,
   matchError,
 } = storeToRefs(store)

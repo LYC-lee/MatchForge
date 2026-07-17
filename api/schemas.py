@@ -19,7 +19,8 @@ class RegisterRequest(BaseModel):
     account: str
     password: str
     company: str = ""
-    role: str = "buyer"
+    role: str = "member"
+    enterprise_type: str = "other"
 
 class TokenResponse(BaseModel):
     token: str
