@@ -13,7 +13,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const route = useRoute()
 const store = useProcureStore()
-const { sessions, loading, load, remove } = useHistory()
+const { loading, load, remove } = useHistory()
 
 const list = ref<SessionSummary[]>([])
 

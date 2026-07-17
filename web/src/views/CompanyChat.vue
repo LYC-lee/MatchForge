@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { getChatPartners, partnerChat, type ChatPartner } from '@/api/enterprise'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import MarkdownContent from '@/components/chat/MarkdownContent.vue'
 
 const { current, currentEnterpriseId } = useEnterpriseContext()
 const partners = ref<ChatPartner[]>([])
@@ -145,8 +146,9 @@ function directionLabel(direction: string) {
           </div>
           <div v-for="(message, index) in messages" :key="index" class="msg" :class="`msg--${message.role}`">
             <div class="msg__avatar">{{ message.role === 'user' ? '我' : 'AI' }}</div>
-            <div class="msg__content">
-              {{ message.content }}
+            <div class="msg__content" :class="{ 'msg__content--md': message.role === 'assistant' }">
+              <MarkdownContent v-if="message.role === 'assistant'" :content="message.content" />
+              <template v-else>{{ message.content }}</template>
               <span v-if="message.source === 'api'" class="msg__source msg__source--api">RAG</span>
               <span v-else-if="message.source === 'error'" class="msg__source">未生成</span>
             </div>
@@ -280,6 +282,10 @@ h2 { color: var(--text-primary); }
   font-size: var(--font-size-sm);
   line-height: 1.7;
   white-space: pre-wrap;
+}
+/* Markdown 内容自行管理换行,不再保留 pre-wrap */
+.msg__content--md {
+  white-space: normal;
 }
 .muted { color: #aeb7c8; }
 .msg__source {

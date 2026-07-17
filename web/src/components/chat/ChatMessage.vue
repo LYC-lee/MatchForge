@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import MarkdownContent from '@/components/chat/MarkdownContent.vue'
 
 export type MessageRole = 'user' | 'assistant' | 'system'
 
@@ -22,6 +23,10 @@ const isSystem = computed(() => props.message.role === 'system')
 const isStreaming = computed(() => props.message.streaming)
 const isError = computed(() => props.message.resultType === 'error')
 const isProgress = computed(() => props.message.resultType === 'progress')
+// 仅助手常规消息渲染 Markdown;用户/系统/错误/进度消息保持纯文本
+const renderMarkdown = computed(
+  () => !isUser.value && !isSystem.value && !isError.value && !isProgress.value,
+)
 
 const displayContent = computed(() => {
   let text = props.message.content
@@ -54,9 +59,15 @@ const displayContent = computed(() => {
       <div
         v-if="displayContent"
         class="msg__text"
-        :class="{ 'msg__text--typing': isStreaming }"
+        :class="{ 'msg__text--typing': isStreaming, 'msg__text--md': renderMarkdown }"
       >
-        {{ displayContent }}<span v-if="isStreaming" class="msg__cursor">▌</span>
+        <template v-if="renderMarkdown">
+          <MarkdownContent :content="displayContent" :streaming="isStreaming" />
+          <span v-if="isStreaming" class="msg__cursor">▌</span>
+        </template>
+        <template v-else>
+          {{ displayContent }}<span v-if="isStreaming" class="msg__cursor">▌</span>
+        </template>
       </div>
 
       <!-- 插槽: 嵌入结构化结果卡片 -->
@@ -165,6 +176,10 @@ const displayContent = computed(() => {
   line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
+}
+/* Markdown 内容自行管理换行,不再保留 pre-wrap */
+.msg__text--md {
+  white-space: normal;
 }
 .msg__text--typing {
   color: var(--text-secondary);

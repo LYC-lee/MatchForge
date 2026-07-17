@@ -7,7 +7,7 @@ import Card from '@/components/ui/Card.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 
 const router = useRouter()
-const { sessions, loading, error, load, remove } = useHistory()
+const { loading, error, load, remove } = useHistory()
 
 const list = ref<SessionSummary[]>([])
 
