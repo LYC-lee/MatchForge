@@ -1,0 +1,9 @@
+feat(chat): streaming output, layout fixes, chat-response flow
+
+- Backend token streaming for chat/rag_enrich agents
+- chatStreamingText ref for real-time display in ChatView
+- Fix: AgentTimeline only shows on last message
+- Fix: SpecConfirm/alternatives/suppliers only on last message
+- Fix: chat response without AgentTimeline for casual input
+- Fix: newProcure redirects to /chat instead of /
+- Fix: CompanyAssistant user/AI bubble alignment

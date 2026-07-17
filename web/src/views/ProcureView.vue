@@ -118,7 +118,7 @@ function onGenerateRfq() {
 
 function newProcure() {
   store.reset()
-  router.push('/')
+  router.push('/chat')
 }
 </script>
 

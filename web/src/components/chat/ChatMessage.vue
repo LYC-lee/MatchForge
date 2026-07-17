@@ -140,6 +140,7 @@ const displayContent = computed(() => {
   background: var(--bg-2);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm) var(--radius-lg) var(--radius-lg) var(--radius-lg);
+  color: var(--text-primary);
 }
 .msg--system .msg__text {
   background: transparent;

@@ -89,6 +89,7 @@ export interface SpecField {
 export interface ProcureState {
   thread_id: string
   raw_query: string
+  chat_response: string | null
   parsed_spec: Record<string, SpecField | string> | null
   normalized_spec: Record<string, SpecField | string> | null
   alternatives: Alternative[]
@@ -103,7 +104,7 @@ export interface ProcureState {
 export type SseEvent =
   | { type: 'start'; thread_id: string; rfq_id?: string }
   | { type: 'progress'; agent: AgentName; status: AgentStatus; result?: unknown }
-  | { type: 'token'; text: string }
+  | { type: 'token'; agent?: AgentName | string; text: string }
   | { type: 'error'; agent?: AgentName; message: string }
   | { type: 'result'; state: Partial<ProcureState> }
   | { type: 'end' }
@@ -111,7 +112,7 @@ export type SseEvent =
 export interface SseCallbacks {
   onStart?: (threadId: string, rfqId?: string) => void
   onProgress?: (agent: AgentName, status: AgentStatus, result?: unknown) => void
-  onToken?: (text: string) => void
+  onToken?: (text: string, agent?: AgentName | string) => void
   onError?: (agent: AgentName | undefined, message: string) => void
   onResult?: (state: Partial<ProcureState>) => void
   onEnd?: () => void

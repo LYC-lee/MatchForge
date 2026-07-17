@@ -68,7 +68,7 @@ function dispatch(evt: SseEvent, cb: SseCallbacks) {
       cb.onProgress?.(evt.agent, evt.status, evt.result)
       break
     case 'token':
-      cb.onToken?.(evt.text)
+      cb.onToken?.(evt.text, evt.agent)
       break
     case 'error':
       cb.onError?.(evt.agent, evt.message)

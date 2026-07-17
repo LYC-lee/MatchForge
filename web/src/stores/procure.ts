@@ -17,10 +17,14 @@ type Phase = 'idle' | 'spec' | 'gating' | 'match' | 'done'
 /**
  * 将后端返回的简单键值对格式转为前端 SpecConfirm 组件期望的 SpecField 格式。
  */
+// 后端内部字段，不展示给用户
+const INTERNAL_KEYS = new Set(['std_code', 'standard', '_mapped', '_phase'])
+
 function toSpecFieldFormat(spec: Record<string, any> | null): Record<string, SpecField> | null {
   if (!spec) return null
   const result: Record<string, SpecField> = {}
   for (const [key, val] of Object.entries(spec)) {
+    if (INTERNAL_KEYS.has(key)) continue  // 跳过内部字段
     if (typeof val === 'object' && val !== null && 'value' in val) {
       result[key] = val as SpecField
     } else {
@@ -42,6 +46,8 @@ export const useProcureStore = defineStore('procure', () => {
   const threadId = ref<string>('')
   const rfqId = ref<string | null>(null)
   const rawQuery = ref<string>('')
+  const chatResponse = ref<string | null>(null)
+  const chatStreamingText = ref<string>('')  // 流式输入的实时缓冲区
   const phase = ref<Phase>('idle')
   const agents = ref<AgentState[]>(
     AGENT_ORDER.map((name) => ({ name, status: 'pending' as const })),
@@ -113,6 +119,7 @@ export const useProcureStore = defineStore('procure', () => {
     }
     if (state.rfq_doc !== undefined && state.rfq_doc !== null) rfqDoc.value = state.rfq_doc
     if (state.rfq_id !== undefined) rfqId.value = state.rfq_id
+    if (state.chat_response !== undefined) chatResponse.value = state.chat_response
     if (state.lead_grade !== undefined) leadGrade.value = state.lead_grade
     if (state.errors !== undefined) errors.value = state.errors
   }
@@ -122,6 +129,8 @@ export const useProcureStore = defineStore('procure', () => {
     threadId.value = ''
     rfqId.value = null
     rawQuery.value = ''
+    chatResponse.value = null
+    chatStreamingText.value = ''
     phase.value = 'idle'
     agents.value = AGENT_ORDER.map((name) => ({ name, status: 'pending' as const }))
     parsedSpec.value = null
@@ -156,9 +165,22 @@ export const useProcureStore = defineStore('procure', () => {
         threadId.value = tid
         if (rid) rfqId.value = rid
       },
+      onToken: (text, agent) => {
+        // chat 等文本 Agent 的流式 token
+        if (agent && chatStreamingText.value !== null) {
+          chatStreamingText.value += text
+        }
+      },
       onProgress: (agent, status, result) => {
         setAgent(agent, status)
         progress.value.push({ agent, status })
+        if (agent === 'chat' && status === 'running') {
+          chatStreamingText.value = ''  // 清空缓冲区，开始流式接收
+        }
+        if (agent === 'chat' && status === 'done' && result) {
+          chatResponse.value = typeof result === 'string' ? result : JSON.stringify(result)
+          chatStreamingText.value = ''  // 流式结束，清空缓冲区
+        }
         if (agent === 'parse' && status === 'running') {
           streamProgress.value = '正在解析需求…'
         }
@@ -430,6 +452,11 @@ export const useProcureStore = defineStore('procure', () => {
       rfqId.value = st.rfq_id
     }
 
+    // 恢复聊天回复
+    if (st.chat_response) {
+      chatResponse.value = st.chat_response
+    }
+
     // 恢复线索分级
     if (st.lead_grade) {
       leadGrade.value = st.lead_grade
@@ -453,6 +480,8 @@ export const useProcureStore = defineStore('procure', () => {
     threadId,
     rfqId,
     rawQuery,
+    chatResponse,
+    chatStreamingText,
     phase,
     agents,
     progress,

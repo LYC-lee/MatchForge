@@ -40,7 +40,7 @@ router = APIRouter(prefix="/procure", tags=["procure"])
 # ── 请求模型 ──────────────────────────────────────────────────────────────
 
 class ProcureRequest(BaseModel):
-    raw_query: str = Field(..., description="用户自然语言需求，如 'TMK212BJ105KG-T 缺货找替代'")
+    raw_query: str = Field(..., min_length=1, description="用户自然语言需求，如 'TMK212BJ105KG-T 缺货找替代'")
     phase: str = Field(default="spec", description="spec=解析+标准化+替代 | match=替代+匹配+询价+分级")
     thread_id: str | None = Field(default=None, description="会话 ID，None 则自动生成")
     confirmed_spec: dict | None = Field(default=None, description="已确认的规格（phase=match 时使用）")
@@ -48,7 +48,7 @@ class ProcureRequest(BaseModel):
 
 
 class SpecOnlyRequest(BaseModel):
-    raw_query: str = Field(..., description="用户自然语言需求")
+    raw_query: str = Field(..., min_length=1, description="用户自然语言需求")
     thread_id: str | None = None
 
 

@@ -33,6 +33,7 @@ LangGraph 多 Agent 工作流编排。
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -327,10 +328,21 @@ async def run_procure_stream(
         async for event in graph.astream(state, config, stream_mode="updates"):
             for node_name, node_output in event.items():
                 if node_name in agent_keys:
+                    result = _extract_result(state, node_output, node_name)
+
+                    # 对于文本型结果（chat/rag_enrich），流式输出 token
+                    text_agents = {"chat", "rag_enrich"}
+                    if node_name in text_agents and isinstance(result, str) and len(result) > 1:
+                        chunk_size = 4
+                        for i in range(0, len(result), chunk_size):
+                            token = result[i:i + chunk_size]
+                            yield _sse("token", {"agent": node_name, "text": token})
+                            await asyncio.sleep(0.015)
+
                     yield _sse("progress", {
                         "agent": node_name,
                         "status": "done",
-                        "result": _extract_result(state, node_output, node_name),
+                        "result": result,
                     })
                 elif node_name == "supervisor" and node_output.get("next_agent") in agent_keys:
                     yield _sse("progress", {

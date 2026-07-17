@@ -87,6 +87,7 @@ SYSTEM_PROMPT = """你是电子元器件寻源系统的主调度 Agent。
 
 ## 当前 State
 - raw_query: "{raw_query}"
+- chat_response: {chat_response_status}
 - parsed_spec: {parsed_spec_status}
 - normalized_spec: {normalized_spec_status}
 - alternatives: {alternatives_status}
@@ -99,11 +100,12 @@ SYSTEM_PROMPT = """你是电子元器件寻源系统的主调度 Agent。
 {brand_memory}
 
 ## 路由规则
-1. 如果用户是闲聊/问候/问功能 → 输出 chat
-2. 如果是寻源需求 → 按 parse → normalize → alternatives → match → gen_rfq → grade 顺序
-3. 已完成的不再执行
-4. 失败时记录 error，允许跳过
-5. 全部完成 → 输出 FINISH
+1. 如果用户是闲聊/问候/问功能/无效输入 → 输出 chat
+2. chat 已回复后 → 输出 FINISH（不要继续 parse）
+3. 如果是寻源需求 → 按 parse → normalize → alternatives → match → gen_rfq → grade 顺序
+4. 已完成的不再执行
+5. 失败时记录 error，允许跳过
+6. 全部完成 → 输出 FINISH
 
 请输出如下 JSON 格式（不要加 markdown 代码块标记）：
 {{"agent": "<Agent名称 或 FINISH>", "reason": "<路由理由>"}}"""
@@ -176,6 +178,7 @@ def _build_supervisor_prompt(state: dict) -> str:
     return SYSTEM_PROMPT.format(
         agent_meta=agent_lines,
         raw_query=str(state.get("raw_query", ""))[:100],
+        chat_response_status=s(state.get("chat_response")),
         parsed_spec_status=s(state.get("parsed_spec")),
         normalized_spec_status=s(state.get("normalized_spec")),
         alternatives_status=s(
@@ -253,6 +256,11 @@ def _ordered_fallback(state: dict) -> str:
     但 _attempted_agents 可能不含 parse/normalize。此时尝试走 alternatives。
     """
     attempted = state.get("_attempted_agents", [])
+
+    # 如果 chat 已执行但无 parsed_spec，说明用户输入是非寻源内容（闲聊/无效输入），
+    # chat 子 Agent 已回复引导提示，直接 FINISH 避免进入 parse→normalize 无效循环
+    if "chat" in attempted and not state.get("parsed_spec"):
+        return "FINISH"
 
     # 如果 parse/normalize 未执行但 spec 已有值，说明外部注入的 → 跳至 alternatives
     has_spec = bool(state.get("parsed_spec")) and bool(state.get("normalized_spec"))

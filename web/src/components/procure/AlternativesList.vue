@@ -11,12 +11,22 @@ const props = defineProps<{
   originalBrand?: string
 }>()
 
-// L5 或 低置信+未核验 -> 折叠区
+const LEVEL_ORDER: Record<string, number> = { L1: 1, L2: 2, L3: 3, L4: 4, L5: 5 }
+
+function byLevel(a: Alternative, b: Alternative) {
+  return (LEVEL_ORDER[a.level] ?? 99) - (LEVEL_ORDER[b.level] ?? 99)
+}
+
+// L5 或 低置信+未核验 -> 折叠区；内部按 level 排序（L1→L5）
 const trusted = computed(() =>
-  props.alternatives.filter((a) => a.level !== 'L5' && !(a.confidence < 0.5 && !a.verified)),
+  props.alternatives
+    .filter((a) => a.level !== 'L5' && !(a.confidence < 0.5 && !a.verified))
+    .sort(byLevel),
 )
 const risky = computed(() =>
-  props.alternatives.filter((a) => a.level === 'L5' || (a.confidence < 0.5 && !a.verified)),
+  props.alternatives
+    .filter((a) => a.level === 'L5' || (a.confidence < 0.5 && !a.verified))
+    .sort(byLevel),
 )
 
 const expanded = ref<Set<string>>(new Set())

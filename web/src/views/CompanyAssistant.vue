@@ -88,15 +88,19 @@ async function scrollBottom() {
         </div>
         <div v-for="(message, index) in messages" :key="index" class="msg" :class="`msg--${message.role}`">
           <div class="msg__avatar">{{ message.role === 'user' ? '我' : 'AI' }}</div>
-          <div class="msg__content">
-            {{ message.content }}
-            <span v-if="message.source === 'api'" class="msg__source msg__source--api">RAG</span>
-            <span v-else-if="message.source === 'error'" class="msg__source">未生成</span>
+          <div class="msg__wrapper">
+            <div class="msg__content">
+              {{ message.content }}
+              <span v-if="message.source === 'api'" class="msg__source msg__source--api">RAG</span>
+              <span v-else-if="message.source === 'error'" class="msg__source">未生成</span>
+            </div>
           </div>
         </div>
         <div v-if="sending" class="msg msg--assistant">
           <div class="msg__avatar">AI</div>
-          <div class="msg__content muted">正在检索企业私域知识...</div>
+          <div class="msg__wrapper">
+            <div class="msg__content muted">正在检索企业私域知识...</div>
+          </div>
         </div>
       </div>
 
@@ -155,6 +159,8 @@ async function scrollBottom() {
 .chip { cursor: pointer; }
 .chip:hover { border-color: var(--accent-border); color: var(--text-primary); }
 .msg { display: flex; gap: var(--space-3); margin-bottom: var(--space-3); }
+.msg--user { flex-direction: row-reverse; }
+.msg--user .msg__wrapper { align-items: flex-end; }
 .msg__avatar {
   width: 30px;
   height: 30px;
@@ -169,16 +175,29 @@ async function scrollBottom() {
   font-weight: 700;
 }
 .msg--user .msg__avatar { color: #fff; background: var(--gradient-accent); }
+.msg__wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 640px;
+}
 .msg__content {
-  flex: 1;
   padding: var(--space-3);
-  border: 1px solid var(--border-default);
   border-radius: 8px;
   background: var(--bg-2);
+  border: 1px solid var(--border-default);
   color: var(--text-primary);
   font-size: var(--font-size-sm);
   line-height: 1.7;
   white-space: pre-wrap;
+}
+.msg--user .msg__content {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  border-radius: 8px 8px 0 8px;
+}
+.msg--assistant .msg__content {
+  border-radius: 8px 8px 8px 0;
 }
 .muted { color: #aeb7c8; }
 .msg__source {

@@ -70,7 +70,7 @@ function send() {
   store.reset()
 
   // AI 占位 → 启动
-  addMsg('assistant', '正在解析需求…', { streaming: true, resultType: 'progress' })
+  addMsg('assistant', '思考中…', { streaming: true })
   store.startProcure(q)
 }
 
@@ -107,11 +107,42 @@ function updateProgressText(label: string) {
   }
 }
 
+// ── 流式 token → 实时更新最后一条 AI 消息 ──
+watch(() => store.chatStreamingText, (text) => {
+  if (!text) return
+  const last = messages.value[messages.value.length - 1]
+  if (last && last.role === 'assistant') {
+    last.content = text
+    last.streaming = true
+    scrollDown()
+  }
+})
+
 // ── 终结流式状态 ──
 function finalizeMsg() {
   const last = messages.value[messages.value.length - 1]
   if (last && last.streaming) {
     last.streaming = false
+  }
+}
+
+// ── 将最后一条 AI 进度消息替换为错误消息（SSE 流失败或解析失败时调用）──
+function replaceProgressWithError(errMsg: string) {
+  const last = messages.value[messages.value.length - 1]
+  if (last && last.role === 'assistant') {
+    last.streaming = false
+    last.content = errMsg
+    last.resultType = 'error'
+  }
+}
+
+// ── 将最后一条 AI 消息替换为聊天回复（闲聊时调用，不显示 AgentTimeline）──
+function showChatResponse(text: string) {
+  const last = messages.value[messages.value.length - 1]
+  if (last && last.role === 'assistant') {
+    last.streaming = false
+    last.content = text
+    last.resultType = undefined  // 移除 resultType，AgentTimeline 不会显示
   }
 }
 
@@ -122,9 +153,15 @@ watch(() => store.phase, (phase) => {
     finalizeMsg()
     isProcessing.value = false
 
+    // 如果是 chat 回复（非寻源内容），直接展示聊天回复，不显示 AgentTimeline
+    if (store.chatResponse) {
+      showChatResponse(store.chatResponse)
+      return
+    }
+
     if (!store.parsedSpec || store.errors.length > 0) {
-      // 解析失败
-      addMsg('assistant', store.errors[0] || '未能识别到有效型号，请补充更多信息。', { resultType: 'error' })
+      // 解析失败：替换进度消息为错误
+      replaceProgressWithError(store.errors[0] || '未能识别到有效型号，请补充更多信息。')
       return
     }
 
@@ -135,6 +172,20 @@ watch(() => store.phase, (phase) => {
   if (phase === 'done') {
     finalizeMsg()
     isProcessing.value = false
+
+    // SSE 流失败（无 Agent 执行过）→ 替换进度提示为错误消息
+    const anyAgentRan = store.agents.some((a: any) => a.status !== 'pending')
+    if (!anyAgentRan && store.errors.length > 0) {
+      replaceProgressWithError(store.errors[0] || '请求失败，请重试')
+      return
+    }
+
+    // 纯聊天流（无寻源结果）→ 展示聊天内容
+    // 注意：confirmSpec 的 match 阶段也可能有 chatResponse，但此时有 alternatives/suppliers，优先展示寻源结果
+    if (store.chatResponse && !store.alternatives.length && !store.matchedSuppliers.length) {
+      showChatResponse(store.chatResponse)
+      return
+    }
 
     // 保存历史到 localStorage 作为降级备份
     if (!store.isVague) {
@@ -184,6 +235,10 @@ watch(() => store.phase, (phase) => {
 watch(() => store.progress.length, () => {
   const p = store.progress
   if (!p.length) return
+
+  const firstAgent = p[0].agent
+  const lastProgress = p[p.length - 1]
+
   const labels: Record<string, string> = {
     parse: '正在识别型号与参数…',
     normalize: '正在标准化规格…',
@@ -192,10 +247,19 @@ watch(() => store.progress.length, () => {
     gen_rfq: '正在生成询价单…',
     grade: '正在评估线索…',
   }
-  const last = p[p.length - 1]
-  if (last.status === 'running') {
-    updateProgressText(labels[last.agent] || '处理中…')
+
+  // 首个 Agent 不是 chat → 寻源流程 → 显示 AgentTimeline
+  if (firstAgent !== 'chat') {
+    const lastMsg = messages.value[messages.value.length - 1]
+    if (lastMsg && lastMsg.role === 'assistant' && lastMsg.streaming && !lastMsg.resultType) {
+      lastMsg.resultType = 'progress'
+    }
+    // 更新进度文字（寻源 Agent 的标签）
+    if (lastProgress.status === 'running' && labels[lastProgress.agent]) {
+      updateProgressText(labels[lastProgress.agent])
+    }
   }
+  // chat 的进度文字由流式 token watcher 处理，不在此覆盖
 })
 
 // ── 规格确认回调 ──
@@ -276,7 +340,7 @@ const examples = [
       <template v-for="msg in messages" :key="msg.id">
         <ChatMessage :message="msg">
           <!-- Agent 进度时间线 -->
-          <div v-if="msg.resultType === 'progress' || (isProcessing && store.agents.some(a => a.status !== 'pending'))" class="chat__timeline">
+          <div v-if="msg.resultType === 'progress' && msg === messages[messages.length - 1]" class="chat__timeline">
             <AgentTimeline
               :agents="store.agents"
               :alternatives-count="store.alternatives.length"
@@ -284,25 +348,25 @@ const examples = [
             />
           </div>
 
-          <!-- 规格确认 -->
+          <!-- 规格确认：仅最后一条消息 -->
           <SpecConfirm
-            v-if="showSpecConfirm && store.normalizedSpec"
+            v-if="msg === messages[messages.length - 1] && showSpecConfirm && store.normalizedSpec"
             :spec="store.normalizedSpec as Record<string, SpecField>"
             :gating="store.phase === 'gating'"
             @confirm="onSpecConfirm"
           />
 
-          <!-- 替代料 -->
+          <!-- 替代料：仅最后一条消息 -->
           <AlternativesList
-            v-if="showAlternatives && store.alternatives.length"
+            v-if="msg === messages[messages.length - 1] && showAlternatives && store.alternatives.length"
             :alternatives="store.alternatives as Alternative[]"
             :original-part="(store.parsedSpec as any)?.['型号']?.value as string || ''"
             :original-brand="(store.parsedSpec as any)?.['品牌']?.value as string || ''"
           />
 
-          <!-- 供应商 -->
+          <!-- 供应商：仅最后一条消息 -->
           <SuppliersMatch
-            v-if="showSuppliers && store.matchedSuppliers.length"
+            v-if="msg === messages[messages.length - 1] && showSuppliers && store.matchedSuppliers.length"
             :suppliers="store.matchedSuppliers as Supplier[]"
             :selected-ids="store.selectedSupplierIds"
             :streaming="false"
@@ -315,9 +379,9 @@ const examples = [
             @retry="() => {}"
           />
 
-          <!-- 询价单 -->
+          <!-- 询价单：仅最后一条消息 -->
           <RfqEditor
-            v-if="showRfq && store.rfqDoc"
+            v-if="msg === messages[messages.length - 1] && showRfq && store.rfqDoc"
             :rfq-doc="store.rfqDoc"
             :rfq-id="store.rfqId"
             :spec="store.normalizedSpec as Record<string, SpecField>"
@@ -331,8 +395,8 @@ const examples = [
             @regenerate="store.regenerateRfq"
           />
 
-          <!-- 线索分级 -->
-          <div v-if="showGrade && store.leadGrade" class="grade-card">
+          <!-- 线索分级：仅最后一条消息 -->
+          <div v-if="msg === messages[messages.length - 1] && showGrade && store.leadGrade" class="grade-card">
             <div class="grade-card__head">
               <span class="grade-card__label">线索分级</span>
             </div>
