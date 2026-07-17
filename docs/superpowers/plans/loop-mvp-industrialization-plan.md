@@ -325,6 +325,18 @@ Future entries should use:
 - **result:** loop-001~004 合并到 main `f33aef6` + push origin + 94 测试过 + 4 worktree/分支清理; origin/main = `f33aef6`
 - **follow-up:** 下一轮 dev 从 `f33aef6` 分支, 不再叠栈
 
+### loop-006 - 2026-07-17 10:31 +08:00 - Development Loop
+
+- **goal:** 解除 QA 09:06 P0 -- 后端 `from api.main import main` 90s 无进展(慢导入, 非卡死)
+- **branch:** `codex/loop-006-backend-startup`
+- **commit:** `74d8a10`
+- **base:** `origin/main` `1f7440b`(从绿 main, 不叠栈)
+- **summary:** `docs/superpowers/summaries/2026-07-17-1031-loop-006-backend-startup.md`
+- **status:** ready (启动 82.4s->22.7s P0 解除; 9/9 测试过; build 过; 浏览器 N/A 移交 QA 复验启动)
+- **root cause:** ai/base_agent.py + ai/supervisor.py 模块级 `from langchain_openai import ChatOpenAI` 触发 transformers(~26s)+langchain_openai(~54s)
+- **fix:** 延迟 langchain_openai 导入到工厂函数内(TYPE_CHECKING + 局部导入); 启动 82.4s->22.7s, 测试冷导入 ~130s->12.5s
+- **findings:** `import langgraph` 0.0s(历史"langgraph 冷导入慢"判断有误, 实为 langchain_openai/transformers); 剩余 22.7s 为 init_db+langchain_core 等, 可后续优化
+
 Future entries should include:
 
 - loop number
@@ -336,7 +348,8 @@ Future entries should include:
 
 ## 8. Ready Branches
 
-None. (loop-001~004 已于 2026-07-17 09:18 合并到 main `f33aef6` 并清理, 见 Section 10 / 12)
+- `codex/loop-006-backend-startup` (commit 见提交, base `origin/main` `1f7440b`) - 后端启动加速: 延迟 langchain_openai 导入, 82.4s->22.7s, 解除 QA 09:06 P0。9/9 测试 + build 过 + 浏览器 N/A 移交 QA。仅改 2 ai 文件, 低冲突。
+- `codex/zhl-value-absorb` (`d96bed3`+, base `1f7440b`, 另一独立分支) - useDashboard 去 mock 降级。ready, 待 integration(注: 本 worktree 计划未含其 entry, 因 zhl 分支未合并; integration 合并时一并处理 plan 更新)。
 
 ## 9. WIP Branches
 
@@ -357,11 +370,13 @@ None.
 
 `origin/main` = `f33aef6`(含 loop-001~004)。dev loop 可从新 main 正常分支, 不再叠栈。94 测试过 + build 过。
 
-**下一轮 dev loop 候选(从 `f33aef6` 分支, 择一):**
-1. **后端启动验证(疑似 P0):** QA 09:06 报 `uvicorn api.main:main` 90s 无进展。很可能是已知 langgraph 冷导入慢(~150s; 94 测试在 ~150s 冷导入后完成)。建议加 `init_db()` 逐步日志 + >180s 超时复测, 确认是慢还是真卡死。若真卡死则为 P0。
+**下一轮 dev loop 候选(从 `1f7440b` 或合并 loop-006/zhl 后, 择一):**
+1. ~~后端启动验证(疑似 P0)~~ -- ✅ loop-006 已解决(82.4s->22.7s, 延迟 langchain_openai 导入)。剩余 22.7s(init_db+langchain_core)可后续优化。
 2. **9004 ShortageProcurement + ProductsBom 物流语义**(QA P1-4 余, 复用 `isLogistics`)。
 3. **QA P1-3 供应商工作台"正在拉取"空状态**(待办 #6)。
 4. **reset RFQ 基线语义**(待办 #4)。
+
+**待 integration:** `codex/zhl-value-absorb` + `codex/loop-006-backend-startup`(均 base `1f7440b`, 独立, 可分别合并)。
 
 后端可用后, 重跑完整六公司 Playwright smoke 复验 P1/P2(9006 名称 / 9004 物流 / products-bom 不崩溃 / /admin/audit 可达)。
 
