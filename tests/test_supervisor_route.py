@@ -12,7 +12,7 @@ from ai.supervisor import route, _check_done, _ordered_fallback, _fallback_extra
 class TestFallbackExtract:
     """_fallback_extract：正则兜底解析"""
 
-    VALID_AGENTS = ["chat", "parse", "normalize", "alternatives", "match", "gen_rfq", "grade"]
+    VALID_AGENTS = ["chat", "parse", "normalize", "alternatives", "match", "rag_enrich", "gen_rfq", "grade"]
 
     def test_json_agent_field(self):
         assert _fallback_extract('{"agent": "parse", "reason": "测试"}') == "PARSE"
@@ -82,7 +82,18 @@ class TestOrderedFallback:
         assert _ordered_fallback({"_attempted_agents": []}) == "chat"
 
     def test_chat_done_next_parse(self):
-        assert _ordered_fallback({"_attempted_agents": ["chat"]}) == "parse"
+        # chat 已执行且有 parsed_spec -> 下一个是 parse
+        assert _ordered_fallback({
+            "_attempted_agents": ["chat"],
+            "parsed_spec": {"category": "MLCC"},
+        }) == "parse"
+
+    def test_chat_done_no_spec_finishes(self):
+        """chat 已执行但无 parsed_spec (闲聊/无效输入) -> FINISH, 避免进入无效 parse 循环。
+
+        对应 supervisor.py _ordered_fallback 的有意设计 (见其注释)。
+        """
+        assert _ordered_fallback({"_attempted_agents": ["chat"]}) == "FINISH"
 
     def test_all_done_finish(self):
         assert _ordered_fallback({"_attempted_agents": [
@@ -115,6 +126,18 @@ class TestRouteLevel1Structured:
         with patch("ai.supervisor.get_supervisor_chain", return_value=mock_chain):
             result = await route(sample_state)
         assert result["next_agent"] == "chat"
+
+    @pytest.mark.asyncio
+    async def test_route_to_rag_enrich(self, sample_state):
+        """结构化输出路由到 rag_enrich (枚举已补, LLM 可合法选中)"""
+        mock_chain = AsyncMock()
+        mock_chain.ainvoke = AsyncMock(
+            return_value=RouteDecision(agent="rag_enrich", reason="需要深度分析供应商")
+        )
+        with patch("ai.supervisor.get_supervisor_chain", return_value=mock_chain):
+            result = await route(sample_state)
+        assert result["next_agent"] == "rag_enrich"
+        assert "深度分析" in result["route_reason"]
 
     @pytest.mark.asyncio
     async def test_route_to_finish(self, sample_state):

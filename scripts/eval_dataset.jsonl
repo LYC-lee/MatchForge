@@ -1,0 +1,30 @@
+{"id": "eval-001", "category": "spec_parse", "query": "TMK212BJ105KG-T 缺货，找替代，月用量50万，交期2周", "expected": {"part_number": "TMK212BJ105KG-T", "brand": "Taiyo Yuden", "package": "0805", "capacitance": "1uF", "temp_coeff": "X5R", "rated_voltage": "10V"}, "refusal": false}
+{"id": "eval-002", "category": "spec_parse", "query": "0805 10uF X7R 50V MLCC，月用量50万，要国巨或华新科", "expected": {"package": "0805", "capacitance": "10uF", "temp_coeff": "X7R", "rated_voltage": "50V", "category": "MLCC", "brand_pref": ["YAGEO", "Walsin"]}, "refusal": false}
+{"id": "eval-003", "category": "spec_parse", "query": "寻找 GRM188R61A106KE69D 的替代料，交期2周", "expected": {"part_number": "GRM188R61A106KE69D", "brand": "Murata", "package": "0603", "capacitance": "10uF", "temp_coeff": "X5R", "rated_voltage": "10V"}, "refusal": false}
+{"id": "eval-004", "category": "spec_parse", "query": "0603 100nF X7R 50V", "expected": {"package": "0603", "capacitance": "100nF", "temp_coeff": "X7R", "rated_voltage": "50V"}, "refusal": false}
+{"id": "eval-005", "category": "spec_parse", "query": "1206 22uF X5R 25V 钽电容", "expected": {"package": "1206", "capacitance": "22uF", "temp_coeff": "X5R", "rated_voltage": "25V", "category": "钽电容"}, "refusal": false}
+{"id": "eval-006", "category": "spec_parse", "query": "0402 1uF X5R 6.3V", "expected": {"package": "0402", "capacitance": "1uF", "temp_coeff": "X5R", "rated_voltage": "6.3V"}, "refusal": false}
+{"id": "eval-007", "category": "spec_parse", "query": "贴片电阻 0603 10kΩ ±1%", "expected": {"package": "0603", "category": "电阻", "resistance": "10kΩ", "tolerance": "±1%"}, "refusal": false}
+{"id": "eval-008", "category": "spec_parse", "query": "0805 4.7uF X7R 25V MLCC 月用量20万", "expected": {"package": "0805", "capacitance": "4.7uF", "temp_coeff": "X7R", "rated_voltage": "25V", "category": "MLCC", "monthly_qty": 200000}, "refusal": false}
+{"id": "eval-009", "category": "alt_recommend", "query": "TMK212BJ105KG-T 找替代料", "expected": {"has_alternatives": true, "no_voltage_downgrade": true}, "refusal": false}
+{"id": "eval-010", "category": "alt_recommend", "query": "GRM188R61A106KE69D 缺货找替代", "expected": {"has_alternatives": true, "no_voltage_downgrade": true}, "refusal": false}
+{"id": "eval-011", "category": "alt_recommend", "query": "0805 1uF X5R 10V 找替代", "expected": {"has_alternatives": true, "no_voltage_downgrade": true}, "refusal": false}
+{"id": "eval-012", "category": "alt_recommend", "query": "CL10A105KP8NNNC 找替代料", "expected": {"has_alternatives": true, "no_voltage_downgrade": true}, "refusal": false}
+{"id": "eval-013", "category": "alt_redline", "query": "50V 的电容找替代，不接受降压", "expected": {"no_voltage_downgrade": true}, "refusal": false}
+{"id": "eval-014", "category": "alt_redline", "query": "0805 封装的料找替代，不能换封装", "expected": {"no_package_change": true}, "refusal": false}
+{"id": "eval-015", "category": "alt_redline", "query": "找替代料，已停产的不要推荐", "expected": {"no_eol": true}, "refusal": false}
+{"id": "eval-016", "category": "alt_redline", "query": "C0G 温度系数的电容找替代，不要降级到 Y5V", "expected": {"no_temp_coeff_downgrade": true}, "refusal": false}
+{"id": "eval-017", "category": "supplier_match", "query": "找 MLCC 供应商，要 YAGEO 品牌", "expected": {"has_suppliers": true, "suppliers_from_db": true}, "refusal": false}
+{"id": "eval-018", "category": "supplier_match", "query": "0805 10uF X7R 50V 匹配供应商", "expected": {"has_suppliers": true, "confirmed_flags_false": true}, "refusal": false}
+{"id": "eval-019", "category": "supplier_match", "query": "深圳的 MLCC 供应商有哪些", "expected": {"has_suppliers": true, "suppliers_from_db": true}, "refusal": false}
+{"id": "eval-020", "category": "supplier_match", "query": "贴片电阻 0603 10k 供应商", "expected": {"has_suppliers": true, "suppliers_from_db": true}, "refusal": false}
+{"id": "eval-021", "category": "supplier_match", "query": "Murata 授权代理供应商", "expected": {"has_suppliers": true}, "refusal": false}
+{"id": "eval-022", "category": "kb_qa", "query": "村田有哪些MLCC型号", "expected": {"intent": "factual", "no_fabrication": true}, "refusal": false}
+{"id": "eval-023", "category": "kb_qa", "query": "村田MLCC的价格是多少", "expected": {"intent": "factual", "no_fabrication": true}, "refusal": false}
+{"id": "eval-024", "category": "kb_qa", "query": "我想采购MLCC，业务流程是怎样的", "expected": {"intent": "advisory"}, "refusal": false}
+{"id": "eval-025", "category": "kb_qa", "query": "村田的认证资质有哪些", "expected": {"intent": "factual", "no_fabrication": true}, "refusal": false}
+{"id": "eval-026", "category": "kb_refusal", "query": "村田的GPU显存容量是多少GB", "expected": {"refusal": true, "no_fabrication": true}, "refusal": true}
+{"id": "eval-027", "category": "kb_refusal", "query": "村田的SaaS平台怎么收费", "expected": {"refusal": true, "no_fabrication": true}, "refusal": true}
+{"id": "eval-028", "category": "kb_refusal", "query": "村田的DRAM产品型号有哪些", "expected": {"refusal": true, "no_fabrication": true}, "refusal": true}
+{"id": "eval-029", "category": "kb_refusal", "query": "村田的汽车发动机产能", "expected": {"refusal": true, "no_fabrication": true}, "refusal": true}
+{"id": "eval-030", "category": "chat", "query": "你好", "expected": {"intent": "chat", "no_fabrication": true}, "refusal": false}

@@ -13,6 +13,27 @@ from ai.state import ProcureState
 from ai.monitor import AgentLogger
 
 
+# 品类 -> 中文品名映射 (#17: 删除 MLCC 硬编码, 品名从 spec.category 取)
+_CATEGORY_TO_NAME: dict[str, str] = {
+    "MLCC": "多层陶瓷贴片电容(MLCC)",
+    "钽电容": "钽电容",
+    "电阻": "贴片电阻",
+    "贴片电阻": "贴片电阻",
+    "电感": "电感",
+    "连接器": "连接器",
+    "IC": "集成电路(IC)",
+    "二极管": "二极管",
+    "晶振": "晶振",
+    "MOSFET": "MOSFET",
+}
+
+
+def _category_to_name(category: str) -> str:
+    """根据品类返回中文品名, 未知品类用通用名。"""
+    cat = str(category or "").strip()
+    return _CATEGORY_TO_NAME.get(cat, "电子元器件")
+
+
 def build_rfq_template(
     spec: dict, alternatives: list, suppliers: list,
     rfq_id: str, raw_query: str = "",
@@ -24,11 +45,13 @@ def build_rfq_template(
         for i, a in enumerate(alternatives[:3]) if a.get("level") != "L5"
     ) or "__(待补充)__"
     sup_lines = " / ".join(s.get("name", "") for s in suppliers[:3]) or "__(待补充)__"
+    # 品名从 spec.category 动态取, 不再硬编码 MLCC (#17)
+    product_name = _category_to_name(spec.get("category", ""))
     return f"""【询价单 RFQ】
 RFQ-ID: {rfq_id}
 日期: {datetime.now().strftime('%Y-%m-%d')}
 一、品名
-多层陶瓷贴片电容(MLCC)
+{product_name}
 二、原始需求
 {raw_query}
 三、规格要求

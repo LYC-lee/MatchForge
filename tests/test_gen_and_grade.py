@@ -28,6 +28,38 @@ async def test_gen_rfq_template():
     assert "深圳芯联电子" in doc
     # 首期库存/交期/价格 声明
     assert "本平台不承诺实时库存与报价" in doc
+    # MLCC 品类品名正确
+    assert "多层陶瓷贴片电容(MLCC)" in doc
+
+
+@pytest.mark.asyncio
+async def test_gen_rfq_template_non_mlcc_category():
+    """#17: 非 MLCC 品类生成的 RFQ 品名正确 (不再硬编码 MLCC)"""
+    rfq_id = "MF-20260715-RES"
+    doc = build_rfq_template(
+        spec={"category": "电阻", "package": "0603", "resistance": "10kΩ",
+              "tolerance": "±1%", "rated_power": "1/10W"},
+        alternatives=[{"part_name": "RC0603FR-0710KL", "brand": "YAGEO", "level": "L1"}],
+        suppliers=[{"name": "电阻供应商A"}],
+        rfq_id=rfq_id,
+        raw_query="0603 10k 1% 电阻",
+    )
+    # 电阻品类 -> 贴片电阻, 不应是 MLCC
+    assert "贴片电阻" in doc
+    assert "多层陶瓷贴片电容" not in doc
+
+
+@pytest.mark.asyncio
+async def test_gen_rfq_template_unknown_category_fallback():
+    """#17: 未知品类用通用品名, 不张冠李戴为 MLCC"""
+    doc = build_rfq_template(
+        spec={"category": "传感器"},
+        alternatives=[], suppliers=[],
+        rfq_id="MF-X",
+        raw_query="某传感器",
+    )
+    assert "电子元器件" in doc
+    assert "多层陶瓷贴片电容" not in doc
 
 
 @pytest.mark.asyncio
