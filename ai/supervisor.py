@@ -17,11 +17,14 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    # langchain_openai 拉起 transformers (~25s); 延迟到 get_supervisor_llm 首次调用再 import。
+    from langchain_openai import ChatOpenAI
 
 from ai.config import LLM_API_KEY, LLM_BASE_URL, SUPERVISOR_MODEL
 
@@ -127,6 +130,8 @@ def get_supervisor_llm() -> ChatOpenAI:
     JSON。max_tokens 必须给足“思考+输出”预算，否则 token 耗尽时 content 为空、
     finish_reason=length，json_mode 与正则兜底双双失败 -> 分类器形同不可用。
     """
+    from langchain_openai import ChatOpenAI  # 延迟导入
+
     return ChatOpenAI(
         model=SUPERVISOR_MODEL,
         api_key=LLM_API_KEY,

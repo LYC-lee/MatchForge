@@ -15,10 +15,14 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from langchain_core.messages import SystemMessage, ToolMessage
-from langchain_openai import ChatOpenAI
+
+if TYPE_CHECKING:
+    # langchain_openai 会拉起 transformers (~25s); 延迟到工厂函数内首次调用再 import,
+    # 避免 api.main 启动被阻塞 (QA 09:06 报后端启动慢即此因)。
+    from langchain_openai import ChatOpenAI
 
 from ai.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_MODEL_LIGHT
 from ai.config import LLM_TEMPERATURE, LLM_MAX_TOKENS, LLM_TIMEOUT
@@ -60,6 +64,8 @@ def get_agent_llm(
     if timeout is None:
         timeout = LLM_TIMEOUT
 
+    from langchain_openai import ChatOpenAI  # 延迟导入: 避免 api.main 启动加载 transformers
+
     return ChatOpenAI(
         model=model,
         api_key=LLM_API_KEY,
@@ -80,6 +86,7 @@ def get_supervisor_llm() -> ChatOpenAI:
     短超时 + 2 次重试应对网络抖动。
     """
     from ai.config import SUPERVISOR_MODEL
+    from langchain_openai import ChatOpenAI  # 延迟导入
 
     return ChatOpenAI(
         model=SUPERVISOR_MODEL,
