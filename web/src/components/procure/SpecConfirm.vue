@@ -3,10 +3,12 @@ import { reactive, computed } from 'vue'
 import type { SpecField } from '@/types/procure'
 import AppButton from '@/components/ui/AppButton.vue'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   spec: Record<string, SpecField>
   gating: boolean
-}>()
+  /** 只读展示 (#28): 历史轮次/已冻结的规格卡, 不可编辑、无确认按钮 */
+  readonly?: boolean
+}>(), { readonly: false })
 const emit = defineEmits<{ (e: 'confirm', spec: Record<string, SpecField>): void }>()
 
 // 可编辑副本(深拷贝,避免直接改 store)
@@ -65,7 +67,7 @@ function confirm() {
           <td class="spec__field">{{ k }}</td>
           <td>
             <input
-              v-if="edited[k].editable !== false"
+              v-if="!props.readonly && edited[k].editable !== false"
               class="spec__input"
               :value="edited[k].value"
               :placeholder="edited[k].missing ? '待补充' : ''"

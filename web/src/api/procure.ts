@@ -12,12 +12,20 @@ export function streamProcure(
 ): AbortController {
   const controller = new AbortController()
 
+  // C4 (#28): 多轮快照回传 — 仅 phase=spec 的新查询附带 confirmed_spec._snapshot。
+  // 注意: phase=match 时后端会把 confirmed_spec 整体写入 normalized_spec (graph.py:380),
+  // 夹带 _snapshot 会污染规格字段, 故 match 阶段不附带。
+  const confirmedSpec =
+    params.phase === 'spec' && params.snapshot
+      ? { _snapshot: params.snapshot }
+      : params.confirmed_spec
+
   fetchSSE(
     API_URL,
     {
       raw_query: params.query,
       thread_id: params.thread_id,
-      confirmed_spec: params.confirmed_spec,
+      confirmed_spec: confirmedSpec,
       phase: params.phase,
       user_id: params.user_id || 'anonymous',
     },

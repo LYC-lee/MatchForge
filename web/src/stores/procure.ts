@@ -7,8 +7,10 @@ import type {
   AgentState,
   Alternative,
   Citation,
+  EntitiesSnapshot,
   LeadGrade,
   ProcureState,
+  SessionDetail,
   SpecField,
   Supplier,
 } from '@/types/procure'
@@ -19,7 +21,7 @@ type Phase = 'idle' | 'spec' | 'gating' | 'match' | 'done'
  * 将后端返回的简单键值对格式转为前端 SpecConfirm 组件期望的 SpecField 格式。
  */
 // 后端内部字段，不展示给用户
-const INTERNAL_KEYS = new Set(['std_code', 'standard', '_mapped', '_phase'])
+const INTERNAL_KEYS = new Set(['std_code', 'standard', '_mapped', '_phase', '_snapshot'])
 
 function toSpecFieldFormat(spec: Record<string, any> | null): Record<string, SpecField> | null {
   if (!spec) return null
@@ -64,6 +66,9 @@ export const useProcureStore = defineStore('procure', () => {
   const rfqSent = ref(false)
   const leadGrade = ref<LeadGrade | null>(null)
   const errors = ref<string[]>([])
+
+  /** C4 (#28): 最近一次 result 事件下发的实体快照, 下一轮请求时回传给后端做引用解析 */
+  const entitiesSnapshot = ref<EntitiesSnapshot | null>(null)
 
   // ── 流式进度 / 错误状态 ──
   const isStreaming = ref(false)
@@ -157,12 +162,26 @@ export const useProcureStore = defineStore('procure', () => {
     if (state.chat_response !== undefined) chatResponse.value = state.chat_response
     if (state.lead_grade !== undefined) leadGrade.value = state.lead_grade
     if (state.errors !== undefined) errors.value = state.errors
+    if (state.entities_snapshot) entitiesSnapshot.value = state.entities_snapshot
   }
 
   function reset() {
     controller?.abort()
     aborted = false
     threadId.value = ''
+    resetTurnState()
+    entitiesSnapshot.value = null
+  }
+
+  /** 每轮对话开始前的状态清理 (#28): 清空本轮流式/结果数据, 但保留会话标识与实体快照以支撑多轮追问 */
+  function resetForTurn() {
+    controller?.abort()
+    aborted = false
+    resetTurnState()
+  }
+
+  /** 单轮级别的状态重置 (threadId / entitiesSnapshot 之外的全部会话数据) */
+  function resetTurnState() {
     rfqId.value = null
     rawQuery.value = ''
     chatResponse.value = null
@@ -192,7 +211,8 @@ export const useProcureStore = defineStore('procure', () => {
 
   /** 阶段1: 发起寻源, 跑 parse + normalize, 然后停在规格确认门控 */
   function startProcure(query: string) {
-    reset()
+    // #28: 多轮对话 — 每轮只清本轮数据, 保留 threadId (同一会话延续) 与 entitiesSnapshot (引用解析回传)
+    resetForTurn()
     rawQuery.value = query
     phase.value = 'spec'
     isStreaming.value = true
@@ -200,7 +220,15 @@ export const useProcureStore = defineStore('procure', () => {
 
     const userId = getUserId()
 
-    controller = streamProcure({ query, phase: 'spec', user_id: userId }, {
+    controller = streamProcure(
+      {
+        query,
+        phase: 'spec',
+        user_id: userId,
+        thread_id: threadId.value || undefined,
+        snapshot: entitiesSnapshot.value || undefined,
+      },
+      {
       onStart: (tid, rid) => {
         threadId.value = tid
         if (rid) rfqId.value = rid
@@ -490,11 +518,11 @@ export const useProcureStore = defineStore('procure', () => {
     streamNotice.value = null
   }
 
-  /** 从历史会话恢复状态（不重新执行 SSE） */
-  async function loadFromSession(sessionId: string): Promise<boolean> {
+  /** 从历史会话恢复状态（不重新执行 SSE）; preload 可避免调用方重复请求详情接口 */
+  async function loadFromSession(sessionId: string, preload?: SessionDetail | null): Promise<boolean> {
     // 使用 useHistory().getDetail() 优先 API、降级 localStorage
     const { getDetail } = useHistory()
-    const detail = await getDetail(sessionId)
+    const detail = preload !== undefined ? preload : await getDetail(sessionId)
     if (!detail || !detail.state) return false
 
     const st = detail.state
@@ -502,6 +530,11 @@ export const useProcureStore = defineStore('procure', () => {
     threadId.value = detail.thread_id
     rawQuery.value = st.raw_query || detail.title
     phase.value = 'done'
+
+    // C4: 恢复实体快照, 使历史会话中的追问仍可引用"第N个/刚才那个"
+    if (st.entities_snapshot) {
+      entitiesSnapshot.value = st.entities_snapshot
+    }
 
     // 恢复解析结果
     if (st.parsed_spec) {
@@ -581,10 +614,12 @@ export const useProcureStore = defineStore('procure', () => {
     streamNotice,
     selectedAlternative,
     selectedSuppliers,
+    entitiesSnapshot,
     isVague,
     startProcure,
     confirmSpec,
     reset,
+    resetForTurn,
     abort,
     clearStreamError,
     clearStreamNotice,
