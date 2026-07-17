@@ -122,4 +122,27 @@ export interface StreamProcureParams {
   thread_id?: string
   confirmed_spec?: Record<string, SpecField | string> | null
   phase: 'spec' | 'match'
+  user_id?: string
+}
+
+// ===== 会话历史 =====
+export interface SessionSummary {
+  thread_id: string
+  user_id: string
+  title: string
+  phase: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SessionDetail {
+  thread_id: string
+  user_id: string
+  title: string
+  phase: string
+  status: string
+  state: ProcureState
+  created_at: string
+  updated_at: string
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onUnmounted, computed } from 'vue'
 import { useProcureStore } from '@/stores/procure'
-import { useHistory, type HistoryRecord } from '@/composables/useHistory'
+import { saveToLocal } from '@/composables/useHistory'
 import type { SpecField, Alternative, Supplier } from '@/types/procure'
 import ChatMessage, { type ChatMessageData } from '@/components/chat/ChatMessage.vue'
 import SpecConfirm from '@/components/procure/SpecConfirm.vue'
@@ -9,9 +9,13 @@ import AlternativesList from '@/components/procure/AlternativesList.vue'
 import SuppliersMatch from '@/components/procure/SuppliersMatch.vue'
 import RfqEditor from '@/components/procure/RfqEditor.vue'
 import Tag from '@/components/ui/Tag.vue'
+import SessionHistoryPanel from '@/components/procure/SessionHistoryPanel.vue'
+import AgentTimeline from '@/components/procure/AgentTimeline.vue'
 
 const store = useProcureStore()
-const { saveRecord } = useHistory()
+
+// ── 历史记录侧边栏 ──
+const showHistory = ref(false)
 
 // ── 消息 ──
 const messages = ref<ChatMessageData[]>([])
@@ -78,6 +82,22 @@ function resetResultFlags() {
   showGrade.value = false
 }
 
+// ── 新建对话：清空当前会话，回到初始状态 ──
+function newChat() {
+  store.abort()
+  store.reset()
+  messages.value = []
+  resetResultFlags()
+  isProcessing.value = false
+  inputText.value = ''
+  // 滚动到顶部
+  nextTick(() => {
+    if (chatContainer.value) {
+      chatContainer.value.scrollTop = 0
+    }
+  })
+}
+
 // ── 进度 → 更新最后一条 AI 消息 ──
 function updateProgressText(label: string) {
   const last = messages.value[messages.value.length - 1]
@@ -116,9 +136,9 @@ watch(() => store.phase, (phase) => {
     finalizeMsg()
     isProcessing.value = false
 
-    // 保存历史
+    // 保存历史到 localStorage 作为降级备份
     if (!store.isVague) {
-      saveRecord({
+      saveToLocal({
         id: store.threadId,
         thread_id: store.threadId,
         raw_query: store.rawQuery,
@@ -136,7 +156,9 @@ watch(() => store.phase, (phase) => {
           lead_grade: store.leadGrade,
           errors: store.errors,
         },
-      } as HistoryRecord)
+      })
+      // 触发历史侧边栏刷新
+      store.historyVersion++
     }
 
     // 分段展示所有结果
@@ -230,6 +252,12 @@ const examples = [
 
 <template>
   <div class="chat-view">
+    <!-- 历史记录侧边栏切换按钮 -->
+    <button class="chat__history-toggle" :class="{ active: showHistory }" @click="showHistory = !showHistory" title="历史记录">
+      <span v-if="showHistory">✕</span>
+      <span v-else>☰</span>
+    </button>
+
     <!-- 消息列表 -->
     <div ref="chatContainer" class="chat__msgs">
       <!-- 空态 -->
@@ -247,6 +275,15 @@ const examples = [
       <!-- 消息 -->
       <template v-for="msg in messages" :key="msg.id">
         <ChatMessage :message="msg">
+          <!-- Agent 进度时间线 -->
+          <div v-if="msg.resultType === 'progress' || (isProcessing && store.agents.some(a => a.status !== 'pending'))" class="chat__timeline">
+            <AgentTimeline
+              :agents="store.agents"
+              :alternatives-count="store.alternatives.length"
+              :suppliers-count="store.matchedSuppliers.length"
+            />
+          </div>
+
           <!-- 规格确认 -->
           <SpecConfirm
             v-if="showSpecConfirm && store.normalizedSpec"
@@ -337,6 +374,11 @@ const examples = [
       </div>
       <p class="chat__hint">Enter 发送 · Shift+Enter 换行</p>
     </div>
+
+    <!-- 历史记录侧边栏 -->
+    <aside v-if="showHistory" class="chat__history-sidebar">
+      <SessionHistoryPanel @newChat="newChat" @close="showHistory = false" />
+    </aside>
   </div>
 </template>
 
@@ -347,6 +389,51 @@ const examples = [
   min-height: calc(100vh - 56px);
   max-width: 900px;
   margin: 0 auto;
+  position: relative;
+}
+
+/* 历史记录切换按钮 */
+.chat__history-toggle {
+  position: fixed;
+  top: 64px;
+  right: 12px;
+  z-index: 45;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--bg-2);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.chat__history-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-border);
+}
+.chat__history-toggle.active {
+  color: var(--accent-hover);
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+/* 历史记录侧边栏 */
+.chat__history-sidebar {
+  position: fixed;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  width: 280px;
+  z-index: 44;
+  background: rgba(10, 11, 15, 0.96);
+  border-left: 1px solid var(--border-default);
+  backdrop-filter: blur(18px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .chat__msgs {
   flex: 1;
@@ -522,5 +609,14 @@ const examples = [
   position: absolute;
   left: var(--space-2);
   color: var(--text-tertiary);
+}
+
+/* Agent 进度时间线 */
+.chat__timeline {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  background: var(--bg-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
 }
 </style>
