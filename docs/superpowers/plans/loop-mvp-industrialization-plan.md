@@ -347,7 +347,7 @@ Future entries should use:
 - **commit:** `558ce73`
 - **base:** `origin/main` `df2f959`(从最新 main, 不叠栈)
 - **summary:** `docs/superpowers/summaries/2026-07-17-2057-loop-auth-security-p0-summary.md`
-- **status:** ready (三 P0 全修; 未知 token 不再登录; 源码无硬编码 admin token; 真实密码用 bcrypt; import 不写库; 测试/build 通过; 浏览器验收移交 QA)
+- **status:** merged (2026-07-17 21:40, merge commit `6b89500` on main, 已 push origin/main; main 同时含 PR #33 agent-QA + feat/25-26/27 引用回显工作; 与 auth-sec 无文件重叠, 4 个顺带 build-blocker 修复中 3 个被 main 完整版吸收、types/procure.ts 的 'chat' 成员保留; 合并干净); 三 P0 全修; 测试/build 通过; 浏览器验收仍移交 QA
 - **fix:**
   - P0-1: `kb/auth.py:resolve_token` 移除未知 token 兜底放行, 一律返回 None -> 401
   - P0-2: 移除源码硬编码 `kb-admin-demo`/`kb-demo-user`/`demo-token`; `KB_DEMO_TOKEN`/`KB_ADMIN_TOKEN` 改环境变量 (未配置=None); demo/admin demo token 仅 `KB_DEMO_MODE=true` 且非生产 (`APP_ENV`) 时生效; 新增受控 `/auth/demo-login`; 前端移除硬编码 admin token 与 `demo-token` 字面量, demo 登录改走 `/auth/demo-login`; 新增 `.env.example`
@@ -366,8 +366,9 @@ Future entries should include:
 
 ## 8. Ready Branches
 
-- `codex/loop-security-auth-p0` (`558ce73`, base `origin/main` `df2f959`) - P0 认证安全修复 (拒绝未知 token / 移除硬编码 token / bcrypt 迁移 / 移除 import 期写库)。ready, **建议优先 integration** (P0 安全)。summary: `docs/superpowers/summaries/2026-07-17-2057-loop-auth-security-p0-summary.md`。浏览器验收移交 QA (demo 登录端到端 / admin 登录审核页 / 生产模式 demo 拒绝)。
 - `codex/zhl-value-absorb` (`d96bed3`+, base `1f7440b`, 另一独立分支) - useDashboard 去 mock 降级。ready, 待 integration(注: 本 worktree 计划未含其 entry, 因 zhl 分支未合并; integration 合并时一并处理 plan 更新)。
+
+> 2026-07-17 21:40: `codex/loop-security-auth-p0` 已合并到 main (`6b89500`, 已 push), 见 §10。
 
 ## 9. WIP Branches
 
@@ -382,6 +383,7 @@ None.
 - `codex/loop-003-auth-user-name-company` (`067333f`) - merged, cleaned
 - `codex/loop-004-9004-logistics-and-9006-name` (`9621f5a`) - merged, cleaned
 - `codex/loop-006-backend-startup` (`74d8a10` + docs `03b62a8`) - merged into `91d51f3` on 2026-07-17 11:21 +08:00; branch retained for 3-5 integration rounds before cleanup. Summary: `docs/superpowers/summaries/2026-07-17-1031-loop-006-backend-startup.md`.
+- `codex/loop-security-auth-p0` (`558ce73` + docs `31f3575`) - merged into `6b89500` on 2026-07-17 21:40 +08:00 (P0 auth security; main 同含 PR #33 agent-QA + feat/25-26/27, 与 auth-sec 无文件重叠, 合并干净); 已 push origin/main; branch + worktree retained for 3-5 integration rounds before cleanup. Summary: `docs/superpowers/summaries/2026-07-17-2057-loop-auth-security-p0-summary.md`.
 
 ## 11. Next Recommended Loop
 
