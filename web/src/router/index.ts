@@ -23,7 +23,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/rfq-edit', name: 'rfq-edit', redirect: '/chat' },
   { path: '/history', name: 'history', component: () => import('@/views/HistoryView.vue'), meta: { requiresAuth: true, title: '历史记录' } },
   { path: '/flow/history', name: 'flow-history', redirect: '/history' },
-  { path: '/admin/audit', name: 'admin-audit', redirect: '/admin/knowledge' },
+  { path: '/admin/audit', name: 'admin-audit', component: () => import('@/views/P7AdminAudit.vue'), meta: { requiresAuth: true, title: '审核管理' } },
 
   { path: '/supplier', name: 'supplier-dashboard', component: () => import('@/views/supplier/SupplierDashboard.vue'), meta: { requiresAuth: true, title: '供应商工作台' } },
   { path: '/supplier/products', name: 'supplier-products', component: () => import('@/views/supplier/SupplierProducts.vue'), meta: { requiresAuth: true, title: '产品管理' } },

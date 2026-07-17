@@ -157,7 +157,7 @@ function riskClass(isCritical: boolean) {
               <span class="strong">{{ part.part_name }}</span>
               <span class="mono">{{ part.part_number }}</span>
               <span>{{ part.category_name || '-' }}</span>
-              <span>{{ part.required_qty.toLocaleString() }} {{ part.unit || '' }}</span>
+              <span>{{ part.required_qty?.toLocaleString() || '-' }} {{ part.unit || '' }}</span>
               <span>{{ part.safety_stock_qty?.toLocaleString() || '-' }}</span>
               <span>{{ part.preferred_supplier_name || '-' }}</span>
               <span :class="riskClass(part.is_critical)">{{ part.is_critical ? '是' : '否' }}</span>

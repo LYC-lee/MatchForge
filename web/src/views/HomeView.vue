@@ -10,6 +10,11 @@ const { current, dataSource } = useEnterpriseContext()
 const { dashboard, orders, forecasts, loading, topShortages, sortedActions } = useDashboard()
 
 const company = computed(() => dashboard.value?.company)
+// 物流/服务型企业(如 9004 远达): 驾驶舱文案切换为服务能力/运力/履约语义, 而非制造 BOM
+const isLogistics = computed(() => {
+  const seg = current.value?.segment_name || ''
+  return seg.includes('物流') || seg.includes('服务') || current.value?.company_id === 9004
+})
 const metrics = computed(() => {
   const d = dashboard.value
   if (!d) return null
@@ -107,7 +112,7 @@ function goRfqFromAction(action: DashboardAction) {
         <small>未来滚动预测</small>
       </div>
       <div class="metric">
-        <span>可生产产品</span>
+        <span>{{ isLogistics ? '可服务资源' : '可生产产品' }}</span>
         <b>{{ metrics.availableProducts }}</b>
         <small>{{ metrics.atRiskProducts }} 个受缺件影响</small>
       </div>
@@ -169,10 +174,10 @@ function goRfqFromAction(action: DashboardAction) {
       <div class="panel">
         <div class="panel-head">
           <div>
-            <span class="eyebrow">可生产产品</span>
-            <h2>产品齐套与产能</h2>
+            <span class="eyebrow">{{ isLogistics ? '可服务资源' : '可生产产品' }}</span>
+            <h2>{{ isLogistics ? '服务能力与资源' : '产品齐套与产能' }}</h2>
           </div>
-          <RouterLink to="/products-bom" class="text-link">查看 BOM</RouterLink>
+          <RouterLink to="/products-bom" class="text-link">{{ isLogistics ? '查看资源明细' : '查看 BOM' }}</RouterLink>
         </div>
         <div class="product-list">
           <div v-for="product in dashboard.products_summary.items" :key="product.id" class="product-line">
@@ -187,7 +192,7 @@ function goRfqFromAction(action: DashboardAction) {
               </span>
             </div>
           </div>
-          <div v-if="!dashboard.products_summary.items.length" class="empty-line">暂无可生产产品</div>
+          <div v-if="!dashboard.products_summary.items.length" class="empty-line">{{ isLogistics ? '暂无可服务资源' : '暂无可生产产品' }}</div>
         </div>
         <div v-if="atRiskProducts.length" class="inline-note">
           {{ atRiskProducts.map((p) => p.product_model).join('、') }} 需要结合缺件清单重新排产。
@@ -220,7 +225,7 @@ function goRfqFromAction(action: DashboardAction) {
         <div class="panel-head">
           <div>
             <span class="eyebrow">推荐动作</span>
-            <h2>采购、生产、销售下一步</h2>
+            <h2>{{ isLogistics ? '履约、运力、服务下一步' : '采购、生产、销售下一步' }}</h2>
           </div>
         </div>
         <div class="action-list">

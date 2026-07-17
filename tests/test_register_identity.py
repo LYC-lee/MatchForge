@@ -51,3 +51,28 @@ def test_register_request_does_not_force_buyer_supplier():
 
     req = RegisterRequest(name="x", account="x@y.com", password="abc12345", company="c")
     assert req.role not in ("buyer", "supplier")
+
+
+def test_user_model_has_name_company_columns():
+    """User 模型应含 name/company 列 (login/refresh/me 路由引用 user.name/user.company, 缺列会 AttributeError)。"""
+    from api.models import User
+
+    cols = {c.name for c in User.__table__.columns}
+    assert "name" in cols
+    assert "company" in cols
+
+
+def test_register_request_carries_name_company():
+    """RegisterRequest 应携带 name/company, 注册路由据此持久化到 User。"""
+    from api.schemas import RegisterRequest
+
+    req = RegisterRequest(
+        name="李明",
+        account="liming@hx.com",
+        password="abc12345",
+        company="华芯",
+        role="member",
+        enterprise_type="manufacturer",
+    )
+    assert req.name == "李明"
+    assert req.company == "华芯"
