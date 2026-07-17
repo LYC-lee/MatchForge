@@ -83,6 +83,25 @@ export const useProcureStore = defineStore('procure', () => {
   const selectedSuppliers = ref<any[]>([])
 
   let controller: AbortController | null = null
+  /** 手动 abort 后置位: 防御性忽略 abort 后到达的帧 (后端 #35 已知缺陷: 断连后仍可能 yield) */
+  let aborted = false
+
+  /**
+   * token 事件过滤 (#29):
+   * 真流式路径 (graph.py `astream_events`) 中, 所有 `on_chat_model_stream`
+   * 都标记为 `agent: "chat"`; 但由于只有 chat_agent 开启 `streaming=True`
+   * 并用 `astream`, 其他 Agent (parse/normalize 等 `ainvoke`) 不产生 token。
+   * 防御: 一旦寻源结构化 Agent 已启动 (progress 出现), 说明本轮是寻源流程,
+   * 忽略 chat 文本 token, 避免污染聊天气泡 / 结构化卡片。
+   */
+  const TEXT_TOKEN_AGENTS = new Set(['chat', 'rag_enrich'])
+  function shouldAcceptChatToken(agent?: string) {
+    if (aborted) return false
+    if (agent && !TEXT_TOKEN_AGENTS.has(agent)) return false
+    return !progress.value.some(
+      (p) => !TEXT_TOKEN_AGENTS.has(p.agent) && !['supervisor', '__end__'].includes(p.agent),
+    )
+  }
 
   /** citation 事件按 agent 分桶,后到的同 agent 事件覆盖旧值 */
   const citationsByAgent: Record<string, Citation[]> = {}
@@ -142,6 +161,7 @@ export const useProcureStore = defineStore('procure', () => {
 
   function reset() {
     controller?.abort()
+    aborted = false
     threadId.value = ''
     rfqId.value = null
     rawQuery.value = ''
@@ -186,8 +206,8 @@ export const useProcureStore = defineStore('procure', () => {
         if (rid) rfqId.value = rid
       },
       onToken: (text, agent) => {
-        // chat 等文本 Agent 的流式 token
-        if (agent && chatStreamingText.value !== null) {
+        // chat 等文本 Agent 的流式 token (寻源 Agent 已启动时忽略,见 shouldAcceptChatToken)
+        if (shouldAcceptChatToken(agent)) {
           chatStreamingText.value += text
         }
       },
@@ -294,6 +314,7 @@ export const useProcureStore = defineStore('procure', () => {
           }
         },
         onToken: (text) => {
+          if (aborted) return  // 忽略 abort 后到达的帧
           rfqDoc.value += text
         },
         onCitation: onCitationEvent,
@@ -381,6 +402,7 @@ export const useProcureStore = defineStore('procure', () => {
           }
         },
         onToken: (text) => {
+          if (aborted) return  // 忽略 abort 后到达的帧
           rfqDoc.value += text
         },
         onError: (agent, message) => {
@@ -430,6 +452,7 @@ export const useProcureStore = defineStore('procure', () => {
           }
         },
         onToken: (text) => {
+          if (aborted) return  // 忽略 abort 后到达的帧
           rfqDoc.value += text
         },
         onError: (agent, message) => {
@@ -452,9 +475,11 @@ export const useProcureStore = defineStore('procure', () => {
   }
 
   function abort() {
+    aborted = true
     controller?.abort()
     isStreaming.value = false
     streamProgress.value = ''
+    chatStreamingText.value = ''  // 已流出的文本在 ChatView 消息里保留,缓冲区清空防止 watcher 再触发
   }
 
   function clearStreamError() {
