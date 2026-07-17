@@ -240,6 +240,28 @@ Maintain a 3-5 minute demo path with consistent data stories for all six compani
 - **P0 resolution:** loop-001 (branch `codex/loop-001-register-identity`, commit `3c023a8`) 修复了全部 3 个前端 build 错误, 待 integration 合并后 P0 解除。
 - **P1 resolution:** loop-002 (branch `codex/loop-002-frontend-runtime-fixes`, commit `46626fc`, stacked on loop-001) 修复 P1-1(products-bom toLocaleString 崩溃) + P1-2(/admin/audit 路由挂载)。loop-004 (branch `codex/loop-004-9004-logistics-and-9006-name`, commit `9621f5a`, stacked on loop-003) 修复 P1-4 部分(9004 HomeView 物流语义) + P2(9006 名称对齐 毅诚被动元件)。余 P1: P1-3(供应商工作台空状态) + P1-4 余下(9004 ShortageProcurement/ProductsBom 物流语义)。
 
+### 2026-07-17 09:06 Browser QA
+
+- findings: `docs/superpowers/qa-findings/2026-07-17-0906-browser-qa.md`
+- local main commit: `f33aef64205bc42393795b1115a3c6e225c7d5c6`
+- origin/main commit: `916baedb6719125afc5c576f0ac717785c10c589`
+- P0/P1 count: P0=3, P1=1
+- status: local integration exists but is not pushed; backend startup/import hangs; frontend build still fails due `EPERM` on `web/dist/assets`; browser QA limited to frontend-only login smoke.
+- recommended next task: resolve integration push/baseline mismatch, backend app startup hang, and repeatable build cleanup before full six-company QA.
+
+### 2026-07-17 09:18 Integration Recheck
+
+- integration commit: `f33aef64205bc42393795b1115a3c6e225c7d5c6`
+- origin/main status: `origin/main` now also points to `f33aef64205bc42393795b1115a3c6e225c7d5c6`.
+- merged branches: `codex/loop-001-register-identity`, `codex/loop-002-frontend-runtime-fixes`, `codex/loop-003-auth-user-name-company`, `codex/loop-004-9004-logistics-and-9006-name`.
+- test/build recheck:
+  - `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest tests/test_register_identity.py -q` -> 6 passed, 2 warnings.
+  - `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest tests/test_enterprise_phase1.py tests/test_enterprise_phase2.py tests/test_rfq_supplier_loop.py -q` -> 45 passed, 420 warnings.
+  - `python -c "from api.main import main; print('import-ok')"` -> import-ok.
+  - `cd web && npm run build` -> passed on rerun; previous `EPERM`/Vite cleanup issue did not reproduce.
+- browser recheck: Edge headless against Vite dev server confirmed `/register` renders one enterprise-type select with manufacturing/component/OEM/channel/logistics/government options and no buyer/supplier role tabs; `/login` renders demo entry and 9006/YiCheng; `/admin/audit` no longer redirects to `/admin/knowledge` and instead follows auth redirect to `/login?redirect=/admin/audit`.
+- remaining risk: full six-company browser regression with backend data flows was not completed in this recheck; QA should rerun after this record is committed.
+
 Future entries should use:
 
 `docs/superpowers/qa-findings/YYYY-MM-DD-HHMM-browser-qa.md`
@@ -299,9 +321,9 @@ Future entries should use:
 - **branch:** 无
 - **commit:** 无
 - **summary:** `docs/superpowers/summaries/2026-07-17-0815-loop-005-blocked-integration-runbook.md`
-- **status:** blocked(integration 未跑, 栈 4 层, main P0; dev loop 暂停叠栈)
-- **reason:** loop-001~004 全 ready 未合并, 继续叠栈不可持续; 4 次标记 integration 紧急未响应
-- **action:** 用户执行 runbook / 暂停 cron(`CronDelete 2420fc7b`) / 授权合并, 三选一
+- **status:** resolved(用户授权选项 3, dev loop 以 integration 角色执行合并, 见 09:18 integration summary)
+- **result:** loop-001~004 合并到 main `f33aef6` + push origin + 94 测试过 + 4 worktree/分支清理; origin/main = `f33aef6`
+- **follow-up:** 下一轮 dev 从 `f33aef6` 分支, 不再叠栈
 
 Future entries should include:
 
@@ -314,11 +336,7 @@ Future entries should include:
 
 ## 8. Ready Branches
 
-- `codex/loop-001-register-identity` (commit `3c023a8`, base `916baed`) - P1 注册身份模型 + 修复 QA P0 build 失败。
-- `codex/loop-002-frontend-runtime-fixes` (commit `46626fc`, base loop-001 `3c023a8`, stacked) - QA P1-1(products-bom 崩溃) + P1-2(/admin/audit 路由)。
-- `codex/loop-003-auth-user-name-company` (commit `067333f`, base loop-002 `46626fc`, stacked) - loop-001 发现的 auth login/me 路由 P1(User 补 name/company 列)。6/6 测试 + build 过 + 验收移交 QA。
-- `codex/loop-004-9004-logistics-and-9006-name` (commit `9621f5a`, base loop-003 `067333f`, **stacked 4 层**) - QA P1-4 部分(9004 HomeView 物流语义) + P2(9006 名称对齐)。build 过 + 后端 stacked base 绿 + 验收移交 QA。
-- **【最紧急】integration 注意:** origin/main 仍 `916baed` + P0 build 失败。**栈已 4 层**, dev loop 持续 stack 不可持续。合并前需先把 plan/summary/qa-findings 未跟踪文档提交到 main(否则 working tree not clean 阻碍合并)。**合并顺序: loop-001 -> loop-002 -> loop-003 -> loop-004**(每个是前者超集 + 增量)。合并后 main 解除 P0 build + 3 P1 + 9004 HomeView 物流 + 9006 名称。**建议用户立即手动触发 integration 或合并这 4 个分支; 否则考虑暂停 dev cron(`CronDelete 2420fc7b`)避免栈继续增长。**
+None. (loop-001~004 已于 2026-07-17 09:18 合并到 main `f33aef6` 并清理, 见 Section 10 / 12)
 
 ## 9. WIP Branches
 
@@ -326,7 +344,12 @@ None.
 
 ## 10. Merged Branches Pending Cleanup
 
-None.
+已合并并清理(2026-07-17 09:18, integration summary `docs/superpowers/summaries/2026-07-17-0918-integration-loop-001-004.md`):
+
+- `codex/loop-001-register-identity` (`3c023a8`) - merged into `f33aef6`; local+remote branch deleted; worktree removed
+- `codex/loop-002-frontend-runtime-fixes` (`46626fc`) - merged, cleaned
+- `codex/loop-003-auth-user-name-company` (`067333f`) - merged, cleaned
+- `codex/loop-004-9004-logistics-and-9006-name` (`9621f5a`) - merged, cleaned
 
 ## 11. Next Recommended Loop
 
@@ -366,3 +389,19 @@ Reason: loop-004 修了 9004 HomeView 物流语义(P1-4 部分)。余 9004 的 /
 - **summary:** `docs/superpowers/summaries/2026-07-17-0109-integration-loop.md`
 - **next recommendation:** first commit or intentionally track the long-term plan/QA docs, then run a QA Loop on current `main`; after that, update cleanup bookkeeping for already merged demo scenario branches before deleting anything.
 - **QA Loop recommended:** yes. Current `main` has several frontend/demo/login-related merges and should receive browser validation, ideally the six-company regression.
+
+### 2026-07-17 09:18 +08:00 - Integration/Cleanup Loop
+
+- **main commit:** `f33aef6` (`merge: integrate loop-001~004 (P0 build + 3 P1 + 9004 HomeView 物流 + 9006 名称)`)
+- **origin/main status:** `origin/main` points to the same commit.
+- **workspace status:** dirty only with this plan update and `docs/superpowers/qa-findings/2026-07-17-0906-browser-qa.md` before final summary commit.
+- **QA findings:** latest 09:06 QA finding reported P0 items, but follow-up recheck verified origin/main alignment, backend import, backend focused tests, and frontend build.
+- **ready branch scan:** loop-001 through loop-004 were already merged into `main` by the time of recheck.
+- **merge result:** loop-001~004 integrated in `f33aef6`; no further ready branch merged in this step.
+- **test/build result:** register tests 6 passed; enterprise/RFQ core tests 45 passed; frontend build passed.
+- **browser validation:** light Edge headless smoke passed for register identity UI, login/demo visibility, and `/admin/audit` route behavior. Full six-company browser regression remains pending.
+- **new issues:** pytest can be slow or appear hung when external plugin autoload is enabled; reliable local recheck used `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`.
+- **merged branches pending cleanup:** `codex/loop-001-register-identity`, `codex/loop-002-frontend-runtime-fixes`, `codex/loop-003-auth-user-name-company`, `codex/loop-004-9004-logistics-and-9006-name` are merged and should be retained 3-5 rounds before cleanup.
+- **summary:** `docs/superpowers/summaries/2026-07-17-0918-integration-loop.md`
+- **next recommendation:** run a fresh QA Loop on `origin/main`/`f33aef6`, preferably full six-company browser regression; then continue with 9004 ShortageProcurement/ProductsBom logistics semantics or supplier workspace empty-state work.
+- **QA Loop recommended:** yes.
