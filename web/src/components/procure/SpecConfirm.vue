@@ -19,14 +19,20 @@ const fields = computed(() => Object.keys(edited))
 const missingCount = computed(
   () => fields.value.filter((k) => edited[k].missing || !edited[k].value).length,
 )
+// C3: 仅当后端真给了 confidence 才参与低置信判定/展示
+const hasConfidence = computed(() => fields.value.some((k) => edited[k].confidence != null))
 const lowConfCount = computed(
-  () => fields.value.filter((k) => !edited[k].missing && edited[k].confidence < 0.6 && edited[k].value).length,
+  () =>
+    fields.value.filter(
+      (k) => !edited[k].missing && edited[k].confidence != null && edited[k].confidence! < 0.6 && edited[k].value,
+    ).length,
 )
 
 function onInput(k: string, v: string) {
   edited[k].value = v
   edited[k].missing = !v
-  if (v) edited[k].confidence = Math.max(edited[k].confidence, 0.8)
+  // 仅已有 confidence 时保留语义,不为无 confidence 的字段虚构
+  if (v && edited[k].confidence != null) edited[k].confidence = Math.max(edited[k].confidence!, 0.8)
 }
 
 function confirm() {
@@ -45,7 +51,7 @@ function confirm() {
     </div>
     <table class="spec__table">
       <thead>
-        <tr><th>规格字段</th><th>解析值</th><th>置信度</th><th>状态</th></tr>
+        <tr><th>规格字段</th><th>解析值</th><th v-if="hasConfidence">置信度</th><th>状态</th></tr>
       </thead>
       <tbody>
         <tr
@@ -53,7 +59,7 @@ function confirm() {
           :key="k"
           :class="{
             'row--missing': edited[k].missing || !edited[k].value,
-            'row--low': !edited[k].missing && edited[k].confidence < 0.6 && edited[k].value,
+            'row--low': !edited[k].missing && edited[k].confidence != null && edited[k].confidence! < 0.6 && edited[k].value,
           }"
         >
           <td class="spec__field">{{ k }}</td>
@@ -67,20 +73,22 @@ function confirm() {
             />
             <span v-else class="spec__static">{{ edited[k].value || '—' }}</span>
           </td>
-          <td class="spec__conf">
-            <span v-if="!edited[k].missing && edited[k].value">
-              {{ Math.round(edited[k].confidence * 100) }}%
-              <span
-                v-if="edited[k].confidence < 0.6"
-                class="spec__qmark"
-                title="置信度较低,建议人工核对"
-              >?</span>
-            </span>
-            <span v-else class="spec__na">—</span>
+          <td v-if="hasConfidence" class="spec__conf">
+            <template v-if="edited[k].confidence != null">
+              <span v-if="!edited[k].missing && edited[k].value">
+                {{ Math.round(edited[k].confidence! * 100) }}%
+                <span
+                  v-if="edited[k].confidence! < 0.6"
+                  class="spec__qmark"
+                  title="置信度较低,建议人工核对"
+                >?</span>
+              </span>
+              <span v-else class="spec__na">—</span>
+            </template>
           </td>
           <td>
             <span v-if="edited[k].missing || !edited[k].value" class="state state--warn">缺失</span>
-            <span v-else-if="edited[k].confidence < 0.6" class="state state--warn">低置信</span>
+            <span v-else-if="edited[k].confidence != null && edited[k].confidence! < 0.6" class="state state--warn">低置信</span>
             <span v-else class="state state--ok">正常</span>
           </td>
         </tr>

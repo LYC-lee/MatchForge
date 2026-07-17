@@ -6,6 +6,7 @@ import type {
   AgentName,
   AgentState,
   Alternative,
+  Citation,
   LeadGrade,
   ProcureState,
   SpecField,
@@ -28,10 +29,10 @@ function toSpecFieldFormat(spec: Record<string, any> | null): Record<string, Spe
     if (typeof val === 'object' && val !== null && 'value' in val) {
       result[key] = val as SpecField
     } else {
+      // C3: 不再写死 confidence,后端给了才保留(SpecField.confidence 可选透传)
       const strVal = val != null ? String(val) : ''
       result[key] = {
         value: strVal,
-        confidence: strVal ? 0.9 : 0,
         missing: !strVal,
         editable: true,
       }
@@ -48,6 +49,8 @@ export const useProcureStore = defineStore('procure', () => {
   const rawQuery = ref<string>('')
   const chatResponse = ref<string | null>(null)
   const chatStreamingText = ref<string>('')  // 流式输入的实时缓冲区
+  /** 引用回显(C2): 当前会话累积的引用片段,按 agent 去重合并 */
+  const chatCitations = ref<Citation[]>([])
   const phase = ref<Phase>('idle')
   const agents = ref<AgentState[]>(
     AGENT_ORDER.map((name) => ({ name, status: 'pending' as const })),
@@ -80,6 +83,15 @@ export const useProcureStore = defineStore('procure', () => {
   const selectedSuppliers = ref<any[]>([])
 
   let controller: AbortController | null = null
+
+  /** citation 事件按 agent 分桶,后到的同 agent 事件覆盖旧值 */
+  const citationsByAgent: Record<string, Citation[]> = {}
+
+  function onCitationEvent(agent: string, citations: Citation[]) {
+    if (!agent || !Array.isArray(citations)) return
+    citationsByAgent[agent] = citations
+    chatCitations.value = Object.values(citationsByAgent).flat()
+  }
 
   /** 信息不足: 无解析结果且无替代料 */
   const isVague = computed(
@@ -135,6 +147,8 @@ export const useProcureStore = defineStore('procure', () => {
     rawQuery.value = ''
     chatResponse.value = null
     chatStreamingText.value = ''
+    chatCitations.value = []
+    for (const k of Object.keys(citationsByAgent)) delete citationsByAgent[k]
     phase.value = 'idle'
     agents.value = AGENT_ORDER.map((name) => ({ name, status: 'pending' as const }))
     parsedSpec.value = null
@@ -177,6 +191,7 @@ export const useProcureStore = defineStore('procure', () => {
           chatStreamingText.value += text
         }
       },
+      onCitation: onCitationEvent,
       onProgress: (agent, status, result) => {
         setAgent(agent, status)
         progress.value.push({ agent, status })
@@ -281,6 +296,7 @@ export const useProcureStore = defineStore('procure', () => {
         onToken: (text) => {
           rfqDoc.value += text
         },
+        onCitation: onCitationEvent,
         onError: (agent, message) => {
           if (agent) setAgent(agent, 'error', message)
           if (!agent) streamError.value = message || '连接中断，请重试'
@@ -520,6 +536,7 @@ export const useProcureStore = defineStore('procure', () => {
     rawQuery,
     chatResponse,
     chatStreamingText,
+    chatCitations,
     phase,
     agents,
     progress,

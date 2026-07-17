@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { chatAsk } from '@/api/enterprise'
+import { mapRetrievedToCitations } from '@/api/kb'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 import MarkdownContent from '@/components/chat/MarkdownContent.vue'
+import CitationList from '@/components/chat/CitationList.vue'
+import type { Citation } from '@/types/procure'
 
 const { current, currentEnterpriseId } = useEnterpriseContext()
 const query = ref('')
 const sending = ref(false)
 const chatBody = ref<HTMLElement | null>(null)
-const messages = ref<{ role: 'user' | 'assistant'; content: string; source?: 'api' | 'error' }[]>([])
+const messages = ref<{ role: 'user' | 'assistant'; content: string; source?: 'api' | 'error'; citations?: Citation[] }[]>([])
 
 const quickQuestions = computed(() => [
   '当前缺件会影响哪些订单？',
@@ -28,10 +31,13 @@ async function send(q?: string) {
   try {
     const res = await chatAsk(currentEnterpriseId.value, text)
     const answer = res.data?.answer || res.data?.response || res.data?.message
+    // 引用回显: 答案附带的 retrieved 检索片段 → Citation[](契约 C2)
+    const citations = mapRetrievedToCitations(res.data?.retrieved, currentEnterpriseId.value)
     messages.value.push({
       role: 'assistant',
       content: answer || '企业知识库暂未返回答案，请换个问法再试。',
       source: answer ? 'api' : 'error',
+      citations: citations.length ? citations : undefined,
     })
   } catch {
     messages.value.push({
@@ -93,9 +99,14 @@ async function scrollBottom() {
             <div class="msg__content" :class="{ 'msg__content--md': message.role === 'assistant' }">
               <MarkdownContent v-if="message.role === 'assistant'" :content="message.content" />
               <template v-else>{{ message.content }}</template>
-              <span v-if="message.source === 'api'" class="msg__source msg__source--api">RAG</span>
+              <span v-if="message.source === 'api' && !message.citations?.length" class="msg__source msg__source--api">RAG</span>
               <span v-else-if="message.source === 'error'" class="msg__source">未生成</span>
             </div>
+            <CitationList
+              v-if="message.role === 'assistant' && message.citations?.length"
+              class="msg__citations"
+              :citations="message.citations"
+            />
           </div>
         </div>
         <div v-if="sending" class="msg msg--assistant">
@@ -206,6 +217,11 @@ async function scrollBottom() {
   white-space: normal;
 }
 .muted { color: #aeb7c8; }
+.msg__citations {
+  margin-top: var(--space-1);
+  padding: 0 var(--space-1);
+  max-width: 640px;
+}
 .msg__source {
   display: inline-block;
   margin-left: 8px;
