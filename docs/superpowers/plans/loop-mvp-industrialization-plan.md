@@ -348,7 +348,6 @@ Future entries should include:
 
 ## 8. Ready Branches
 
-- `codex/loop-006-backend-startup` (commit 见提交, base `origin/main` `1f7440b`) - 后端启动加速: 延迟 langchain_openai 导入, 82.4s->22.7s, 解除 QA 09:06 P0。9/9 测试 + build 过 + 浏览器 N/A 移交 QA。仅改 2 ai 文件, 低冲突。
 - `codex/zhl-value-absorb` (`d96bed3`+, base `1f7440b`, 另一独立分支) - useDashboard 去 mock 降级。ready, 待 integration(注: 本 worktree 计划未含其 entry, 因 zhl 分支未合并; integration 合并时一并处理 plan 更新)。
 
 ## 9. WIP Branches
@@ -363,6 +362,7 @@ None.
 - `codex/loop-002-frontend-runtime-fixes` (`46626fc`) - merged, cleaned
 - `codex/loop-003-auth-user-name-company` (`067333f`) - merged, cleaned
 - `codex/loop-004-9004-logistics-and-9006-name` (`9621f5a`) - merged, cleaned
+- `codex/loop-006-backend-startup` (`74d8a10` + docs `03b62a8`) - merged into `91d51f3` on 2026-07-17 11:21 +08:00; branch retained for 3-5 integration rounds before cleanup. Summary: `docs/superpowers/summaries/2026-07-17-1031-loop-006-backend-startup.md`.
 
 ## 11. Next Recommended Loop
 
@@ -376,7 +376,7 @@ None.
 3. **QA P1-3 供应商工作台"正在拉取"空状态**(待办 #6)。
 4. **reset RFQ 基线语义**(待办 #4)。
 
-**待 integration:** `codex/zhl-value-absorb` + `codex/loop-006-backend-startup`(均 base `1f7440b`, 独立, 可分别合并)。
+**待 integration:** `codex/zhl-value-absorb` remains ready/pending. `codex/loop-006-backend-startup` was merged into main at `91d51f3`.
 
 后端可用后, 重跑完整六公司 Playwright smoke 复验 P1/P2(9006 名称 / 9004 物流 / products-bom 不崩溃 / /admin/audit 可达)。
 
@@ -430,4 +430,17 @@ None.
 - **merged branches pending cleanup:** `codex/loop-001-register-identity`, `codex/loop-002-frontend-runtime-fixes`, `codex/loop-003-auth-user-name-company`, `codex/loop-004-9004-logistics-and-9006-name` are merged and should be retained 3-5 rounds before cleanup.
 - **summary:** `docs/superpowers/summaries/2026-07-17-0918-integration-loop.md`
 - **next recommendation:** run a fresh QA Loop on `origin/main`/`f33aef6`, preferably full six-company browser regression; then continue with 9004 ShortageProcurement/ProductsBom logistics semantics or supplier workspace empty-state work.
+- **QA Loop recommended:** yes.
+
+### 2026-07-17 11:21 +08:00 - Integration/Cleanup Loop
+
+- **main commit:** `91d51f3` (`merge: integrate loop-006 backend startup`)
+- **origin/main status before push:** local `main` was up to date with `origin/main` at `1f7440b`; push pending until this record and summary are committed.
+- **merged:** `codex/loop-006-backend-startup` (`74d8a10` + docs `03b62a8`), a ready P0 fix for backend startup/import time.
+- **test/build:** `python -m pytest tests/test_supervisor.py tests/test_register_identity.py -q` -> 9 passed, 6 warnings; `cd web && npm run build` -> passed; `from api.main import main` import smoke -> 11.3s.
+- **browser validation:** N/A for this merge because the branch only changes backend AI module import timing; QA should still recheck backend startup and first procure request.
+- **new issues:** the first pytest attempt with `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` failed because async pytest plugins were disabled; rerun without disabling plugins passed. Pytest cache write warning remains an environment permission issue.
+- **merged branches pending cleanup:** `codex/loop-006-backend-startup` retained for 3-5 integration rounds.
+- **summary:** `docs/superpowers/summaries/2026-07-17-1121-integration-loop-006.md`
+- **next recommendation:** push main after committing this documentation; then run QA Loop focused on backend startup <90s, `/api/v1/health`, and first procure request. After QA, consider integrating `codex/zhl-value-absorb` separately.
 - **QA Loop recommended:** yes.
