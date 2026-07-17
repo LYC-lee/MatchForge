@@ -1,0 +1,368 @@
+# MatchForge Loop MVP Industrialization Plan
+
+## 1. Purpose
+
+This file is the shared state record for the MatchForge multi-AI loop.
+
+All development, QA, and integration agents should read this file before starting work and update it before finishing work. The goal is to make MatchForge progress toward both:
+
+- industrial-grade core capability
+- stable, convincing demo-platform experience
+
+The project target is a computer manufacturing supply-chain AI operating cockpit with multi-company collaboration, real RAG Q&A, scenario sandboxing, RFQ/procurement loops, and reliable enterprise isolation.
+
+## 2. Operating Model
+
+### Development Loop AI
+
+- Works on code changes.
+- Uses an independent worktree and branch.
+- Selects 1-2 high-priority tasks per loop.
+- Runs relevant tests and build.
+- Writes a summary under `docs/superpowers/summaries/`.
+- Pushes a branch only.
+- Does not merge into `main`.
+
+### Codex QA Loop
+
+- Checks `main` only.
+- Uses browser automation when frontend/demo/login pages are involved.
+- Does not modify business code by default.
+- Writes findings under `docs/superpowers/qa-findings/`.
+- Updates this plan with QA status.
+
+### Codex Integration/Cleanup Loop
+
+- Reads ready branches, summaries, and QA findings.
+- Merges one ready branch at a time.
+- Runs tests/build after each merge.
+- Runs browser validation when needed.
+- Pushes `main` only after verification passes.
+- Tracks merged branches before any cleanup.
+
+## 3. Branch And Ready Rules
+
+Development branches must use:
+
+`codex/loop-XXX-topic`
+
+A branch can be marked `ready` only when all conditions are met:
+
+- The loop goal is complete.
+- Relevant backend tests pass.
+- `web` build passes.
+- Browser validation passes when the change touches frontend, login, demo, cockpit, RFQ, supplier workspace, audit, or navigation.
+- A summary file exists under `docs/superpowers/summaries/`.
+- This plan is updated.
+- The branch is pushed.
+- No unresolved P0/P1 issue remains.
+
+If a task is blocked after roughly 90 minutes:
+
+- a WIP branch may be pushed
+- the commit message must start with `wip:`
+- the branch must not be marked `ready`
+- it must not be merged into `main`
+- the blocker must be documented in the summary
+
+## 4. Persistent Directories
+
+- Long-term loop plan: `docs/superpowers/plans/loop-mvp-industrialization-plan.md`
+- Loop summaries: `docs/superpowers/summaries/`
+- QA findings: `docs/superpowers/qa-findings/`
+
+## 5. Current High-Priority Backlog
+
+### P1 - Register Identity Model
+
+Status: done (loop-001, branch codex/loop-001-register-identity, commit 3c023a8) — browser QA pending
+
+注册流程已移除"采购方/供应商"固化身份, 改为企业类型 select + 权限角色 member。详见 summary 2026-07-17-0140。预存 P1: login/me 路由仍引用 user.name/user.company (live 模型无此列), 待下一轮修。
+
+Fix the registration flow so companies are not classified as fixed "buyer" or "supplier" at registration time.
+
+Target model:
+
+- user permission role: `member`, `enterprise_admin`, `platform_admin`
+- enterprise type/profile: manufacturer, component/material, OEM/brand, channel/customer, logistics/service, government/park, other
+- supplier/demand relationship is dynamic and derived from orders, RFQs, BOM, services, and company relationships
+
+Required:
+
+- remove buyer/supplier tabs from registration UI
+- fix Chinese mojibake in `RegisterView.vue`
+- maintain API compatibility if backend still expects a `role`
+- ensure build passes
+
+### P1 - Six-Company Browser Validation
+
+Status: pending
+
+Validate all six demo companies in browser:
+
+- 9001 HuaXin Microelectronics
+- 9002 ChuangJie Mainboard Module
+- 9003 DingYun PC Manufacturing
+- 9004 YuanDa Supply Chain Service
+- 9005 XingHe Digital Channel
+- 9006 YiCheng Passive Components
+
+Required pages:
+
+- login/demo selection
+- operating cockpit
+- products and BOM
+- shortage/procurement
+- upstream/downstream collaboration
+- supplier workspace
+- audit page
+- floating demo console
+
+### P1 - YuanDa Logistics View
+
+Status: pending
+
+YuanDa should not look like a normal manufacturing supplier.
+
+Required:
+
+- logistics/service tasks
+- capacity/resource risks
+- warehouse/transport/driver/service-resource view
+- meaningful supplier/service workspace content
+
+### P1 - Reset RFQ Semantics
+
+Status: pending
+
+Clarify whether baseline demo RFQs are:
+
+- initial scenario RFQs that remain after reset, or
+- scenario-generated data that should be cleared by reset
+
+If retained, UI must label them as baseline/initial pending RFQs.
+
+### P1 - Demo And Real Mode Consistency
+
+Status: pending
+
+Demo mode should behave like sandbox runtime, not frontend mock.
+
+Required:
+
+- same workflows as normal mode where possible
+- demo writes only to `demo_*` tables with `scenario_id`
+- no hardcoded frontend mock for RFQ/quotation/procurement
+- reset restores baseline
+
+### P1 - Frontend Stability
+
+Status: pending
+
+Continue eliminating:
+
+- page flicker
+- mojibake
+- build failures
+- empty states
+- inconsistent loading states
+- stale dashboard/demo data
+
+### P2 - Supplier Workspace Loop
+
+Status: pending
+
+Improve supplier-side closure:
+
+- RFQ visibility
+- quotation state
+- service tasks
+- manual quote path when needed
+
+### P2 - Audit Loop
+
+Status: pending
+
+Improve audit closure:
+
+- no direct supplier
+- quotation anomaly
+- relationship gap
+- review state
+
+### P2 - Real RAG Quality
+
+Status: pending
+
+Improve internal and upstream/downstream Q&A so answers rely on real KB/RAG and enterprise isolation, not fixed templates.
+
+### P2 - Auth And Enterprise Isolation
+
+Status: pending
+
+Improve:
+
+- enterprise binding
+- join approval
+- permission role checks
+- demo token isolation
+- direct relationship data access limits
+
+### P2 - Tests And CI
+
+Status: pending
+
+Add only task-relevant tests. Do not over-engineer CI in one step.
+
+Useful future checks:
+
+- backend pytest core suite
+- frontend build
+- Playwright smoke tests
+- browser demo regression
+- GitHub Actions
+
+### P2 - Demo Script And Data Consistency
+
+Status: pending
+
+Maintain a 3-5 minute demo path with consistent data stories for all six companies.
+
+## 6. QA Findings Index
+
+### 2026-07-17 01:24 Browser QA
+
+- findings: `docs/superpowers/qa-findings/2026-07-17-0124-browser-qa.md`
+- main commit: `916baedb6719125afc5c576f0ac717785c10c589`
+- P0/P1 count: P0=1, P1=4
+- status: build fails; browser demo partially usable; pause merging feature branches until P0 build failure and P1 route/runtime issues are fixed.
+- recommended next task: fix frontend build errors, products/BOM runtime crash, `/admin/audit` routing, and 9004 logistics/service semantics.
+- **P0 resolution:** loop-001 (branch `codex/loop-001-register-identity`, commit `3c023a8`) 修复了全部 3 个前端 build 错误, 待 integration 合并后 P0 解除。
+- **P1 resolution:** loop-002 (branch `codex/loop-002-frontend-runtime-fixes`, commit `46626fc`, stacked on loop-001) 修复 P1-1(products-bom toLocaleString 崩溃) + P1-2(/admin/audit 路由挂载)。loop-004 (branch `codex/loop-004-9004-logistics-and-9006-name`, commit `9621f5a`, stacked on loop-003) 修复 P1-4 部分(9004 HomeView 物流语义) + P2(9006 名称对齐 毅诚被动元件)。余 P1: P1-3(供应商工作台空状态) + P1-4 余下(9004 ShortageProcurement/ProductsBom 物流语义)。
+
+Future entries should use:
+
+`docs/superpowers/qa-findings/YYYY-MM-DD-HHMM-browser-qa.md`
+
+## 7. Loop History
+
+### loop-001 - 2026-07-17 01:40 +08:00 - Development Loop
+
+- **goal:** P1 注册身份模型(取消 buyer/supplier, 改企业类型 + 权限角色 member); 附带修复 QA P0 前端 build 失败
+- **branch:** `codex/loop-001-register-identity`
+- **commit:** `3c023a8`
+- **summary:** `docs/superpowers/summaries/2026-07-17-0140-loop-001-register-identity.md`
+- **status:** ready (浏览器验收移交 Codex QA; 预存 login/me 路由 P1 记录待下一轮)
+- **test/build:** 4/4 新测试过; 全量 229 过/16 预存失败(ai/kb 模块无重叠); build 过(修复 QA P0 的 3 个错误)
+- **resolves:** QA 01:24 P0(前端 build 失败) - 3 个错误全部修复
+- **findings:** 预存 P1 auth 路由 name/company 缺列(login/me/seed TypeError); api/models.py 死文件重复; plan/summary 文档未跟踪阻碍 integration
+
+### loop-002 - 2026-07-17 02:13 +08:00 - Development Loop
+
+- **goal:** QA 01:24 P1-1(products-bom toLocaleString 崩溃) + P1-2(/admin/audit 路由挂载)
+- **branch:** `codex/loop-002-frontend-runtime-fixes`
+- **commit:** `46626fc`
+- **base:** `codex/loop-001-register-identity` (`3c023a8`) - **stacked**(main build P0 未合并, stack 复用 build 修复)
+- **summary:** `docs/superpowers/summaries/2026-07-17-0213-loop-002-frontend-runtime-fixes.md`
+- **status:** ready (浏览器验收移交 QA; 无 FE 单测框架, 以 build + QA smoke 回归)
+- **test/build:** build 过(2.54s); 后端无改动, loop-001 test 4/4 过(stacked base 绿)
+- **resolves:** QA 01:24 P1-1 + P1-2
+- **findings:** 无 FE 单测框架(依赖 QA Playwright smoke); 栈增长风险(integration 未跑)
+
+### loop-003 - 2026-07-17 04:14 +08:00 - Development Loop
+
+- **goal:** loop-001 发现的预存 P1 - auth login/refresh/me 路由引用 user.name/user.company 缺列(AttributeError/TypeError)
+- **branch:** `codex/loop-003-auth-user-name-company`
+- **commit:** `067333f`
+- **base:** `codex/loop-002-frontend-runtime-fixes` (`46626fc`) - **stacked**(栈 3 层: loop-01->loop-02->loop-03)
+- **summary:** `docs/superpowers/summaries/2026-07-17-0414-loop-003-auth-user-name-company.md`
+- **status:** ready (浏览器验收移交 QA; 路由端到端需 DB, 以模型/schema 测试回归)
+- **test/build:** 6/6 测试过(新增 2); build 过(3.30s, 无 FE 改动)
+- **resolves:** loop-001 发现的 auth login/me 路由 P1(User 补 name/company 列)
+- **findings:** 路由级无单测(需 DB 基建); api/models.py 死文件仍存; 历史 users name/company 空(不回填)
+
+### loop-004 - 2026-07-17 06:49 +08:00 - Development Loop
+
+- **goal:** QA P1-4(部分) 9004 远达 HomeView 物流语义 + QA P2 9006 名称对齐
+- **branch:** `codex/loop-004-9004-logistics-and-9006-name`
+- **commit:** `9621f5a`
+- **base:** `codex/loop-003-auth-user-name-company` (`067333f`) - **stacked**(栈 4 层)
+- **summary:** `docs/superpowers/summaries/2026-07-17-0649-loop-004-9004-logistics-and-9006-name.md`
+- **status:** ready (浏览器验收移交 QA; 纯前端, build 过; P1-4 仅 HomeView)
+- **test/build:** build 过(2.95s); 后端无改动, loop-001 test 6/6 过(stacked base 绿)
+- **resolves:** QA P1-4 部分(9004 HomeView) + QA P2(9006 名称)
+- **findings:** P1-4 余 ShortageProcurement/ProductsBom 待后续; 栈 4 层 integration 紧急
+
+### loop-005 - 2026-07-17 08:15 +08:00 - Development Loop (BLOCKED, 无 dev 分支)
+
+- **goal:** 停手 -- 不创建 loop-005 dev 分支; 产出 integration runbook
+- **branch:** 无
+- **commit:** 无
+- **summary:** `docs/superpowers/summaries/2026-07-17-0815-loop-005-blocked-integration-runbook.md`
+- **status:** blocked(integration 未跑, 栈 4 层, main P0; dev loop 暂停叠栈)
+- **reason:** loop-001~004 全 ready 未合并, 继续叠栈不可持续; 4 次标记 integration 紧急未响应
+- **action:** 用户执行 runbook / 暂停 cron(`CronDelete 2420fc7b`) / 授权合并, 三选一
+
+Future entries should include:
+
+- loop number
+- goal
+- branch
+- commit
+- summary path
+- status: `ready`, `wip`, `merged`, or `blocked`
+
+## 8. Ready Branches
+
+- `codex/loop-001-register-identity` (commit `3c023a8`, base `916baed`) - P1 注册身份模型 + 修复 QA P0 build 失败。
+- `codex/loop-002-frontend-runtime-fixes` (commit `46626fc`, base loop-001 `3c023a8`, stacked) - QA P1-1(products-bom 崩溃) + P1-2(/admin/audit 路由)。
+- `codex/loop-003-auth-user-name-company` (commit `067333f`, base loop-002 `46626fc`, stacked) - loop-001 发现的 auth login/me 路由 P1(User 补 name/company 列)。6/6 测试 + build 过 + 验收移交 QA。
+- `codex/loop-004-9004-logistics-and-9006-name` (commit `9621f5a`, base loop-003 `067333f`, **stacked 4 层**) - QA P1-4 部分(9004 HomeView 物流语义) + P2(9006 名称对齐)。build 过 + 后端 stacked base 绿 + 验收移交 QA。
+- **【最紧急】integration 注意:** origin/main 仍 `916baed` + P0 build 失败。**栈已 4 层**, dev loop 持续 stack 不可持续。合并前需先把 plan/summary/qa-findings 未跟踪文档提交到 main(否则 working tree not clean 阻碍合并)。**合并顺序: loop-001 -> loop-002 -> loop-003 -> loop-004**(每个是前者超集 + 增量)。合并后 main 解除 P0 build + 3 P1 + 9004 HomeView 物流 + 9006 名称。**建议用户立即手动触发 integration 或合并这 4 个分支; 否则考虑暂停 dev cron(`CronDelete 2420fc7b`)避免栈继续增长。**
+
+## 9. WIP Branches
+
+None.
+
+## 10. Merged Branches Pending Cleanup
+
+None.
+
+## 11. Next Recommended Loop
+
+### 🔴 BLOCKED (loop-005): integration 必须先跑, dev loop 暂停叠栈
+
+loop-005 已停手(不创建 dev 分支)。栈 4 层(loop-01~04)全 ready 未合并, `origin/main` 仍 `916baed` + P0 build 失败。继续叠栈不可持续。
+
+**用户三选一:**
+1. 执行 integration runbook: `docs/superpowers/summaries/2026-07-17-0815-loop-005-blocked-integration-runbook.md`(合并 loop-004 tip `9621f5a` 即带入 loop-01~04 全部 4 提交; 先 `git add docs/superpowers/ && git commit` 跟踪文档清理 working tree, 再 merge, build/test/浏览器验证, push)。
+2. 暂停 dev cron: `CronDelete 2420fc7b`。
+3. 授权 dev loop 以 integration 角色执行合并(需用户确认, 因规则禁止 dev loop 直接合并 main)。
+
+### 合并后下一轮 dev loop(从新 main, 不再叠栈)
+
+P1 - QA 01:24 P1-4 余下: 9004 ShortageProcurement + ProductsBom 物流语义
+
+Reason: loop-004 修了 9004 HomeView 物流语义(P1-4 部分)。余 9004 的 /shortage-procurement 与 /products-bom 仍制造语义。按 `isLogistics`(已建) 扩展到这两个视图。备选: QA P1-3 供应商工作台空状态(待办 #6); reset RFQ 基线语义(待办 #4)。
+
+## 12. Integration Loop Records
+
+### 2026-07-17 01:09 +08:00 - Integration/Cleanup Loop
+
+- **main commit:** `916baed` (`merge: 合并 agent 分支修复到 main`)
+- **origin/main status:** refreshed successfully; `main` and `origin/main` both point to `916baedb6719125afc5c576f0ac717785c10c589`.
+- **workspace status:** not clean. `docs/superpowers/plans/loop-mvp-industrialization-plan.md` and `docs/superpowers/qa-findings/` are untracked in the current checkout, so no merge was attempted.
+- **QA findings:** no P0/P1 findings found. Latest QA directory only contains `.gitkeep`.
+- **ready branch scan:** no mergeable ready branch found.
+- **skipped branches:**
+  - `origin/codex/backend-integration-dashboard-rfq`: remote branch has no commits ahead of `main`; its latest remote commit `4cf466b` is already contained in `main`.
+  - local `codex/backend-integration-dashboard-rfq`: has old commits `40a8527` and `c8cd84e` ahead of `main`, but it is not listed as ready in this plan, does not have a matching recent summary under `docs/superpowers/summaries/`, and is far behind current `main`.
+  - `codex/demo-scenario-backend`, `codex/demo-scenario-frontend`, `codex/demo-scenario-integration`: already merged into `main`.
+- **merge result:** no branch merged.
+- **test/build result:** not run because no merge occurred.
+- **browser validation:** not run because no merge occurred.
+- **new issues:** branch bookkeeping is stale: local and remote `codex/backend-integration-dashboard-rfq` point to different commits; the long-term plan does not yet record already merged demo scenario branches for cleanup tracking.
+- **merged branches pending cleanup:** none newly added in this loop.
+- **summary:** `docs/superpowers/summaries/2026-07-17-0109-integration-loop.md`
+- **next recommendation:** first commit or intentionally track the long-term plan/QA docs, then run a QA Loop on current `main`; after that, update cleanup bookkeeping for already merged demo scenario branches before deleting anything.
+- **QA Loop recommended:** yes. Current `main` has several frontend/demo/login-related merges and should receive browser validation, ideally the six-company regression.
