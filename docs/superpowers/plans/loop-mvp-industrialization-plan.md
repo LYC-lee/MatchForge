@@ -353,20 +353,19 @@ None.
 
 ## 11. Next Recommended Loop
 
-### 🔴 BLOCKED (loop-005): integration 必须先跑, dev loop 暂停叠栈
+### ✅ UNBLOCKED (2026-07-17 09:18): integration 完成, main 绿
 
-loop-005 已停手(不创建 dev 分支)。栈 4 层(loop-01~04)全 ready 未合并, `origin/main` 仍 `916baed` + P0 build 失败。继续叠栈不可持续。
+`origin/main` = `f33aef6`(含 loop-001~004)。dev loop 可从新 main 正常分支, 不再叠栈。94 测试过 + build 过。
 
-**用户三选一:**
-1. 执行 integration runbook: `docs/superpowers/summaries/2026-07-17-0815-loop-005-blocked-integration-runbook.md`(合并 loop-004 tip `9621f5a` 即带入 loop-01~04 全部 4 提交; 先 `git add docs/superpowers/ && git commit` 跟踪文档清理 working tree, 再 merge, build/test/浏览器验证, push)。
-2. 暂停 dev cron: `CronDelete 2420fc7b`。
-3. 授权 dev loop 以 integration 角色执行合并(需用户确认, 因规则禁止 dev loop 直接合并 main)。
+**下一轮 dev loop 候选(从 `f33aef6` 分支, 择一):**
+1. **后端启动验证(疑似 P0):** QA 09:06 报 `uvicorn api.main:main` 90s 无进展。很可能是已知 langgraph 冷导入慢(~150s; 94 测试在 ~150s 冷导入后完成)。建议加 `init_db()` 逐步日志 + >180s 超时复测, 确认是慢还是真卡死。若真卡死则为 P0。
+2. **9004 ShortageProcurement + ProductsBom 物流语义**(QA P1-4 余, 复用 `isLogistics`)。
+3. **QA P1-3 供应商工作台"正在拉取"空状态**(待办 #6)。
+4. **reset RFQ 基线语义**(待办 #4)。
 
-### 合并后下一轮 dev loop(从新 main, 不再叠栈)
+后端可用后, 重跑完整六公司 Playwright smoke 复验 P1/P2(9006 名称 / 9004 物流 / products-bom 不崩溃 / /admin/audit 可达)。
 
-P1 - QA 01:24 P1-4 余下: 9004 ShortageProcurement + ProductsBom 物流语义
-
-Reason: loop-004 修了 9004 HomeView 物流语义(P1-4 部分)。余 9004 的 /shortage-procurement 与 /products-bom 仍制造语义。按 `isLogistics`(已建) 扩展到这两个视图。备选: QA P1-3 供应商工作台空状态(待办 #6); reset RFQ 基线语义(待办 #4)。
+**注:** 可考虑暂停 dev cron(`CronDelete 2420fc7b`)或调长间隔; integration 已追上, 后续可按需手动触发 dev loop。
 
 ## 12. Integration Loop Records
 
@@ -389,6 +388,18 @@ Reason: loop-004 修了 9004 HomeView 物流语义(P1-4 部分)。余 9004 的 /
 - **summary:** `docs/superpowers/summaries/2026-07-17-0109-integration-loop.md`
 - **next recommendation:** first commit or intentionally track the long-term plan/QA docs, then run a QA Loop on current `main`; after that, update cleanup bookkeeping for already merged demo scenario branches before deleting anything.
 - **QA Loop recommended:** yes. Current `main` has several frontend/demo/login-related merges and should receive browser validation, ideally the six-company regression.
+
+### 2026-07-17 09:18 +08:00 - Integration Loop (dev loop 用户授权选项 3 执行)
+
+- **main commit:** `f33aef6` (`merge: integrate loop-001~004`)
+- **origin/main:** pushed `916baed..f33aef6` (fast-forward). `origin/main` = `f33aef6`.
+- **merged:** loop-001(`3c023a8`) + loop-002(`46626fc`) + loop-003(`067333f`) + loop-004(`9621f5a`) via single `git merge --no-ff codex/loop-004-...` (线性栈 tip 带入全部 4 提交; 3-way, docs↔code 无冲突)。注: 并发 integration loop 此前已合并 loop-01 为 `62c2f06` + 提交文档 `e566dbb`。
+- **test/build:** `npm run build` ✓(16.57s); `pytest test_register_identity+demo_scenario+enterprise_phase1/2+rfq_supplier_loop` -> **94 passed**(352.78s)。
+- **cleanup:** 4 loop worktree removed(--force); 4 local branch `-d` deleted; 4 remote branch `--delete` deleted。
+- **resolved on main:** QA P0 build + P1-1 + P1-2 + auth login/me P1 + P1-4 HomeView 部分 + P2 9006 名称。
+- **new from QA 09:06:** 后端 import 慢(疑似 langgraph 冷导入 ~150s, 非真卡死, 待 >180s 复测); dist EPERM(环境性, 非代码); 9006 旧名(dev server 缓存, 修复已在 f33aef6)。
+- **summary:** `docs/superpowers/summaries/2026-07-17-0918-integration-loop-001-004.md`
+- **next:** dev loop 从 `f33aef6` 分支; 优先验证后端启动 + 9004 余 + P1-3; 后端可用后重跑六公司 smoke。
 
 ### 2026-07-17 09:18 +08:00 - Integration/Cleanup Loop
 
