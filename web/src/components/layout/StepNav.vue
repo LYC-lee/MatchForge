@@ -13,6 +13,7 @@ const LABELS: Record<AgentName, string> = {
   match: '供应商匹配',
   gen_rfq: '询价单生成',
   grade: '线索分级',
+  chat: '智能问答',
 }
 
 const items = computed(() =>

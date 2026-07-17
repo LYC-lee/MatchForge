@@ -80,18 +80,29 @@ export const useAuthStore = defineStore('auth', () => {
     const selected = company || findDemoCompany(DEFAULT_DEMO_COMPANY_ID)
     if (!selected) return { ok: false, msg: '未找到演示企业' }
 
-    persistSession('demo-token', {
-      name: 'Demo Buyer',
-      account: 'demo@matchforge.ai',
-      role: 'buyer',
-      company: selected.name,
-      company_id: selected.company_id,
-      company_name: selected.name,
-      company_role: selected.role,
-      company_segment: selected.segment_name,
-      is_demo: true,
-    })
-    return { ok: true }
+    // 通过受控的 demo-login 接口签发真实会话 token (后端需开启 KB_DEMO_MODE);
+    // 不再硬编码 'demo-token' 字面量。
+    try {
+      const res = await axios.post('/api/v1/auth/demo-login', {
+        company_id: selected.company_id,
+      })
+      const { token: newToken } = res.data
+      persistSession(newToken, {
+        name: 'Demo Buyer',
+        account: 'demo@matchforge.ai',
+        role: 'buyer',
+        company: selected.name,
+        company_id: selected.company_id,
+        company_name: selected.name,
+        company_role: selected.role,
+        company_segment: selected.segment_name,
+        is_demo: true,
+      })
+      return { ok: true }
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || '演示登录不可用 (需后端开启 KB_DEMO_MODE)'
+      return { ok: false, msg }
+    }
   }
 
   async function register(payload: {
@@ -148,7 +159,7 @@ export const useAuthStore = defineStore('auth', () => {
       clearSession()
       return false
     }
-    if (user.value?.is_demo || session.value.token === 'demo-token') {
+    if (user.value?.is_demo) {
       ensureDemoUserShape()
       return true
     }

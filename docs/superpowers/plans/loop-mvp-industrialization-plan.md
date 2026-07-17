@@ -198,15 +198,18 @@ Improve internal and upstream/downstream Q&A so answers rely on real KB/RAG and 
 
 ### P2 - Auth And Enterprise Isolation
 
-Status: pending
+Status: P0 安全基线已修 (loop-007, `codex/loop-security-auth-p0`, ready); 余 P2 项仍 pending
+
+P0 安全修复 (loop-007) 已完成: 未知 token 拒绝、硬编码 token 移除、bcrypt 迁移、import 期无写库。余下 P2 改进仍待办:
 
 Improve:
 
 - enterprise binding
 - join approval
 - permission role checks
-- demo token isolation
+- demo token isolation (P0 门控已做, 余: 生产配置审计)
 - direct relationship data access limits
+- 统一认证 (删除 `api/auth.py` 等死代码 / 修 /login 返回真实用户信息)
 
 ### P2 - Tests And CI
 
@@ -337,6 +340,21 @@ Future entries should use:
 - **fix:** 延迟 langchain_openai 导入到工厂函数内(TYPE_CHECKING + 局部导入); 启动 82.4s->22.7s, 测试冷导入 ~130s->12.5s
 - **findings:** `import langgraph` 0.0s(历史"langgraph 冷导入慢"判断有误, 实为 langchain_openai/transformers); 剩余 22.7s 为 init_db+langchain_core 等, 可后续优化
 
+### loop-007 - 2026-07-17 20:57 +08:00 - P0 Auth Security Loop
+
+- **goal:** 修复认证系统三个 P0 (P0-1 认证形同虚设 / P0-2 硬编码后门 token / P0-3 密码存储不安全且文档不一致)
+- **branch:** `codex/loop-security-auth-p0`
+- **commit:** `558ce73`
+- **base:** `origin/main` `df2f959`(从最新 main, 不叠栈)
+- **summary:** `docs/superpowers/summaries/2026-07-17-2057-loop-auth-security-p0-summary.md`
+- **status:** ready (三 P0 全修; 未知 token 不再登录; 源码无硬编码 admin token; 真实密码用 bcrypt; import 不写库; 测试/build 通过; 浏览器验收移交 QA)
+- **fix:**
+  - P0-1: `kb/auth.py:resolve_token` 移除未知 token 兜底放行, 一律返回 None -> 401
+  - P0-2: 移除源码硬编码 `kb-admin-demo`/`kb-demo-user`/`demo-token`; `KB_DEMO_TOKEN`/`KB_ADMIN_TOKEN` 改环境变量 (未配置=None); demo/admin demo token 仅 `KB_DEMO_MODE=true` 且非生产 (`APP_ENV`) 时生效; 新增受控 `/auth/demo-login`; 前端移除硬编码 admin token 与 `demo-token` 字面量, demo 登录改走 `/auth/demo-login`; 新增 `.env.example`
+  - P0-3: 密码哈希 sha256 -> bcrypt (旧 sha256 登录时渐进升级, 清空 salt); 修正 docstring; 移除 import 期 `Base.metadata.create_all` 与 `_ensure_seed_users` 副作用; 新增 `scripts/seed_auth_users.py` 显式种子
+- **test/build:** 4 套件 88 passed + `test_auth_security` 12 passed (新增) + `test_register_identity` 6 passed + `test_kb_rag` 访问控制 3 passed; `web build` ✓ (顺带修复 origin/main 预存 4 个 procure 相关 build 阻断, 非安全相关)
+- **findings:** `api/auth.py` (JWT/bcrypt) / `api/dependencies.py` / `api/routes/auth.py` 为死代码 (未注册), 本轮未删 (避免无关重构); /login 接口返回固定 `role="user"` (预存, 不影响后端鉴权, 建议后续修); origin/main (df2f959) build 原本预存失败
+
 Future entries should include:
 
 - loop number
@@ -348,6 +366,7 @@ Future entries should include:
 
 ## 8. Ready Branches
 
+- `codex/loop-security-auth-p0` (`558ce73`, base `origin/main` `df2f959`) - P0 认证安全修复 (拒绝未知 token / 移除硬编码 token / bcrypt 迁移 / 移除 import 期写库)。ready, **建议优先 integration** (P0 安全)。summary: `docs/superpowers/summaries/2026-07-17-2057-loop-auth-security-p0-summary.md`。浏览器验收移交 QA (demo 登录端到端 / admin 登录审核页 / 生产模式 demo 拒绝)。
 - `codex/zhl-value-absorb` (`d96bed3`+, base `1f7440b`, 另一独立分支) - useDashboard 去 mock 降级。ready, 待 integration(注: 本 worktree 计划未含其 entry, 因 zhl 分支未合并; integration 合并时一并处理 plan 更新)。
 
 ## 9. WIP Branches
