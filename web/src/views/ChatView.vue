@@ -98,6 +98,52 @@ function newChat() {
   })
 }
 
+// ── 停止生成: 中断 SSE,输入框恢复可用 ──
+const PROGRESS_PLACEHOLDERS = [
+  '思考中…', '⋯',
+  '正在识别型号与参数…', '正在标准化规格…', '正在查询替代料…',
+  '正在匹配供应商…', '正在生成询价单…', '正在评估线索…',
+]
+
+function stopSending() {
+  const last = messages.value[messages.value.length - 1]
+  store.abort()
+  finalizeMsg()
+  // 占位/进度文案被中断后没有实际内容,替换为停止标记;已流出的部分文本保留
+  if (last && last.role === 'assistant') {
+    const text = last.content.trim()
+    if (!text || PROGRESS_PLACEHOLDERS.includes(text)) {
+      last.content = '已停止生成。'
+      last.resultType = undefined
+    }
+  }
+  isProcessing.value = false
+}
+
+// ── 以同一用户输入重新发起（重试 / 重新生成共用）──
+function reissue(query: string) {
+  if (isProcessing.value) return
+  isProcessing.value = true
+  resetResultFlags()
+  store.reset()
+  addMsg('assistant', '思考中…', { streaming: true })
+  store.startProcure(query)
+}
+
+// ── 错误重试: 重发最后一条用户消息 ──
+function retryLast() {
+  const lastUser = [...messages.value].reverse().find((m) => m.role === 'user')
+  if (lastUser) reissue(lastUser.content)
+}
+
+// ── 重新生成: 找到该助手消息之前最近的一条用户输入,重新发起 ──
+function regenerate(msgId: string) {
+  const idx = messages.value.findIndex((m) => m.id === msgId)
+  if (idx < 0) return
+  const userMsg = [...messages.value.slice(0, idx)].reverse().find((m) => m.role === 'user')
+  if (userMsg) reissue(userMsg.content)
+}
+
 // ── 进度 → 更新最后一条 AI 消息 ──
 function updateProgressText(label: string) {
   const last = messages.value[messages.value.length - 1]
@@ -173,10 +219,15 @@ watch(() => store.phase, (phase) => {
     finalizeMsg()
     isProcessing.value = false
 
-    // SSE 流失败（无 Agent 执行过）→ 替换进度提示为错误消息
-    const anyAgentRan = store.agents.some((a: any) => a.status !== 'pending')
-    if (!anyAgentRan && store.errors.length > 0) {
-      replaceProgressWithError(store.errors[0] || '请求失败，请重试')
+    // SSE 流失败/断流: 只要没有任何可展示的结果,无论是否有 Agent 跑过,
+    // 都把进度提示替换为错误消息（错误气泡自带重试按钮）
+    const hasResult =
+      !!store.chatResponse ||
+      store.alternatives.length > 0 ||
+      store.matchedSuppliers.length > 0 ||
+      !!store.rfqDoc
+    if (!hasResult && store.errors.length > 0) {
+      replaceProgressWithError(store.streamError || store.errors[0] || '连接中断，请重试')
       return
     }
 
@@ -328,7 +379,7 @@ const examples = [
       <div v-if="messages.length === 0" class="chat__welcome">
         <div class="welcome__mark">M</div>
         <h1 class="welcome__title">对话寻源</h1>
-        <p class="welcome__sub">输入型号或需求描述，AI 自动解析、推荐替代料、匹配供应商</p>
+        <p class="welcome__sub">输入型号或需求描述，AI 自动解析、推荐替代料、匹配供应商。</p>
         <div class="welcome__examples">
           <button v-for="ex in examples" :key="ex" class="welcome__chip" @click="inputText = ex">
             {{ ex }}
@@ -338,7 +389,7 @@ const examples = [
 
       <!-- 消息 -->
       <template v-for="msg in messages" :key="msg.id">
-        <ChatMessage :message="msg">
+        <ChatMessage :message="msg" @retry="retryLast" @regenerate="regenerate(msg.id)">
           <!-- Agent 进度时间线 -->
           <div v-if="msg.resultType === 'progress' && msg === messages[messages.length - 1]" class="chat__timeline">
             <AgentTimeline
@@ -376,7 +427,7 @@ const examples = [
             @select-all="store.selectAllSuppliers"
             @deselect-all="store.deselectAllSuppliers"
             @generate="onGenerateRfq"
-            @retry="() => {}"
+            @retry="store.retryMatch()"
           />
 
           <!-- 询价单：仅最后一条消息 -->
@@ -422,6 +473,17 @@ const examples = [
 
     <!-- 输入栏 -->
     <div class="chat__input-bar">
+      <!-- 断流/传输错误条: 无论是否有 Agent 跑过都显示,可手动重试 -->
+      <div v-if="store.streamError" class="chat__stream-alert chat__stream-alert--error">
+        <span class="stream-alert__text">连接中断，请重试</span>
+        <button class="stream-alert__btn" @click="retryLast">重试</button>
+        <button class="stream-alert__close" title="关闭" @click="store.clearStreamError()">✕</button>
+      </div>
+      <!-- 非致命流警告（个别帧解析失败） -->
+      <div v-else-if="store.streamNotice" class="chat__stream-alert chat__stream-alert--notice">
+        <span class="stream-alert__text">{{ store.streamNotice }}</span>
+        <button class="stream-alert__close" title="关闭" @click="store.clearStreamNotice()">✕</button>
+      </div>
       <div class="chat__input-wrap">
         <textarea
           v-model="inputText"
@@ -431,10 +493,11 @@ const examples = [
           :disabled="isProcessing"
           @keydown="handleKeydown"
         />
-        <button class="chat__send" :disabled="!inputText.trim() || isProcessing" @click="send">
-          <span v-if="isProcessing" class="send-spinner" />
-          <span v-else>发送</span>
+        <button v-if="isProcessing" class="chat__send chat__send--stop" @click="stopSending">
+          <span class="stop-icon" />
+          <span>停止</span>
         </button>
+        <button v-else class="chat__send" :disabled="!inputText.trim()" @click="send">发送</button>
       </div>
       <p class="chat__hint">Enter 发送 · Shift+Enter 换行</p>
     </div>
@@ -609,16 +672,62 @@ const examples = [
 }
 .chat__send:hover:not(:disabled) { background: var(--accent-hover); }
 .chat__send:disabled { opacity: 0.4; cursor: not-allowed; }
-.send-spinner {
-  display: block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
+.chat__send--stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+.stop-icon {
+  display: block;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 2px;
+}
+
+/* 断流错误条 / 流警告条 */
+.chat__stream-alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 800px;
+  margin: 0 auto var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid;
+}
+.chat__stream-alert--error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.chat__stream-alert--notice {
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-color: rgba(234, 179, 8, 0.3);
+}
+.stream-alert__text { flex: 1; }
+.stream-alert__btn {
+  padding: 2px 10px;
+  font-size: var(--font-size-xs);
+  color: var(--danger);
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.stream-alert__btn:hover { border-color: var(--danger); }
+.stream-alert__close {
+  color: inherit;
+  background: none;
+  border: none;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  opacity: 0.7;
+}
+.stream-alert__close:hover { opacity: 1; }
 .chat__hint {
   text-align: center;
   margin-top: var(--space-2);

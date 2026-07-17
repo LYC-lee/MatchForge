@@ -107,8 +107,8 @@ async function scrollBottom() {
       </div>
 
       <div class="chat-input">
-        <input v-model="query" class="input" placeholder="向当前企业内部 AI 助手提问..." @keydown.enter="send()" />
-        <button class="btn-send" :disabled="sending || !query.trim()" @click="send()">发送</button>
+        <input v-model="query" class="input" placeholder="向当前企业内部 AI 助手提问..." :disabled="sending" @keydown.enter="send()" />
+        <button class="btn-send" :disabled="sending || !query.trim()" @click="send()">{{ sending ? '发送中…' : '发送' }}</button>
       </div>
     </section>
   </div>
@@ -236,6 +236,7 @@ async function scrollBottom() {
   font-size: var(--font-size-sm);
 }
 .input::placeholder { color: #9fa8ba; }
+.input:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-send {
   padding: 0 18px;
   border-radius: 6px;

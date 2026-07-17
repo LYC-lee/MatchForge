@@ -116,6 +116,8 @@ export interface SseCallbacks {
   onError?: (agent: AgentName | undefined, message: string) => void
   onResult?: (state: Partial<ProcureState>) => void
   onEnd?: () => void
+  /** 单个 SSE 帧 JSON 解析失败时回调（不中断流，由实现侧累计阈值后报错） */
+  onParseError?: (raw: string, error: unknown) => void
 }
 
 export interface StreamProcureParams {
