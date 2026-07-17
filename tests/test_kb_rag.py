@@ -227,12 +227,40 @@ class TestFactualQuestion:
 # ============================================================
 class TestFactualHallucination:
     def test_no_fabrication_for_nonexistent(self, kb_setup):
-        """询问知识库不存在的产品参数 -> 不编造。"""
+        """询问知识库不存在的产品参数 -> 不编造。
+
+        拒答判定: 答案含"暂无/可支持/不会编造"之一, 或无任何召回证据。
+        注意: 此处不得加 `or True`, 否则断言恒真、防幻觉测试形同虚设。
+        """
         res = answer("村田的GPU显存容量是多少GB？", company_id=1)
         # 村田是被动元件厂, 无 GPU; 答案不应编造显存数字
         assert not any(c in res["answer"] for c in ["24GB", "16GB", "8GB GDDR", "显存为"])
-        # 应表示无该信息或引导至业务范围
-        assert "暂无" in res["answer"] or "可支持" in res["answer"] or "不会编造" in res["answer"] or len(res["retrieved"]) == 0 or True
+        # 应表示无该信息或引导至业务范围 (真实拒答, 非恒真)
+        assert (
+            "暂无" in res["answer"]
+            or "可支持" in res["answer"]
+            or "不会编造" in res["answer"]
+            or len(res["retrieved"]) == 0
+        )
+
+    def test_fabrication_assertion_actually_fails(self):
+        """反向测试: 注入一个会编造的 answer, 验证上面的拒答断言确实能抓到。
+
+        若此测试失败, 说明 test_no_fabrication_for_nonexistent 的断言已退化为恒真
+        (例如被加回 `or True`), 防幻觉测试无效。
+        """
+        fabricated = {
+            "answer": "村田的GPU显存为24GB GDDR6X",  # 编造的显存数字
+            "retrieved": [{"chunk_id": 1}],  # 有召回却仍编造
+        }
+        # 与 test_no_fabrication_for_nonexistent 相同的拒答判定
+        is_refusal = (
+            "暂无" in fabricated["answer"]
+            or "可支持" in fabricated["answer"]
+            or "不会编造" in fabricated["answer"]
+            or len(fabricated["retrieved"]) == 0
+        )
+        assert not is_refusal, "拒答断言未抓到编造内容, 说明断言已退化为恒真"
 
     def test_no_cross_industry_fabrication(self, kb_setup):
         """被动元件公司不应生成化工/SaaS 内容。"""

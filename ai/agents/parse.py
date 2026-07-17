@@ -46,7 +46,9 @@ def _validate_spec(spec: dict) -> dict:
                 cleaned[key] = str(val).strip()
         elif key == "category":
             cat = str(val).strip()
-            cleaned[key] = cat if cat in VALID_CATEGORIES else cat
+            # 仅保留白名单品类, 非白名单直接丢弃 (宁缺毋假, 避免张冠李戴)
+            if cat in VALID_CATEGORIES:
+                cleaned[key] = cat
         elif key == "monthly_qty":
             try:
                 cleaned[key] = int(float(str(val).replace(",", "").replace("万", "0000")))

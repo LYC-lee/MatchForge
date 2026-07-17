@@ -115,7 +115,7 @@ SYSTEM_PROMPT = """你是电子元器件寻源系统的主调度 Agent。
 class RouteDecision(BaseModel):
     """LLM 结构化输出的路由决策，agent 字段限定了合法的 Agent 名称枚举。"""
 
-    agent: Literal["chat", "parse", "normalize", "alternatives", "match", "gen_rfq", "grade", "FINISH"] = Field(
+    agent: Literal["chat", "parse", "normalize", "alternatives", "match", "rag_enrich", "gen_rfq", "grade", "FINISH"] = Field(
         description="路由到的 Agent 名称，或 FINISH 表示全部完成"
     )
     reason: str = Field(default="", description="路由理由，便于调试和日志追踪")

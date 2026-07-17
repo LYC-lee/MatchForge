@@ -123,5 +123,6 @@ class ProcureState(TypedDict):
     rag_enrichment: Optional[RagEnrichment]  # 🔥 RAG 深度分析结果
     errors: list[str]
     chat_response: Optional[str]        # 💬 聊天 Agent 回复
+    entities_snapshot: Optional[dict]   # 🔄 多轮实体快照 (C4): current_spec + alternatives + suppliers
     started_at: str
     completed_at: Optional[str]
