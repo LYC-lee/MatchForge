@@ -31,7 +31,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 import seed_rfq_supplier_loop as rfq_seed  # noqa: E402
 from api.main import create_app  # noqa: E402
-from kb.auth import grant_company_access  # noqa: E402
+from kb.auth import grant_company_access, issue_token, resolve_token  # noqa: E402
 
 DEMO_TOKEN = "kb-demo-user"          # role=user, 无白名单 -> 公开访问
 ADMIN_TOKEN = "kb-admin-demo"        # role=admin
@@ -39,7 +39,9 @@ AUTH = {"Authorization": f"Bearer {DEMO_TOKEN}"}
 ADMIN_AUTH = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
 
 # 仅授权 9002 的供应商账号 (用于 "无关企业" 隔离测试)
-RESTRICTED_TOKEN = "test-supplier-9002-only-token"
+# 由 _ensure_data fixture 签发真实会话 token (不再使用任意字面量 token, 避免依赖
+# 旧版 resolve_token 对未知 token 兜底放行的漏洞)。
+RESTRICTED_TOKEN = ""
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -59,13 +61,15 @@ def _ensure_data(_offline_rag):
     chain.upsert_relationships()
     # RFQ 闭环种子
     rfq_seed.seed()
-    # 授权受限账号仅可访问 9002
-    restricted_user = f"u-{RESTRICTED_TOKEN[:8]}"
+    # 签发真实会话 token 作为受限账号 (仅授权 9002), 并授予白名单
+    global RESTRICTED_TOKEN
+    RESTRICTED_TOKEN = issue_token("restricted-9002", "user", "restricted@test.com")
+    restricted_user = resolve_token(RESTRICTED_TOKEN)["user_id"]
     grant_company_access(restricted_user, 9002)
 
 
 @pytest.fixture(scope="module")
-def client(_offline_rag):
+def client(_ensure_data):
     app = create_app()
     with TestClient(app) as c:
         yield c

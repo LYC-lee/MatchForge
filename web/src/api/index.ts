@@ -55,7 +55,7 @@ api.interceptors.response.use(
     }
 
     const auth = useAuthStore()
-    if (auth.user?.is_demo || auth.token === 'demo-token') {
+    if (auth.user?.is_demo) {
       return Promise.reject(normalizeError(error))
     }
 

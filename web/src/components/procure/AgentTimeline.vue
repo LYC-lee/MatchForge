@@ -15,6 +15,7 @@ const LABELS: Record<AgentName, string> = {
   match: '供应商匹配',
   gen_rfq: '询价单生成',
   grade: '线索分级',
+  chat: '智能问答',
 }
 
 const DESC: Record<AgentName, string> = {
@@ -24,6 +25,7 @@ const DESC: Record<AgentName, string> = {
   match: '向量检索匹配供应能力的供应商',
   gen_rfq: 'LLM 生成可编辑询价单',
   grade: '对询价线索进行分级评估',
+  chat: '基于知识库的对话式问答',
 }
 
 const ICONS: Record<AgentName, string> = {
@@ -33,6 +35,7 @@ const ICONS: Record<AgentName, string> = {
   match: '🏭',
   gen_rfq: '📝',
   grade: '⭐',
+  chat: '💬',
 }
 
 // 实时计时器

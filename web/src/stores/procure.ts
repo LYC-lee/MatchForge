@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { streamProcure } from '@/api/procure'
-import { getUserId, saveToLocal, useHistory } from '@/composables/useHistory'
+import { getUserId, useHistory } from '@/composables/useHistory'
 import type {
   AgentName,
   AgentState,

@@ -1,5 +1,5 @@
 // ===== 智能体阶段 =====
-export type AgentName = 'parse' | 'normalize' | 'alternatives' | 'match' | 'gen_rfq' | 'grade'
+export type AgentName = 'parse' | 'normalize' | 'alternatives' | 'match' | 'gen_rfq' | 'grade' | 'chat'
 export type AgentStatus = 'pending' | 'running' | 'done' | 'error'
 
 export interface AgentState {

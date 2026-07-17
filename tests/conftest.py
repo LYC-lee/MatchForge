@@ -4,6 +4,17 @@ Agent 测试 — 所有的外部依赖 (LLM / MySQL / Neo4j / Milvus) 全部 moc
 
 from __future__ import annotations
 
+# ── 测试环境显式开启 demo 模式 (必须在 kb.auth 首次 import 前设置) ──────────
+# 测试套件使用字面量 "kb-demo-user" / "kb-admin-demo" 作为 demo/admin demo token,
+# 这些 token 仅在 KB_DEMO_MODE=true 且非生产环境时由 resolve_token 接受。
+# 此处显式配置, 使测试语义安全可控 (而非依赖源码硬编码默认值)。
+import os as _os
+
+_os.environ.setdefault("KB_DEMO_MODE", "true")
+_os.environ.setdefault("KB_DEMO_TOKEN", "kb-demo-user")
+_os.environ.setdefault("KB_ADMIN_TOKEN", "kb-admin-demo")
+_os.environ.setdefault("APP_ENV", "development")
+
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime
