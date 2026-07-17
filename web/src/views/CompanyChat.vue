@@ -164,9 +164,10 @@ function directionLabel(direction: string) {
             v-model="query"
             class="input"
             :placeholder="mode === 'product' ? '询问型号、规格、价格、MOQ、交期、替代品...' : '询问合作流程、合同条款、售后、付款方式...'"
+            :disabled="sending"
             @keydown.enter="send()"
           />
-          <button class="btn-send" :disabled="sending || !query.trim() || !selectedPartner" @click="send()">发送</button>
+          <button class="btn-send" :disabled="sending || !query.trim() || !selectedPartner" @click="send()">{{ sending ? '发送中…' : '发送' }}</button>
         </div>
       </div>
     </section>
@@ -318,6 +319,7 @@ h2 { color: var(--text-primary); }
   font-size: var(--font-size-sm);
 }
 .input::placeholder { color: #9fa8ba; }
+.input:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-send {
   padding: 0 18px;
   border-radius: 6px;

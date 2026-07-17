@@ -67,6 +67,10 @@ export const useProcureStore = defineStore('procure', () => {
   const streamProgress = ref('')
   const matchError = ref<string | null>(null)
   const progress = ref<{ agent: string; status: string }[]>([])
+  /** 传输层错误（断流/网络异常/解析连续失败），agent 无关,驱动 UI 错误条 */
+  const streamError = ref<string | null>(null)
+  /** 非致命流警告（如个别 SSE 帧解析失败），驱动 UI 提示条 */
+  const streamNotice = ref<string | null>(null)
 
   // ── 历史记录版本号（每次会话保存后自增，驱动侧边栏刷新）──
   const historyVersion = ref(0)
@@ -146,6 +150,8 @@ export const useProcureStore = defineStore('procure', () => {
     streamProgress.value = ''
     progress.value = []
     matchError.value = null
+    streamError.value = null
+    streamNotice.value = null
     selectedAlternative.value = null
     selectedSuppliers.value = []
   }
@@ -198,8 +204,12 @@ export const useProcureStore = defineStore('procure', () => {
       },
       onError: (agent, message) => {
         if (agent) setAgent(agent, 'error', message)
+        if (!agent) streamError.value = message || '连接中断，请重试'
         errors.value.push(message)
         if (phase.value === 'spec') phase.value = 'done'
+      },
+      onParseError: () => {
+        streamNotice.value = '部分服务数据无法解析，已自动跳过'
       },
       onResult: (state) => applyState(state),
       onEnd: () => {
@@ -224,6 +234,8 @@ export const useProcureStore = defineStore('procure', () => {
     restAgents.forEach((name) => setAgent(name, 'pending'))
     rfqDoc.value = ''
     matchError.value = null
+    streamError.value = null
+    streamNotice.value = null
 
     // 将 SpecField 格式转回后端期望的简单键值对
     const simpleSpec: Record<string, string> = {}
@@ -271,6 +283,7 @@ export const useProcureStore = defineStore('procure', () => {
         },
         onError: (agent, message) => {
           if (agent) setAgent(agent, 'error', message)
+          if (!agent) streamError.value = message || '连接中断，请重试'
           errors.value.push(message)
           if (agent === 'match') {
             matchError.value = `供应商匹配失败: ${message}`
@@ -278,6 +291,9 @@ export const useProcureStore = defineStore('procure', () => {
           if (agent === 'gen_rfq') {
             rfqDoc.value = `# RFQ 生成失败\n\n后端寻源服务暂时不可用，请稍后重试。\n\n错误信息: ${message}`
           }
+        },
+        onParseError: () => {
+          streamNotice.value = '部分服务数据无法解析，已自动跳过'
         },
         onResult: (state) => applyState(state),
         onEnd: () => {
@@ -334,6 +350,8 @@ export const useProcureStore = defineStore('procure', () => {
     rfqDoc.value = ''
     isStreaming.value = true
     streamProgress.value = '正在重新生成询价单…'
+    streamError.value = null
+    streamNotice.value = null
     setAgent('gen_rfq', 'running')
 
     controller = streamProcure(
@@ -351,9 +369,13 @@ export const useProcureStore = defineStore('procure', () => {
         },
         onError: (agent, message) => {
           if (agent) setAgent(agent, 'error', message)
+          if (!agent) streamError.value = message || '连接中断，请重试'
           if (agent === 'gen_rfq') {
             rfqDoc.value = `# RFQ 生成失败\n\n错误信息: ${message}`
           }
+        },
+        onParseError: () => {
+          streamNotice.value = '部分服务数据无法解析，已自动跳过'
         },
         onResult: (state) => applyState(state),
         onEnd: () => {
@@ -370,6 +392,8 @@ export const useProcureStore = defineStore('procure', () => {
     matchError.value = null
     isStreaming.value = true
     streamProgress.value = '正在重新匹配供应商…'
+    streamError.value = null
+    streamNotice.value = null
     setAgent('match', 'running')
     setAgent('gen_rfq', 'pending')
     setAgent('grade', 'pending')
@@ -394,9 +418,13 @@ export const useProcureStore = defineStore('procure', () => {
         },
         onError: (agent, message) => {
           if (agent) setAgent(agent, 'error', message)
+          if (!agent) streamError.value = message || '连接中断，请重试'
           if (agent === 'match') {
             matchError.value = `供应商匹配失败: ${message}`
           }
+        },
+        onParseError: () => {
+          streamNotice.value = '部分服务数据无法解析，已自动跳过'
         },
         onResult: (state) => applyState(state),
         onEnd: () => {
@@ -411,6 +439,14 @@ export const useProcureStore = defineStore('procure', () => {
     controller?.abort()
     isStreaming.value = false
     streamProgress.value = ''
+  }
+
+  function clearStreamError() {
+    streamError.value = null
+  }
+
+  function clearStreamNotice() {
+    streamNotice.value = null
   }
 
   /** 从历史会话恢复状态（不重新执行 SSE） */
@@ -499,6 +535,8 @@ export const useProcureStore = defineStore('procure', () => {
     isStreaming,
     streamProgress,
     matchError,
+    streamError,
+    streamNotice,
     selectedAlternative,
     selectedSuppliers,
     isVague,
@@ -506,6 +544,8 @@ export const useProcureStore = defineStore('procure', () => {
     confirmSpec,
     reset,
     abort,
+    clearStreamError,
+    clearStreamNotice,
     toggleSupplier,
     selectAllSuppliers,
     deselectAllSuppliers,
