@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { streamProcure } from '@/api/procure'
-import { getUserId, saveToLocal, useHistory } from '@/composables/useHistory'
+import { getUserId, useHistory } from '@/composables/useHistory'
 import type {
   AgentName,
   AgentState,
@@ -174,10 +174,12 @@ export const useProcureStore = defineStore('procure', () => {
       onProgress: (agent, status, result) => {
         setAgent(agent, status)
         progress.value.push({ agent, status })
-        if (agent === 'chat' && status === 'running') {
+        // 后端 chat 智能体不在 AgentName 枚举内,按字符串比较
+        const agentName = agent as string
+        if (agentName === 'chat' && status === 'running') {
           chatStreamingText.value = ''  // 清空缓冲区，开始流式接收
         }
-        if (agent === 'chat' && status === 'done' && result) {
+        if (agentName === 'chat' && status === 'done' && result) {
           chatResponse.value = typeof result === 'string' ? result : JSON.stringify(result)
           chatStreamingText.value = ''  // 流式结束，清空缓冲区
         }
