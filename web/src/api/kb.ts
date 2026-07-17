@@ -3,6 +3,7 @@
  * 复用 web/src/api/index.ts 的 axios 实例 (自带 /api/v1 baseURL + Bearer 注入)
  */
 import api from './index'
+import type { Citation } from '@/types/procure'
 
 // ============================================================
 // 认证
@@ -59,6 +60,11 @@ export function getCompanyProducts(id: number) {
 // ============================================================
 // 聊天 / RAG
 // ============================================================
+/**
+ * 后端 kb/rag.py `_trace_chunk` 实际返回结构:
+ * { chunk_id, chunk_uid, chunk_type, product_model, business_type, score, language, source_type }
+ * manual_type / excerpt / text / company_id 视后端版本可选,前端防御性读取。
+ */
 export interface RetrievedChunk {
   chunk_id: number
   chunk_uid: string
@@ -68,6 +74,12 @@ export interface RetrievedChunk {
   score: number
   language: string
   source_type: string
+  /** 手册类型 product|business (新版后端输出,旧版缺省) */
+  manual_type?: string | null
+  /** 片段文本(新版后端可能输出 excerpt 或全量 text) */
+  excerpt?: string
+  text?: string
+  company_id?: number
 }
 
 export interface ChatResult {
@@ -77,6 +89,37 @@ export interface ChatResult {
   language: string
   retrieved: RetrievedChunk[] | { company_id: number; count: number; chunks: RetrievedChunk[] }[]
   mode: string
+}
+
+/**
+ * 将问答 API 的 retrieved 字段映射为统一的 Citation[](引用回显契约 C2)。
+ * 同时兼容单公司(扁平数组)与多公司比较(按 company_id 分组)两种结构;
+ * 缺失字段防御: doc 缺省 'business', company_id 缺省 fallbackCompanyId, excerpt 缺省 ''。
+ */
+export function mapRetrievedToCitations(
+  retrieved: ChatResult['retrieved'] | undefined | null,
+  fallbackCompanyId = 0,
+): Citation[] {
+  if (!retrieved || !Array.isArray(retrieved)) return []
+  const flat: { chunk: RetrievedChunk; groupCompanyId?: number }[] = []
+  for (const item of retrieved as (RetrievedChunk & { chunks?: RetrievedChunk[] })[]) {
+    if (!item) continue
+    if (Array.isArray(item.chunks)) {
+      const groupId = (item as unknown as { company_id?: number }).company_id
+      for (const c of item.chunks) flat.push({ chunk: c, groupCompanyId: groupId })
+    } else {
+      flat.push({ chunk: item })
+    }
+  }
+  return flat.map(({ chunk: c, groupCompanyId }, i) => ({
+    doc: c.manual_type || 'business',
+    chunk_id: String(c.chunk_id ?? c.chunk_uid ?? i),
+    chunk_uid: c.chunk_uid || String(c.chunk_id ?? ''),
+    score: typeof c.score === 'number' ? c.score : 0,
+    excerpt: c.excerpt ?? c.text ?? '',
+    company_id: c.company_id ?? groupCompanyId ?? fallbackCompanyId,
+    language: c.language || '',
+  }))
 }
 
 export function chatSingle(company_id: number, query: string, language?: string) {

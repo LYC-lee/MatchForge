@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue'
 import MarkdownContent from '@/components/chat/MarkdownContent.vue'
+import CitationList from '@/components/chat/CitationList.vue'
+import type { Citation } from '@/types/procure'
 
 export type MessageRole = 'user' | 'assistant' | 'system'
 
@@ -12,6 +14,8 @@ export interface ChatMessageData {
   /** 结构化结果类型,非纯文本时标识内容类型 */
   resultType?: 'spec' | 'alternatives' | 'suppliers' | 'rfq' | 'grade' | 'error' | 'progress'
   timestamp?: number
+  /** 引用回显(C2): 助手消息附带的 RAG 引用片段 */
+  citations?: Citation[]
 }
 
 const props = defineProps<{
@@ -33,6 +37,10 @@ const isProgress = computed(() => props.message.resultType === 'progress')
 // 仅助手常规消息渲染 Markdown;用户/系统/错误/进度消息保持纯文本
 const renderMarkdown = computed(
   () => !isUser.value && !isSystem.value && !isError.value && !isProgress.value,
+)
+// 引用回显: 助手消息带 citations 时,在正文下方渲染角标列表
+const showCitations = computed(
+  () => !isUser.value && !isSystem.value && !!props.message.citations?.length,
 )
 
 const displayContent = computed(() => {
@@ -138,6 +146,13 @@ const showActions = computed(() => showCopy.value || showRegenerate.value || isE
           {{ displayContent }}<span v-if="isStreaming" class="msg__cursor">▌</span>
         </template>
       </div>
+
+      <!-- 引用回显: MarkdownContent 下方的引用角标列表 -->
+      <CitationList
+        v-if="showCitations"
+        class="msg__citations"
+        :citations="props.message.citations!"
+      />
 
       <!-- 插槽: 嵌入结构化结果卡片 -->
       <div v-if="$slots.default" class="msg__slot">
@@ -309,6 +324,13 @@ const showActions = computed(() => showCopy.value || showRegenerate.value || isE
 
 .msg__slot {
   margin-top: var(--space-3);
+}
+
+/* 引用角标列表挂在气泡内正文下方 */
+.msg__citations {
+  max-width: 640px;
+  margin-top: var(--space-1);
+  padding: 0 var(--space-1);
 }
 
 /* 元信息行: 时间戳 + 消息级操作 */

@@ -4,6 +4,7 @@ import type { Alternative } from '@/types/procure'
 import Card from '@/components/ui/Card.vue'
 import Tag from '@/components/ui/Tag.vue'
 import ParamDiffTable from './ParamDiffTable.vue'
+import SourceBadge from './SourceBadge.vue'
 
 const props = defineProps<{
   alternatives: Alternative[]
@@ -17,15 +18,20 @@ function byLevel(a: Alternative, b: Alternative) {
   return (LEVEL_ORDER[a.level] ?? 99) - (LEVEL_ORDER[b.level] ?? 99)
 }
 
+// 低置信判定仅在该项真有 confidence 字段时生效(C3)
+function isLowConfidence(a: Alternative) {
+  return a.confidence != null && a.confidence < 0.5 && !a.verified
+}
+
 // L5 或 低置信+未核验 -> 折叠区；内部按 level 排序（L1→L5）
 const trusted = computed(() =>
   props.alternatives
-    .filter((a) => a.level !== 'L5' && !(a.confidence < 0.5 && !a.verified))
+    .filter((a) => a.level !== 'L5' && !isLowConfidence(a))
     .sort(byLevel),
 )
 const risky = computed(() =>
   props.alternatives
-    .filter((a) => a.level === 'L5' || (a.confidence < 0.5 && !a.verified))
+    .filter((a) => a.level === 'L5' || isLowConfidence(a))
     .sort(byLevel),
 )
 
@@ -83,7 +89,7 @@ const LEVEL_DESC: Record<string, string> = {
             </span>
           </div>
           <div class="alt__stats">
-            <div class="alt__stat">
+            <div v-if="a.confidence != null" class="alt__stat">
               <span class="alt__stat-label">置信度</span>
               <span class="alt__stat-val" :class="{ low: a.confidence < 0.6 }">
                 {{ Math.round(a.confidence * 100) }}%
@@ -100,7 +106,9 @@ const LEVEL_DESC: Record<string, string> = {
             </div>
           </div>
           <div class="alt__source">
-            <span>来源:{{ a.source }}</span>
+            <!-- 有 source(新契约)渲染来源徽章;缺失(旧数据)保持现有纯文本显示 -->
+            <SourceBadge v-if="a.source" :source="a.source" :verified="a.verified" />
+            <span v-else>来源:{{ a.source }}</span>
             <span>更新:{{ a.updated_at }}</span>
           </div>
           <p v-if="a.note" class="alt__note">⚠ {{ a.note }}</p>
@@ -135,11 +143,14 @@ const LEVEL_DESC: Record<string, string> = {
             <span class="alt__brand">{{ a.brand }}</span>
             <span class="alt__sep">·</span>
             <span>{{ a.package }}</span>
-            <span class="alt__sep">·</span>
-            <span class="alt__conf-low">置信度 {{ Math.round(a.confidence * 100) }}%</span>
+            <template v-if="a.confidence != null">
+              <span class="alt__sep">·</span>
+              <span class="alt__conf-low">置信度 {{ Math.round(a.confidence * 100) }}%</span>
+            </template>
           </div>
           <div class="alt__source">
-            <span>来源:{{ a.source }}</span>
+            <SourceBadge v-if="a.source" :source="a.source" :verified="a.verified" />
+            <span v-else>来源:{{ a.source }}</span>
             <span>更新:{{ a.updated_at }}</span>
           </div>
           <p v-if="a.note" class="alt__note">⚠ {{ a.note }}</p>

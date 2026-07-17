@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { getChatPartners, partnerChat, type ChatPartner } from '@/api/enterprise'
+import { mapRetrievedToCitations } from '@/api/kb'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 import MarkdownContent from '@/components/chat/MarkdownContent.vue'
+import CitationList from '@/components/chat/CitationList.vue'
+import type { Citation } from '@/types/procure'
 
 const { current, currentEnterpriseId } = useEnterpriseContext()
 const partners = ref<ChatPartner[]>([])
@@ -11,7 +14,7 @@ const mode = ref<'product' | 'business'>('product')
 const query = ref('')
 const sending = ref(false)
 const chatBody = ref<HTMLElement | null>(null)
-const messages = ref<{ role: 'user' | 'assistant'; content: string; source?: 'api' | 'error' }[]>([])
+const messages = ref<{ role: 'user' | 'assistant'; content: string; source?: 'api' | 'error'; citations?: Citation[] }[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 
@@ -66,10 +69,16 @@ async function send(q?: string) {
       scope: mode.value,
     })
     const answer = res.data?.answer || res.data?.response || res.data?.message
+    // 引用回显: partner-chat 检索伙伴私域知识, company_id 缺省回退为伙伴 id
+    const citations = mapRetrievedToCitations(
+      res.data?.retrieved,
+      selectedPartner.value?.company_id ?? currentEnterpriseId.value,
+    )
     messages.value.push({
       role: 'assistant',
       content: answer || '伙伴企业知识库暂未返回答案，请换个问法再试。',
       source: answer ? 'api' : 'error',
+      citations: citations.length ? citations : undefined,
     })
   } catch (e: any) {
     const detail = e?.response?.status === 403
@@ -146,11 +155,18 @@ function directionLabel(direction: string) {
           </div>
           <div v-for="(message, index) in messages" :key="index" class="msg" :class="`msg--${message.role}`">
             <div class="msg__avatar">{{ message.role === 'user' ? '我' : 'AI' }}</div>
-            <div class="msg__content" :class="{ 'msg__content--md': message.role === 'assistant' }">
-              <MarkdownContent v-if="message.role === 'assistant'" :content="message.content" />
-              <template v-else>{{ message.content }}</template>
-              <span v-if="message.source === 'api'" class="msg__source msg__source--api">RAG</span>
-              <span v-else-if="message.source === 'error'" class="msg__source">未生成</span>
+            <div class="msg__body">
+              <div class="msg__content" :class="{ 'msg__content--md': message.role === 'assistant' }">
+                <MarkdownContent v-if="message.role === 'assistant'" :content="message.content" />
+                <template v-else>{{ message.content }}</template>
+                <span v-if="message.source === 'api' && !message.citations?.length" class="msg__source msg__source--api">RAG</span>
+                <span v-else-if="message.source === 'error'" class="msg__source">未生成</span>
+              </div>
+              <CitationList
+                v-if="message.role === 'assistant' && message.citations?.length"
+                class="msg__citations"
+                :citations="message.citations"
+              />
             </div>
           </div>
           <div v-if="sending" class="msg msg--assistant">
@@ -259,6 +275,8 @@ h2 { color: var(--text-primary); }
 }
 .chip:hover { border-color: var(--accent-border); color: var(--text-primary); }
 .msg { display: flex; gap: var(--space-3); margin-bottom: var(--space-3); }
+.msg__body { flex: 1; min-width: 0; }
+.msg__citations { margin-top: var(--space-1); padding: 0 var(--space-1); }
 .msg__avatar {
   width: 30px;
   height: 30px;

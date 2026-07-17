@@ -63,8 +63,12 @@ function handleEvent(raw: string, callbacks: SseCallbacks): boolean {
     .filter((l) => l.startsWith('data:'))
     .map((l) => l.slice(5).trim())
   if (!dataLines.length) return true
+  // 命名事件帧(event: citation): data 内无 type 时以事件名兜底
+  const eventLine = raw.split('\n').find((l) => l.startsWith('event:'))
+  const eventName = eventLine ? eventLine.slice(6).trim() : ''
   try {
     const evt = JSON.parse(dataLines.join('\n')) as SseEvent
+    if (!evt.type && eventName) (evt as { type?: string }).type = eventName
     dispatch(evt, callbacks)
     return true
   } catch (err) {
@@ -85,6 +89,9 @@ function dispatch(evt: SseEvent, cb: SseCallbacks) {
       break
     case 'token':
       cb.onToken?.(evt.text, evt.agent)
+      break
+    case 'citation':
+      cb.onCitation?.(evt.agent, evt.citations)
       break
     case 'error':
       cb.onError?.(evt.agent, evt.message)

@@ -30,9 +30,11 @@ export interface Alternative {
   package: string
   key_params: Record<string, string>
   level: AltLevel
-  confidence: number
+  /** 后端有输出才显示(C3),不得默认 */
+  confidence?: number
   verified: boolean
-  source: string
+  /** 来源枚举(A线 #16): Neo4j:* | llm_inferred* | rule_fallback:query_failed;旧数据可能缺失 */
+  source?: string
   updated_at: string
   diffs?: ParamDiff[]
   specs?: Record<string, unknown>
@@ -80,9 +82,22 @@ export interface LeadGrade {
 // ===== 规格字段(带置信度,缺失/低置信用于标黄/问号) =====
 export interface SpecField {
   value: string
-  confidence: number
+  /** C3: 后端给了才保留/显示,前端不得虚构 */
+  confidence?: number
   missing?: boolean
   editable?: boolean
+}
+
+// ===== 引用回显 (C2) =====
+export interface Citation {
+  /** 手册类型: product | business */
+  doc: string
+  chunk_id: string
+  chunk_uid: string
+  score: number
+  excerpt: string
+  company_id: number
+  language: string
 }
 
 // ===== ProcureState =====
@@ -105,6 +120,7 @@ export type SseEvent =
   | { type: 'start'; thread_id: string; rfq_id?: string }
   | { type: 'progress'; agent: AgentName; status: AgentStatus; result?: unknown }
   | { type: 'token'; agent?: AgentName | string; text: string }
+  | { type: 'citation'; agent: string; citations: Citation[] }
   | { type: 'error'; agent?: AgentName; message: string }
   | { type: 'result'; state: Partial<ProcureState> }
   | { type: 'end' }
@@ -113,6 +129,8 @@ export interface SseCallbacks {
   onStart?: (threadId: string, rfqId?: string) => void
   onProgress?: (agent: AgentName, status: AgentStatus, result?: unknown) => void
   onToken?: (text: string, agent?: AgentName | string) => void
+  /** 引用回显(C2): alternatives / rag_enrich 智能体产出引用片段 */
+  onCitation?: (agent: string, citations: Citation[]) => void
   onError?: (agent: AgentName | undefined, message: string) => void
   onResult?: (state: Partial<ProcureState>) => void
   onEnd?: () => void

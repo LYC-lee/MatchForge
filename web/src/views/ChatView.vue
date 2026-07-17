@@ -164,6 +164,16 @@ watch(() => store.chatStreamingText, (text) => {
   }
 })
 
+// ── 引用回显(C2): citation 事件 → 挂到当前(最后一条) AI 消息 ──
+watch(() => store.chatCitations, (cits) => {
+  if (!cits.length) return
+  const last = messages.value[messages.value.length - 1]
+  if (last && last.role === 'assistant') {
+    last.citations = cits
+    scrollDown()
+  }
+}, { deep: true })
+
 // ── 终结流式状态 ──
 function finalizeMsg() {
   const last = messages.value[messages.value.length - 1]
