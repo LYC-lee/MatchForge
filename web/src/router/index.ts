@@ -18,7 +18,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/procure/:id', name: 'procure', component: () => import('@/views/ProcureView.vue'), props: true, meta: { requiresAuth: true, title: '寻源工作流' } },
   { path: '/flow', name: 'flow-home', redirect: '/chat' },
   { path: '/spec-confirm', name: 'spec-confirm', redirect: '/chat' },
-  { path: '/alternatives', name: 'alternatives', redirect: '/chat' },
+  { path: '/alternatives', name: 'alternatives', component: () => import('@/views/AlternativesView.vue'), meta: { requiresAuth: true, title: '替代料推荐' } },
   { path: '/supplier-match', name: 'supplier-match', redirect: '/chat' },
   { path: '/rfq-edit', name: 'rfq-edit', redirect: '/chat' },
   { path: '/history', name: 'history', component: () => import('@/views/HistoryView.vue'), meta: { requiresAuth: true, title: '历史记录' } },
