@@ -738,6 +738,9 @@ const examples = [
             :readonly="!isLiveMsg(msg)"
             @confirm="onSpecConfirm(msg, $event)"
           />
+          <div v-if="msg.resultType === 'spec'" class="alt-page-link">
+            <RouterLink to="/spec-confirm" class="text-link">在新页面中查看规格参数 →</RouterLink>
+          </div>
 
           <!-- 替代料卡: 挂在各自消息下, 追问不消失 -->
           <AlternativesList

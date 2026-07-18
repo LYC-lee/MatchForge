@@ -17,7 +17,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/chat', name: 'chat', component: () => import('@/views/ChatView.vue'), meta: { requiresAuth: true, title: '对话寻源' } },
   { path: '/procure/:id', name: 'procure', component: () => import('@/views/ProcureView.vue'), props: true, meta: { requiresAuth: true, title: '寻源工作流' } },
   { path: '/flow', name: 'flow-home', redirect: '/chat' },
-  { path: '/spec-confirm', name: 'spec-confirm', redirect: '/chat' },
+  { path: '/spec-confirm', name: 'spec-confirm', component: () => import('@/views/SpecConfirmView.vue'), meta: { requiresAuth: true, title: '规格确认' } },
   { path: '/alternatives', name: 'alternatives', component: () => import('@/views/AlternativesView.vue'), meta: { requiresAuth: true, title: '替代料推荐' } },
   { path: '/supplier-match', name: 'supplier-match', component: () => import('@/views/SupplierMatchView.vue'), meta: { requiresAuth: true, title: '供应商匹配' } },
   { path: '/rfq-edit', name: 'rfq-edit', component: () => import('@/views/RfqEditView.vue'), meta: { requiresAuth: true, title: '询价单' } },
