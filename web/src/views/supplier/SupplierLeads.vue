@@ -233,8 +233,9 @@ async function submitQuote() {
 
       <div v-if="filteredLeads.length === 0" class="card">
         <div class="card__body empty-state">
-          <p class="empty-icon">📋</p>
-          <p>暂无线索</p>
+          <div class="empty-icon">📋</div>
+          <p class="empty-title">暂无线索</p>
+          <p class="empty-desc">当前企业暂未收到采购询价，等待买家发起 RFQ 或前往对话寻源发起新的寻源流程。</p>
         </div>
       </div>
 
@@ -351,8 +352,10 @@ async function submitQuote() {
 .tag-green { color: var(--success); background: var(--success-soft); }
 .tag-gray { color: var(--text-tertiary); background: var(--bg-3); }
 .mono { font-family: var(--font-mono); font-size: var(--font-size-xs); }
-.empty-state { text-align: center; padding: var(--space-8); color: var(--text-tertiary); }
+.empty-state { text-align: center; padding: var(--space-8); }
 .empty-icon { font-size: 40px; margin-bottom: var(--space-3); opacity: 0.4; }
+.empty-title { color: var(--text-secondary); font-size: var(--font-size-md); font-weight: 600; margin-bottom: var(--space-2); }
+.empty-desc { color: var(--text-tertiary); font-size: var(--font-size-sm); max-width: 380px; margin: 0 auto; line-height: 1.5; }
 .skeleton { background: linear-gradient(90deg, var(--bg-3) 25%, var(--border-subtle) 50%, var(--bg-3) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--radius-sm); }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 

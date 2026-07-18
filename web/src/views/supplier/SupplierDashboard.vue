@@ -2,6 +2,7 @@
 import { ref, watch, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { useIsLogistics } from '@/composables/useIsLogistics'
 import { onDemoRefresh } from '@/composables/useDemoRefresh'
 import { getSupplierLeads, type SupplierLead } from '@/api/enterprise'
 import { useDemo } from '@/composables/useDemo'
@@ -10,6 +11,7 @@ import AppButton from '@/components/ui/AppButton.vue'
 const router = useRouter()
 const { current, currentEnterpriseId } = useEnterpriseContext()
 const demo = useDemo()
+const { isLogistics } = useIsLogistics()
 
 const isDemo = computed(() => demo.isDemo.value)
 
@@ -182,7 +184,10 @@ function statusClass(s: string) {
           </tbody>
         </table>
         <div v-else class="empty-state">
-          <p>暂无线索</p>
+          <div class="empty-state__icon">📋</div>
+          <p class="empty-state__title">暂无线索</p>
+          <p class="empty-state__desc">{{ isLogistics ? '暂无服务采购需求，等待上游企业发起服务调度。' : '当前企业暂未收到采购询价，等待买家发起 RFQ。' }}</p>
+          <AppButton variant="ghost" size="sm" @click="router.push('/chat')">前往对话寻源</AppButton>
         </div>
       </div>
     </div>
@@ -191,13 +196,13 @@ function statusClass(s: string) {
     <div class="quick-links">
       <div class="quick-card" @click="router.push('/supplier/leads')">
         <div class="quick-card__icon">📋</div>
-        <div class="quick-card__title">线索管理</div>
-        <div class="quick-card__desc">查看和处理采购询价, 在线提交报价</div>
+        <div class="quick-card__title">{{ isLogistics ? '服务需求' : '线索管理' }}</div>
+        <div class="quick-card__desc">{{ isLogistics ? '查看服务采购需求, 在线响应调度' : '查看和处理采购询价, 在线提交报价' }}</div>
       </div>
-      <div class="quick-card" @click="router.push('/products-bom')">
-        <div class="quick-card__icon">📦</div>
-        <div class="quick-card__title">产品与 BOM</div>
-        <div class="quick-card__desc">查看当前企业的可生产产品与 BOM</div>
+      <div class="quick-card" @click="router.push('/chat')">
+        <div class="quick-card__icon">💬</div>
+        <div class="quick-card__title">对话寻源</div>
+        <div class="quick-card__desc">通过 AI 对话获取替代料推荐与供应商匹配</div>
       </div>
       <div class="quick-card" @click="router.push('/company-assistant')">
         <div class="quick-card__icon">🏢</div>
@@ -278,7 +283,10 @@ function statusClass(s: string) {
 .state-won { color: var(--success); background: var(--success-soft); }
 .state-lost { color: var(--text-tertiary); background: var(--bg-3); }
 
-.empty-state { text-align: center; padding: var(--space-6); color: var(--text-tertiary); }
+.empty-state { text-align: center; padding: var(--space-6); }
+.empty-state__icon { font-size: 32px; margin-bottom: var(--space-2); opacity: 0.5; }
+.empty-state__title { color: var(--text-secondary); font-size: var(--font-size-md); font-weight: 600; margin-bottom: var(--space-2); }
+.empty-state__desc { color: var(--text-tertiary); font-size: var(--font-size-sm); max-width: 360px; margin: 0 auto var(--space-3); line-height: 1.5; }
 
 /* 快速入口 */
 .quick-links {
