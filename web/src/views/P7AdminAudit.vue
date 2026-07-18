@@ -139,6 +139,15 @@ async function fetchQueue() {
   }
 }
 
+
+// 加载超时保护: 8 秒后强制展示内容
+onMounted(() => {
+  setTimeout(() => {
+    if (loading.value) {
+      loading.value = false
+    }
+  }, 8000)
+})
 async function handleApprove(item: AuditQueueItem) {
   if (isDemo.value) return // demo 模式只读
   try {
