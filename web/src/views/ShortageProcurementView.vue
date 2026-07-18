@@ -230,12 +230,12 @@ function goFlow() {
         <p>{{ isLogistics ? '运力缺口与履约执行，从仓储、运输到服务调度，串联资源调度单与供应商协同。' : '从订单和预测需求导致的缺件出发, 串起推荐动作、RFQ 创建与报价对比闭环。' }}</p>
       </div>
       <div class="head-actions">
-        <button class="action-link action-link--ghost" @click="recalculate">重算缺件</button>
+        <button class="action-link action-link--ghost" @click="recalculate">{{ isLogistics ? '重算缺口' : '重算缺件' }}</button>
         <button class="action-link" @click="goFlow">进入寻源流程</button>
       </div>
     </header>
 
-    <div v-if="loading" class="loading-bar">正在拉取缺件与采购数据…</div>
+    <div v-if="loading" class="loading-bar">{{ isLogistics ? '正在拉取运力与履约数据…' : '正在拉取缺件与采购数据…' }}</div>
     <div v-if="dataSource === 'mock' && !isDemo" class="notice-bar">后端接口暂不可用，当前显示本地兜底经营数据</div>
     <div v-if="isDemo" class="notice-bar notice-bar--demo">演示沙盘数据 · 缺件/RFQ/报价基于当前企业 BOM、库存、订单与直接上下游关系动态计算</div>
 
@@ -359,7 +359,7 @@ function goFlow() {
           <div class="rfq-list-head">
             <h3>{{ isLogistics ? '服务调度单列表' : (isDemo ? '演示 RFQ 列表' : '本企业 RFQ 列表') }} ({{ rfqList.length }})</h3>
           </div>
-          <div v-if="rfqList.length === 0" class="empty-line">暂无 RFQ, 可从缺件创建</div>
+          <div v-if="rfqList.length === 0" class="empty-line">{{ isLogistics ? '暂无调度单, 可从资源缺口发起' : '暂无 RFQ, 可从缺件创建' }}</div>
           <div v-else class="rfq-table">
             <div class="rfq-row rfq-row--head">
               <span>{{ isLogistics ? '调度单号' : 'RFQ 编号' }}</span>
