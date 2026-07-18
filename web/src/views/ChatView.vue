@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onUnmounted, computed } from 'vue'
 import { useProcureStore } from '@/stores/procure'
+import { useAuthStore } from '@/stores/auth'
 import { saveToLocal } from '@/composables/useHistory'
 import type { SpecField, Alternative, Supplier } from '@/types/procure'
 import ChatMessage, { type ChatMessageData } from '@/components/chat/ChatMessage.vue'
@@ -13,6 +14,8 @@ import SessionHistoryPanel from '@/components/procure/SessionHistoryPanel.vue'
 import AgentTimeline from '@/components/procure/AgentTimeline.vue'
 
 const store = useProcureStore()
+const auth = useAuthStore()
+const isDemo = computed(() => !!auth.user?.is_demo)
 
 // ── 历史记录侧边栏 ──
 const showHistory = ref(false)
@@ -451,8 +454,12 @@ const examples = [
             :selected-supplier-ids="store.selectedSupplierIds"
             :sent="store.rfqSent"
             :streaming="store.agents.find(a => a.name === 'gen_rfq')?.status === 'running'"
+            :persisted-rfq-number="store.persistedRfqNumber"
+            :sending="store.rfqSending"
+            :send-error="store.rfqSendError"
+            :is-demo="isDemo"
             @update="store.setRfqDoc"
-            @sent="store.markRfqSent"
+            @sent="store.sendRfqToBackend"
             @regenerate="store.regenerateRfq"
           />
 

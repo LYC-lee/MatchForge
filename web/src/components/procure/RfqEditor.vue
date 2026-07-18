@@ -13,6 +13,14 @@ const props = defineProps<{
   selectedSupplierIds: Set<string>
   sent: boolean
   streaming: boolean
+  /** 落库后的真实 RFQ 编号 (RFQ-YYYY-NNNN); 优先于内存 rfqId 展示 */
+  persistedRfqNumber?: string | null
+  /** 发送到后端的进行中状态 */
+  sending?: boolean
+  /** 发送到后端的错误信息 (显式出口) */
+  sendError?: string | null
+  /** demo 沙盘模式: 仅本地标记, 不调后端 */
+  isDemo?: boolean
 }>()
 const emit = defineEmits<{
   (e: 'update', text: string): void
@@ -224,6 +232,14 @@ function exportFile() {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+// ── 展示用 RFQ 标识: 落库后优先真实编号, 否则用内存临时 ID ──
+const displayRfqId = computed(() => props.persistedRfqNumber || props.rfqId)
+const sendBtnText = computed(() => {
+  if (props.isDemo) return props.sent ? '已标记已发送 ✓' : '标记已发送'
+  if (props.sending) return '发送中…'
+  return props.sent ? '已发送 ✓' : '发送 RFQ'
+})
 </script>
 
 <template>
@@ -308,7 +324,7 @@ function exportFile() {
       <div class="rfq__main">
         <div class="rfq__toolbar">
           <div class="rfq__id">
-            <span v-if="rfqId" class="mono">{{ rfqId }}</span>
+            <span v-if="displayRfqId" class="mono">{{ displayRfqId }}</span>
             <span v-if="streaming" class="rfq__streaming-tag">生成中…</span>
             <span v-else-if="isFallback" class="rfq__fallback-tag">模板兜底</span>
             <span v-else-if="rfqDoc" class="rfq__ready-tag">AI 已生成</span>
@@ -323,12 +339,18 @@ function exportFile() {
             <AppButton
               variant="secondary"
               size="sm"
-              :disabled="streaming || !rfqDoc"
+              :disabled="streaming || !rfqDoc || sending || sent"
               @click="emit('sent')"
             >
-              {{ sent ? '已发送 ✓' : '标记已发送' }}
+              {{ sendBtnText }}
             </AppButton>
           </div>
+        </div>
+
+        <!-- 发送错误出口 (不静默) -->
+        <div v-if="sendError" class="rfq__send-error">
+          <span class="rfq__send-error-icon">⚠</span>
+          <span>{{ sendError }}</span>
         </div>
 
         <textarea
@@ -514,6 +536,21 @@ function exportFile() {
 .rfq__fallback-tag { color: var(--warning); }
 .rfq__ready-tag { color: var(--success); }
 .rfq__tools { display: flex; gap: var(--space-2); }
+
+/* 发送错误出口 */
+.rfq__send-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  background: var(--danger-soft, #fef2f2);
+  border: 1px solid var(--danger, #dc2626);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--danger, #dc2626);
+  font-size: var(--font-size-sm);
+}
+.rfq__send-error-icon { font-weight: 700; }
 
 /* 编辑器 */
 .rfq__editor {

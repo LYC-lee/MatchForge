@@ -39,6 +39,16 @@ router = APIRouter(tags=["rfq"])
 # ============================================================
 # Pydantic 请求模型
 # ============================================================
+class RfqCandidate(BaseModel):
+    """候选供应商 (结构化): 携带 AI 寻源算出的 match_score / match_reason。
+
+    用于 AI 寻源链路把 match_agent 的匹配分落到 kb_rfq_suppliers。
+    """
+    supplier_company_id: int
+    match_score: float | None = None
+    match_reason: str | None = None
+
+
 class RfqCreate(BaseModel):
     buyer_company_id: int
     title: str
@@ -53,6 +63,10 @@ class RfqCreate(BaseModel):
     raw_query: str | None = None
     # 候选供应商 (仅 company_id 即可, 也可带匹配分/理由)
     supplier_candidates: list[int] | None = None
+    # AI 寻源结构化候选 (优先于 supplier_candidates, 携带 match_score/match_reason)
+    candidate_details: list[RfqCandidate] | None = None
+    # AI 线索整体商务分级 (A/B/C/D + score + reasons), 存入 context_json
+    lead_grade: dict | None = None
     # Phase 2 Dashboard 兼容字段 (不强依赖, 存入 context_json)
     shortage_id: str | None = None
     product_id: int | None = None
@@ -182,17 +196,30 @@ def _get_rfq(s, rfq_id: int) -> RfqRecord:
 # ============================================================
 @router.post("/rfqs")
 def create_rfq(req: RfqCreate, user: dict = Depends(get_current_user)):
-    """创建 RFQ。可选附候选供应商 (创建 pending 线索)。"""
+    """创建 RFQ。可选附候选供应商 (创建 pending 线索)。
+
+    候选供应商来源 (优先级递减):
+      1. candidate_details (结构化, 携带 match_score/match_reason -- AI 寻源链路)
+      2. supplier_candidates (裸 company_id 列表 -- 旧调用方/测试)
+    lead_grade (AI 线索整体商务分级) 存入 context_json。
+    """
     check_company_access(user, req.buyer_company_id)
-    # 候选供应商必须存在
-    candidates = req.supplier_candidates or []
+    # 合并候选: candidate_details 优先, 补 supplier_candidates 中未出现的 company_id
+    details = list(req.candidate_details or [])
+    seen = {d.supplier_company_id for d in details}
+    for sid in (req.supplier_candidates or []):
+        if sid not in seen:
+            details.append(RfqCandidate(supplier_company_id=sid))
+            seen.add(sid)
     with session_scope() as s:
         _require_company(s, req.buyer_company_id)
-        for sid in candidates:
-            _require_company(s, sid)
+        for d in details:
+            _require_company(s, d.supplier_company_id)
 
-        # Phase 2 兼容字段 -> context_json
-        ctx = {}
+        # Phase 2 兼容字段 + AI lead_grade -> context_json
+        ctx: dict = {}
+        if req.lead_grade is not None:
+            ctx["lead_grade"] = req.lead_grade
         if req.shortage_id is not None:
             ctx["shortage_id"] = req.shortage_id
         if req.product_id is not None:
@@ -221,9 +248,11 @@ def create_rfq(req: RfqCreate, user: dict = Depends(get_current_user)):
         s.flush()
 
         links = []
-        for sid in candidates:
+        for d in details:
             lk = RfqSupplierLink(
-                rfq_id=r.id, supplier_company_id=sid, status="pending",
+                rfq_id=r.id, supplier_company_id=d.supplier_company_id,
+                status="pending",
+                match_score=d.match_score, match_reason=d.match_reason,
             )
             s.add(lk)
             s.flush()

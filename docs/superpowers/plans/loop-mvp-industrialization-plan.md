@@ -73,6 +73,12 @@ If a task is blocked after roughly 90 minutes:
 
 ## 5. Current High-Priority Backlog
 
+### P0-01 - AI 寻源到真实 RFQ/线索闭环 (Issue #39)
+
+Status: wip (loop-008) - 代码 + 测试已写, 前端 build ✓; 后端 pytest 待跑
+
+打通 AI 寻源链路 (gen_rfq/grade/match) 产出的内存态 rfq_doc/matched_suppliers/lead_grade 到真实 kb_rfqs/kb_rfq_suppliers 闭环。前端"发送 RFQ"显式调 POST /rfqs + /rfqs/{id}/send; match_score/match_reason 落 RfqSupplierLink (原孤儿 NULL), lead_grade 落 RfqRecord.context_json; 落库后以 RfqRecord.id/rfq_number 为准替代内存 MF- ID; demo 模式保持本地 flag 不落库 (边界清晰)。详见 summary 2026-07-18-HHMM-p0-ai-rfq-loop。
+
 ### P1 - Register Identity Model
 
 Status: done (loop-001, branch codex/loop-001-register-identity, commit 3c023a8) — browser QA pending
@@ -354,6 +360,21 @@ Future entries should use:
   - P0-3: 密码哈希 sha256 -> bcrypt (旧 sha256 登录时渐进升级, 清空 salt); 修正 docstring; 移除 import 期 `Base.metadata.create_all` 与 `_ensure_seed_users` 副作用; 新增 `scripts/seed_auth_users.py` 显式种子
 - **test/build:** 4 套件 88 passed + `test_auth_security` 12 passed (新增) + `test_register_identity` 6 passed + `test_kb_rag` 访问控制 3 passed; `web build` ✓ (顺带修复 origin/main 预存 4 个 procure 相关 build 阻断, 非安全相关)
 - **findings:** `api/auth.py` (JWT/bcrypt) / `api/dependencies.py` / `api/routes/auth.py` 为死代码 (未注册), 本轮未删 (避免无关重构); /login 接口返回固定 `role="user"` (预存, 不影响后端鉴权, 建议后续修); origin/main (df2f959) build 原本预存失败
+
+### loop-008 - 2026-07-18 +08:00 - Development Loop (P0-01 AI 寻源 RFQ 闭环)
+
+- **goal:** 打通 AI 寻源到真实 RFQ/供应商线索闭环 (Issue #39, P0-01 C1/D1/D5)。AI 链路产出的 rfq_doc/matched_suppliers/lead_grade 不再只活在内存, 前端"发送"显式调 POST /rfqs + /rfqs/{id}/send 落 kb_rfqs。
+- **branch:** 待定 (从 main 切)
+- **commit:** 待补
+- **base:** `origin/main`
+- **summary:** `docs/superpowers/summaries/2026-07-18-HHMM-p0-ai-rfq-loop.md`
+- **status:** wip (代码 + 测试已写, 前端 build ✓; 后端 pytest 待运行环境确认后跑)
+- **fix:**
+  - 后端 `api/routers/rfqs.py`: 新增 `RfqCandidate` 模型 + `RfqCreate.candidate_details`/`lead_grade` 可选字段; `create_rfq` 建 `RfqSupplierLink` 时写 match_score/match_reason (原孤儿 NULL), lead_grade 存 context_json; 保留 `supplier_candidates:list[int]` 兼容 (去重, details 优先)
+  - 前端 `web/src/stores/procure.ts`: 新增 `sendRfqToBackend()` action, 正式模式调 createRfq+sendRfq 回填 persistedRfqId/Number, demo 模式保留本地 flag; 失败写 rfqSendError 不静默
+  - 前端 `RfqEditor.vue`/`ChatView.vue`/`ProcureView.vue`: 按钮接通真实发送 (loading/错误出口/落库后展示 rfq_number 替代 MF- ID), 落库后提供 RFQ 详情/报价对比入口
+  - 测试 `tests/test_ai_rfq_loop.py`: AI 产物 -> POST /rfqs -> kb_rfqs 真实记录 -> match_score 落 link -> lead_grade 落 context -> send -> /suppliers/{cid}/leads 可查 -> quote-comparison 可读 + 兼容/去重用例
+- **test/build:** `web build` ✓; `pytest tests/test_ai_rfq_loop.py + test_rfq_supplier_loop.py + test_enterprise_phase1/2.py + test_supervisor.py + test_gen_and_grade.py` 待跑
 
 Future entries should include:
 

@@ -334,6 +334,12 @@ export interface QuotationRecord {
   delta_vs_target?: number | null
 }
 
+export interface RfqCandidateDetail {
+  supplier_company_id: number
+  match_score?: number
+  match_reason?: string
+}
+
 export interface RfqCreatePayload {
   buyer_company_id: number
   title: string
@@ -347,6 +353,10 @@ export interface RfqCreatePayload {
   scenario?: string
   raw_query?: string
   supplier_candidates?: number[]
+  /** AI 寻源结构化候选 (优先于 supplier_candidates, 携带 match_score/match_reason) */
+  candidate_details?: RfqCandidateDetail[]
+  /** AI 线索整体商务分级 (A/B/C/D + score + reasons), 存入 context_json */
+  lead_grade?: Record<string, any>
   shortage_id?: string
   product_id?: number
   recommended_action_id?: string

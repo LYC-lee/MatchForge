@@ -3,6 +3,7 @@ import { computed, ref, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProcureStore } from '@/stores/procure'
+import { useAuthStore } from '@/stores/auth'
 import { saveToLocal } from '@/composables/useHistory'
 import type { SpecField } from '@/types/procure'
 import Card from '@/components/ui/Card.vue'
@@ -18,6 +19,8 @@ import RfqEditor from '@/components/procure/RfqEditor.vue'
 const router = useRouter()
 const route = useRoute()
 const store = useProcureStore()
+const auth = useAuthStore()
+const isDemo = computed(() => !!auth.user?.is_demo)
 const {
   threadId,
   rawQuery,
@@ -31,6 +34,9 @@ const {
   rfqDoc,
   rfqId,
   rfqSent,
+  persistedRfqNumber,
+  rfqSending,
+  rfqSendError,
   leadGrade,
   errors,
   isVague,
@@ -243,10 +249,27 @@ function newProcure() {
                 :selected-supplier-ids="selectedSupplierIds"
                 :sent="rfqSent"
                 :streaming="genRfqRunning"
+                :persisted-rfq-number="persistedRfqNumber"
+                :sending="rfqSending"
+                :send-error="rfqSendError"
+                :is-demo="isDemo"
                 @update="store.setRfqDoc"
-                @sent="store.markRfqSent"
+                @sent="store.sendRfqToBackend"
                 @regenerate="store.regenerateRfq"
               />
+
+              <!-- 落库成功提示 + RFQ 详情/报价对比入口 (正式模式) -->
+              <div v-if="!isDemo && rfqSent && persistedRfqNumber" class="procure__rfq-persisted">
+                <span class="procure__rfq-persisted-icon">✓</span>
+                <span>已创建真实 RFQ <b class="mono">{{ persistedRfqNumber }}</b>，供应商线索已发送。</span>
+                <AppButton
+                  variant="ghost"
+                  size="sm"
+                  @click="router.push('/shortage-procurement')"
+                >
+                  查看 RFQ 与报价对比 →
+                </AppButton>
+              </div>
             </Card>
 
             <!-- 线索分级 -->
@@ -473,6 +496,20 @@ function newProcure() {
   gap: var(--space-3);
   margin-bottom: var(--space-3);
 }
+.procure__rfq-persisted {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--success-soft, #f0fdf4);
+  border: 1px solid var(--success, #16a34a);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--success, #16a34a);
+  font-size: var(--font-size-sm);
+  flex-wrap: wrap;
+}
+.procure__rfq-persisted-icon { font-weight: 700; }
 .procure__grade-letter {
   width: 40px;
   height: 40px;
