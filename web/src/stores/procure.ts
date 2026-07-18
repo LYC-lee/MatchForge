@@ -464,7 +464,14 @@ export const useProcureStore = defineStore('procure', () => {
       return
     }
 
-    const buyerCompanyId = auth.user?.company_id
+    // 取 buyer_company_id: 优先 auth.user.company_id, 后备从 localStorage 读当前企业
+    let buyerCompanyId = auth.user?.company_id
+    if (!buyerCompanyId) {
+      const saved = Number(window.localStorage.getItem('matchforge-current-enterprise-id'))
+      if (Number.isFinite(saved) && saved > 0) {
+        buyerCompanyId = saved
+      }
+    }
     if (!buyerCompanyId) {
       rfqSendError.value = '当前账号未绑定企业, 无法创建 RFQ'
       return
