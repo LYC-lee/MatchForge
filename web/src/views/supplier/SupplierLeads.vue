@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { onMounted } from 'vue'
 import { onDemoRefresh } from '@/composables/useDemoRefresh'
 import {
   getSupplierLeads,
@@ -51,6 +52,15 @@ async function fetchLeads(companyId: number) {
     loading.value = false
   }
 }
+
+// 加载超时保护: 8 秒后强制展示内容
+onMounted(() => {
+  setTimeout(() => {
+    if (loading.value) {
+      loading.value = false
+    }
+  }, 8000)
+})
 
 watch(currentEnterpriseId, (id) => {
   if (id) fetchLeads(id)

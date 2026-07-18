@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 import { onDemoRefresh } from '@/composables/useDemoRefresh'
@@ -19,7 +19,7 @@ const error = ref<string | null>(null)
 
 async function fetchLeads(companyId: number) {
   if (isDemo.value) {
-    // demo 模式: 供应商视角由 useDemo 管理 (基于 demo_rfqs.candidates_json 动态计算)
+    // demo 模式: loading 状态跟随 useDemo
     loading.value = demo.loadingSupplier.value
     return
   }
@@ -35,6 +35,15 @@ async function fetchLeads(companyId: number) {
     loading.value = false
   }
 }
+
+// 加载超时保护: 8 秒后强制展示内容（即使 loading 未完成）
+onMounted(() => {
+  setTimeout(() => {
+    if (loading.value) {
+      loading.value = false
+    }
+  }, 8000)
+})
 
 watch(currentEnterpriseId, (id) => {
   if (id) fetchLeads(id)
