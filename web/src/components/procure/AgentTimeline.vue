@@ -2,11 +2,13 @@
 import { computed, ref, onUnmounted } from 'vue'
 import type { AgentName, AgentState } from '@/types/procure'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   agents: AgentState[]
   alternativesCount?: number
   suppliersCount?: number
-}>()
+  /** false 时冻结展示(历史沉淀), 不启动实时计时器 */
+  live?: boolean
+}>(), { live: true, alternativesCount: 0, suppliersCount: 0 })
 
 const LABELS: Record<AgentName, string> = {
   parse: '需求解析',
@@ -38,12 +40,15 @@ const ICONS: Record<AgentName, string> = {
   chat: '💬',
 }
 
-// 实时计时器
+// 实时计时器 (live=false 的沉淀时间线不启动, 避免每个历史卡片常驻 interval)
 const now = ref(Date.now())
-const timer = setInterval(() => {
-  now.value = Date.now()
-}, 200)
-onUnmounted(() => clearInterval(timer))
+let timer: ReturnType<typeof setInterval> | undefined
+if (props.live) {
+  timer = setInterval(() => {
+    now.value = Date.now()
+  }, 200)
+}
+onUnmounted(() => { if (timer !== undefined) clearInterval(timer) })
 
 function elapsed(a: AgentState): number {
   if (!a.startedAt) return 0

@@ -100,6 +100,18 @@ export interface Citation {
   language: string
 }
 
+// ===== 多轮引用快照 (C4, #23/#28) =====
+/**
+ * 后端在 result 事件与 PG 会话快照中下发 (graph.py:490-506)。
+ * 前端持久化最近一次快照, 下一轮请求时放入 confirmed_spec._snapshot 原样回传,
+ * 支撑"第N个/刚才那个/它"等追问的引用解析 (graph.py:369-375)。
+ */
+export interface EntitiesSnapshot {
+  current_spec: Record<string, unknown> | null
+  alternatives: Alternative[]
+  matched_suppliers: Supplier[]
+}
+
 // ===== ProcureState =====
 export interface ProcureState {
   thread_id: string
@@ -113,6 +125,8 @@ export interface ProcureState {
   rfq_id: string | null
   lead_grade: LeadGrade | null
   errors: string[]
+  /** C4: 最近一次 result 事件携带的实体快照, 多轮追问时回传 */
+  entities_snapshot?: EntitiesSnapshot | null
 }
 
 // ===== SSE 事件契约 =====
@@ -144,6 +158,8 @@ export interface StreamProcureParams {
   confirmed_spec?: Record<string, SpecField | string> | null
   phase: 'spec' | 'match'
   user_id?: string
+  /** C4: 上一轮实体快照, 仅 phase=spec 的新查询需要 (回传为 confirmed_spec._snapshot) */
+  snapshot?: EntitiesSnapshot | null
 }
 
 // ===== 会话历史 =====
