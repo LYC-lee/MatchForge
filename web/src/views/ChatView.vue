@@ -746,6 +746,9 @@ const examples = [
             :original-part="originalPartFor(msg)"
             :original-brand="originalBrandFor(msg)"
           />
+          <div v-if="msg.resultType === 'alternatives' && alternativesFor(msg).length" class="alt-page-link">
+            <RouterLink to="/alternatives" class="text-link">在新页面中查看完整列表 →</RouterLink>
+          </div>
 
           <!-- 供应商卡 -->
           <SuppliersMatch
@@ -1161,3 +1164,12 @@ const examples = [
   border-top: 1px solid var(--border-subtle);
 }
 </style>
+
+.alt-page-link {
+  margin-top: var(--space-2);
+  text-align: right;
+}
+.alt-page-link .text-link {
+  color: var(--accent-hover);
+  font-size: var(--font-size-sm);
+}
