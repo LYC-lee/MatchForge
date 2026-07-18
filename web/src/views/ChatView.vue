@@ -764,6 +764,9 @@ const examples = [
             @generate="onGenerateRfq(msg)"
             @retry="onRetryMatch(msg)"
           />
+          <div v-if="msg.resultType === 'suppliers' && suppliersFor(msg).length" class="alt-page-link">
+            <RouterLink to="/supplier-match" class="text-link">在新页面中查看完整列表 →</RouterLink>
+          </div>
 
           <!-- 询价单 -->
           <RfqEditor
@@ -780,6 +783,9 @@ const examples = [
             @sent="onRfqSent(msg)"
             @regenerate="onRfqRegenerate(msg)"
           />
+          <div v-if="msg.resultType === 'rfq'" class="alt-page-link">
+            <RouterLink to="/rfq-edit" class="text-link">在新页面中查看完整询价单 →</RouterLink>
+          </div>
 
           <!-- 线索分级 -->
           <div v-if="msg.resultType === 'grade' && gradeFor(msg)" class="grade-card">
