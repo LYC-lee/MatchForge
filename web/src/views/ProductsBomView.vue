@@ -105,7 +105,7 @@ function riskClass(isCritical: boolean) {
       <RouterLink :to="isLogistics ? '/shortage-procurement' : '/shortage-procurement'" class="action-link">{{ isLogistics ? '查看运力与履约' : '查看缺件与采购' }}</RouterLink>
     </header>
 
-    <div v-if="loading" class="loading-bar">正在拉取产品与 BOM 数据…</div>
+    <div v-if="loading" class="loading-bar">{{ isLogistics ? '正在拉取服务资源数据…' : '正在拉取产品与 BOM 数据…' }}</div>
     <div v-if="error" class="notice-bar">后端不可用, 已降级到驾驶舱产品摘要: {{ error }}</div>
 
     <!-- BOM 汇总 -->
