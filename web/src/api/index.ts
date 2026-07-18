@@ -54,6 +54,11 @@ api.interceptors.response.use(
       return Promise.reject(normalizeError(error))
     }
 
+    const auth = useAuthStore()
+    if (auth.user?.is_demo) {
+      return Promise.reject(normalizeError(error))
+    }
+
     // 标记当前请求已重试过
     originalRequest._retry = true
 
@@ -180,220 +185,12 @@ function getDefaultMessage(status: number): string {
 }
 
 // ============================================================
-// SSE 流式寻源
-// ============================================================
-export interface ProcureState {
-  thread_id: string
-  raw_query: string
-  parsed_spec: Record<string, any> | null
-  normalized_spec: Record<string, any> | null
-  alternatives: Alternative[]
-  matched_suppliers: Supplier[]
-  rfq_doc: string | null
-  rfq_id: string | null
-  lead_grade: LeadGrade | null
-  errors: string[]
-}
-
-export interface Alternative {
-  part: string
-  brand: string
-  confidence: number
-  source: string
-  verified: boolean
-  specs?: Record<string, any>
-  level?: 'L1' | 'L2' | 'L3' | 'L4' | 'L5'
-  reason?: string
-  diff_items?: DiffItem[]
-}
-
-export interface DiffItem {
-  param: string
-  original: string
-  alternative: string
-  type: 'match' | 'diff' | 'risk'
-}
-
-export interface Supplier {
-  id: string
-  name: string
-  score: number
-  category: string
-  brands: string[]
-  qualifications: string[]
-  location: string
-  moq?: number
-  lead_time_weeks?: number
-  in_stock: boolean
-  data_source: string
-  updated_at: string
-}
-
-export interface LeadGrade {
-  grade: 'A' | 'B' | 'C' | 'D'
-  score: number
-  reasons: string[]
-}
-
-// SSE: 流式寻源
-export function procureStream(
-  query: string,
-  threadId: string | null,
-  onEvent: (event: string, data: any) => void,
-  onError: (err: Error) => void,
-  signal?: AbortSignal,
-): AbortController {
-  const controller = new AbortController()
-  const mergedSignal = signal
-    ? combineAbortSignals(controller.signal, signal)
-    : controller.signal
-
-  fetch('/api/v1/procure', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, thread_id: threadId }),
-    signal: mergedSignal,
-  })
-    .then(async (response) => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('No response body')
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        let currentEvent = ''
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7).trim()
-          } else if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6))
-              onEvent(currentEvent, data)
-            } catch {
-              // skip malformed
-            }
-          }
-        }
-      }
-    })
-    .catch((err) => {
-      if (err.name === 'AbortError') return
-      onError(err)
-    })
-
-  return controller
-}
-
-/** 合并多个 AbortSignal */
-function combineAbortSignals(...signals: AbortSignal[]): AbortSignal {
-  const controller = new AbortController()
-  for (const sig of signals) {
-    if (sig.aborted) {
-      controller.abort(sig.reason)
-      return controller.signal
-    }
-    sig.addEventListener('abort', () => controller.abort(sig.reason), { once: true })
-  }
-  return controller.signal
-}
-
-// ============================================================
 // 业务 API 封装
 // ============================================================
 
-// 解析需求 (F1)
-export function parseQuery(query: string) {
-  return api.post('/parse', { query })
-}
-
-// 替代料推荐 (F4)
-export function getAlternatives(spec: Record<string, any>) {
-  return api.post('/alternatives', { spec })
-}
-
-// 供应商匹配 (F6)
-export function matchSuppliers(
-  spec: Record<string, any>,
-  alternatives: Alternative[],
-  filters?: Record<string, any>,
-) {
-  return api.post('/match', { spec, alternatives, filters })
-}
-
-// 生成询价单 (F7)
-export function generateRfq(
-  spec: Record<string, any>,
-  alternatives: Alternative[],
-  suppliers: Supplier[],
-) {
-  return api.post('/rfq/generate', { spec, alternatives, suppliers })
-}
-
-// 提交询价
-export function submitRfq(rfqDoc: string, spec: Record<string, any>, supplierIds: string[]) {
-  return api.post('/rfq/submit', {
-    rfq_doc: rfqDoc,
-    parsed_spec: spec,
-    target_supplier_ids: supplierIds,
-  })
-}
-
-// 获取询价单详情
-export function getRfqDetail(rfqId: string) {
-  return api.get(`/rfq/${rfqId}`)
-}
-
-// 获取询价单列表
-export function getRfqs() {
-  return api.get('/rfqs')
-}
-
-// 供应商列表/搜索
-export function getSuppliers(params?: Record<string, any>) {
-  return api.get('/suppliers', { params })
-}
-
-// 供应商详情
-export function getSupplierDetail(id: string) {
-  return api.get(`/suppliers/${id}`)
-}
-
-// 供应商入驻
-export function onboardSupplier(data: Record<string, any>) {
-  return api.post('/suppliers/onboard', data)
-}
-
-// 运营: 审核队列
-export function getAuditQueue(type: 'alternatives' | 'suppliers') {
-  return api.get('/admin/audit', { params: { type } })
-}
-
-// 运营: 审核操作
-export function performAudit(
-  id: string,
-  action: 'approve' | 'reject' | 'mark_risk',
-  payload?: Record<string, any>,
-) {
-  return api.post(`/admin/audit/${id}`, { action, ...payload })
-}
-
-// 运营: 指标
-export function getAdminMetrics() {
-  return api.get('/admin/metrics')
-}
-
-// 线索列表（供应商端）
-export function getLeads(params?: Record<string, any>) {
-  return api.get('/leads', { params })
-}
+// 注意: 以下 API 函数为旧多页流程遗留代码，调用不存在的端点。
+// 实际寻源流程请使用 @/api/procure.ts 的 SSE 流式接口。
+// RFQ/供应商/审核等接口请使用 @/api/enterprise.ts。
+// 这些函数仅保留以供参考，后续可彻底移除。
 
 export default api

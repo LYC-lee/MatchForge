@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
+import { useIsLogistics } from '@/composables/useIsLogistics'
+
+const { isLogistics } = useIsLogistics()
+import { onDemoRefresh } from '@/composables/useDemoRefresh'
 import {
   getCompanyProducts,
   getProductBom,
@@ -79,6 +83,12 @@ watch(currentEnterpriseId, (id) => {
   }
 }, { immediate: true })
 
+onDemoRefresh(() => {
+  bomMap.value = {}
+  expandedProduct.value = null
+  return fetchData(currentEnterpriseId.value)
+})
+
 function riskClass(isCritical: boolean) {
   return isCritical ? 'sev sev--high' : 'sev sev--low'
 }
@@ -89,28 +99,28 @@ function riskClass(isCritical: boolean) {
     <header class="page-head">
       <div>
         <span class="eyebrow">{{ current.company.name }}</span>
-        <h1>产品与 BOM</h1>
-        <p>按当前企业展示可生产产品、关键物料、BOM 零件和首选供应商。</p>
+        <h1>{{ isLogistics ? '服务资源' : '产品与 BOM' }}</h1>
+        <p>{{ isLogistics ? '按当前企业展示可服务资源、服务能力与关键资源。' : '按当前企业展示可生产产品、关键物料、BOM 零件和首选供应商。' }}</p>
       </div>
-      <RouterLink to="/shortage-procurement" class="action-link">查看缺件与采购</RouterLink>
+      <RouterLink :to="isLogistics ? '/shortage-procurement' : '/shortage-procurement'" class="action-link">{{ isLogistics ? '查看运力与履约' : '查看缺件与采购' }}</RouterLink>
     </header>
 
-    <div v-if="loading" class="loading-bar">正在拉取产品与 BOM 数据…</div>
+    <div v-if="loading" class="loading-bar">{{ isLogistics ? '正在拉取服务资源数据…' : '正在拉取产品与 BOM 数据…' }}</div>
     <div v-if="error" class="notice-bar">后端不可用, 已降级到驾驶舱产品摘要: {{ error }}</div>
 
     <!-- BOM 汇总 -->
     <section v-if="bomSummary" class="bom-summary-bar">
       <div class="summary-stat">
         <b>{{ bomSummary.total_parts }}</b>
-        <span>BOM 零件总数</span>
+        <span>{{ isLogistics ? '服务资源总数' : 'BOM 零件总数' }}</span>
       </div>
       <div class="summary-stat">
         <b>{{ bomSummary.critical_parts }}</b>
-        <span>关键件</span>
+        <span>{{ isLogistics ? '关键资源' : '关键件' }}</span>
       </div>
       <div class="summary-stat">
         <b>{{ products.length }}</b>
-        <span>在产产品</span>
+        <span>{{ isLogistics ? '在营服务' : '在产产品' }}</span>
       </div>
     </section>
 
@@ -119,16 +129,10 @@ function riskClass(isCritical: boolean) {
         <button class="product-head" @click="toggleProduct(product.id)">
           <div class="product-head__info">
             <h2>{{ product.product_model }} · {{ product.product_name }}</h2>
-            <p>
-              月产 {{ product.monthly_capacity?.toLocaleString() || '-' }} {{ product.unit || '' }}
-              · {{ product.product_type || '' }}
-              <span v-if="product.description"> · {{ product.description }}</span>
-            </p>
+            <p>{{ isLogistics ? '容量 ' + (product.monthly_capacity?.toLocaleString() || '-') + ' ' + (product.unit || '') : '月产 ' + (product.monthly_capacity?.toLocaleString() || '-') + ' ' + (product.unit || '') }}{{ product.product_type ? ' · ' + product.product_type : '' }}{{ product.description ? ' · ' + product.description : '' }}</p>
           </div>
           <div class="product-head__right">
-            <span class="status-pill" :class="product.status === 'at_risk' ? 'status-pill--risk' : 'status-pill--ok'">
-              {{ product.status === 'at_risk' ? '风险' : '在产' }}
-            </span>
+            <span class="status-pill" :class="product.status === 'at_risk' ? 'status-pill--risk' : 'status-pill--ok'">{{ product.status === 'at_risk' ? '风险' : (isLogistics ? '运营中' : '在产') }}</span>
             <span class="expand-icon">{{ expandedProduct === product.id ? '▾' : '▸' }}</span>
           </div>
         </button>
@@ -138,19 +142,19 @@ function riskClass(isCritical: boolean) {
           <div v-else-if="bomMap[product.id].length === 0" class="empty-line">该产品暂无 BOM 数据</div>
           <div v-else class="bom-table">
             <div class="bom-row bom-row--head">
-              <span>关键零件</span>
+              <span>{{ isLogistics ? '关键资源' : '关键零件' }}</span>
               <span>编码</span>
-              <span>品类</span>
-              <span>需求量</span>
-              <span>安全库存</span>
-              <span>首选供应商</span>
+              <span>{{ isLogistics ? '类型' : '品类' }}</span>
+              <span>{{ isLogistics ? '容量需求' : '需求量' }}</span>
+              <span>{{ isLogistics ? '安全余量' : '安全库存' }}</span>
+              <span>{{ isLogistics ? '首选服务商' : '首选供应商' }}</span>
               <span>关键</span>
             </div>
             <div v-for="part in bomMap[product.id]" :key="part.id" class="bom-row">
               <span class="strong">{{ part.part_name }}</span>
               <span class="mono">{{ part.part_number }}</span>
               <span>{{ part.category_name || '-' }}</span>
-              <span>{{ part.required_qty.toLocaleString() }} {{ part.unit || '' }}</span>
+              <span>{{ part.required_qty?.toLocaleString() || '-' }} {{ part.unit || '' }}</span>
               <span>{{ part.safety_stock_qty?.toLocaleString() || '-' }}</span>
               <span>{{ part.preferred_supplier_name || '-' }}</span>
               <span :class="riskClass(part.is_critical)">{{ part.is_critical ? '是' : '否' }}</span>
@@ -158,7 +162,7 @@ function riskClass(isCritical: boolean) {
           </div>
         </div>
       </article>
-      <div v-if="!loading && !products.length" class="empty-line">当前企业暂无可生产产品</div>
+      <div v-if="!loading && !products.length" class="empty-line">{{ isLogistics ? '当前企业暂无可服务资源' : '当前企业暂无可生产产品' }}</div>
     </section>
   </div>
 </template>

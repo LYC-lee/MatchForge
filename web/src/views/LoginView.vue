@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppButton from '@/components/ui/AppButton.vue'
+import { DEFAULT_DEMO_COMPANY_ID, DEMO_COMPANIES } from '@/data/demoCompanies'
 
 const router = useRouter()
 const route = useRoute()
@@ -12,6 +13,11 @@ const account = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
+const demoLoading = ref(false)
+const selectedDemoCompanyId = ref(DEFAULT_DEMO_COMPANY_ID)
+const selectedDemoCompany = computed(
+  () => DEMO_COMPANIES.find((company) => company.company_id === selectedDemoCompanyId.value) || DEMO_COMPANIES[0],
+)
 
 async function submit() {
   error.value = ''
@@ -26,7 +32,19 @@ async function submit() {
   }
 }
 
-function demoLogin() { account.value = 'demo@matchforge.ai'; password.value = 'demo12345'; submit() }
+async function demoLogin() {
+  error.value = ''
+  demoLoading.value = true
+  const r = await auth.loginDemoCompany(selectedDemoCompany.value)
+  demoLoading.value = false
+  if (r.ok) {
+    const redirect = (route.query.redirect as string) || '/app'
+    router.push(redirect)
+  } else {
+    error.value = r.msg || '演示登录失败'
+  }
+}
+
 function switchAccount() { auth.logout(); account.value = ''; password.value = ''; error.value = '' }
 
 // 全息投影动画
@@ -228,7 +246,9 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
       <canvas id="holoCanvas" class="auth-canvas" />
       <div class="auth-overlay">
         <div class="auth-brand">
-          <span class="auth-brand__mark" />
+          <span class="auth-brand__mark">
+            <svg viewBox="0 0 48 46" class="brand__logo" aria-hidden="true"><path d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" fill="currentColor"/></svg>
+          </span>
           <span class="auth-brand__text">MatchForge · 智配</span>
         </div>
         <p class="auth-story__eyebrow">AI Sourcing Workspace</p>
@@ -245,7 +265,7 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
       <div class="auth-card">
         <RouterLink to="/" class="auth-back">← 返回产品介绍</RouterLink>
         <div class="auth-brand auth-card__brand">
-          <span class="auth-brand__mark" /><span class="auth-brand__text">MatchForge · 智配</span>
+          <span class="auth-brand__mark"><svg viewBox="0 0 48 46" class="brand__logo" aria-hidden="true"><path d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" fill="currentColor"/></svg></span><span class="auth-brand__text">MatchForge · 智配</span>
         </div>
         <h2 class="auth-card__title">登录</h2>
         <p class="auth-card__sub">进入 AI 元器件替代料寻源工作台</p>
@@ -256,13 +276,34 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
           <button type="button" class="auth-session__switch" @click="switchAccount">切换账号</button>
         </div>
         <form v-else class="auth-form" @submit.prevent="submit">
+          <section class="demo-login">
+            <div class="demo-login__head">
+              <div>
+                <b>演示企业视角</b>
+                <p>选择一家主视角企业进入，登录后系统内固定绑定该企业。</p>
+              </div>
+              <span>6 家</span>
+            </div>
+            <label class="auth-field">
+              <span class="auth-field__label">选择演示公司</span>
+              <select v-model.number="selectedDemoCompanyId" class="auth-input">
+                <option v-for="company in DEMO_COMPANIES" :key="company.company_id" :value="company.company_id">
+                  {{ company.name }} · {{ company.segment_name }}
+                </option>
+              </select>
+            </label>
+            <button type="button" class="auth-demo auth-demo--primary" :disabled="demoLoading" @click="demoLogin">
+              {{ demoLoading ? '进入中...' : '进入演示' }}
+            </button>
+          </section>
+
+          <div class="auth-divider"><span>真实账号登录</span></div>
           <label class="auth-field"><span class="auth-field__label">账号</span>
             <input v-model="account" type="text" class="auth-input" placeholder="name@company.com" autocomplete="username" /></label>
           <label class="auth-field"><span class="auth-field__label">密码</span>
             <input v-model="password" type="password" class="auth-input" placeholder="输入密码" autocomplete="current-password" /></label>
           <p v-if="error" class="auth-error">{{ error }}</p>
           <AppButton type="submit" size="lg" :loading="loading" :disabled="loading" class="auth-submit">登录</AppButton>
-          <button type="button" class="auth-demo" @click="demoLogin">使用演示账号登录</button>
         </form>
         <p class="auth-hint">还没有账号? <RouterLink to="/register">创建采购工作台</RouterLink></p>
         <div class="auth-disclaimer">演示账号：demo@matchforge.ai / demo12345</div>
@@ -289,7 +330,7 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
 .auth-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
 .auth-overlay { position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: center; height: 100%; }
 .auth-brand { display: flex; align-items: center; gap: var(--space-2); }
-.auth-brand__mark { width: 26px; height: 26px; border-radius: var(--radius-md); background: var(--gradient-accent); box-shadow: 0 0 28px rgba(99,102,241,0.24); }
+.auth-brand__mark { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); background: var(--gradient-accent); box-shadow: 0 0 28px rgba(99,102,241,0.24); color: #fff; }
 .auth-brand__text { color: #f4f7ff; font-weight: 700; }
 .auth-story .auth-brand { margin-bottom: var(--space-6); }
 .auth-story__eyebrow { margin-bottom: var(--space-2); color: var(--accent-hover); font-size: var(--font-size-xs); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
@@ -308,6 +349,54 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
 .auth-card__title { margin-bottom: var(--space-1); color: #f4f7ff; font-size: var(--font-size-2xl); }
 .auth-card__sub { margin-bottom: var(--space-5); color: #aeb5c4; font-size: var(--font-size-sm); }
 .auth-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.demo-login {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid rgba(129, 140, 248, 0.42);
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.08);
+}
+.demo-login__head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.demo-login__head b {
+  color: #f4f7ff;
+  font-size: var(--font-size-sm);
+}
+.demo-login__head p {
+  margin-top: 3px;
+  color: #aeb5c4;
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+}
+.demo-login__head span {
+  height: 24px;
+  padding: 4px 7px;
+  color: #dfe3ff;
+  border: 1px solid rgba(129, 140, 248, 0.45);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: #7f8799;
+  font-size: 11px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: #343a4d;
+}
 .auth-session { display: grid; grid-template-columns: 42px minmax(0,1fr); gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: rgba(255,255,255,0.045); }
 .auth-session__avatar { width: 42px; height: 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; background: var(--gradient-accent); font-weight: 700; }
 .auth-session b { display: block; color: #f4f7ff; font-size: var(--font-size-sm); }
@@ -324,6 +413,17 @@ onUnmounted(() => { cancelAnimationFrame(animId) })
 .auth-submit { width: 100%; margin-top: var(--space-2); }
 .auth-demo { width: 100%; padding: 8px; color: #c5cada; border-radius: var(--radius-md); font-size: var(--font-size-sm); transition: all var(--transition-fast); }
 .auth-demo:hover { color: #f4f7ff; background: var(--accent-soft); }
+.auth-demo--primary {
+  min-height: 38px;
+  color: #fff;
+  background: var(--accent);
+  font-weight: 700;
+}
+.auth-demo--primary:hover { background: var(--accent-hover); }
+.auth-demo--primary:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
 .auth-hint { margin-top: var(--space-4); text-align: center; color: #aeb5c4; font-size: var(--font-size-xs); }
 .auth-hint a { font-weight: 700; }
 .auth-disclaimer { margin-top: var(--space-4); padding-top: var(--space-4); color: #9aa3b7; border-top: 1px solid var(--border-subtle); font-size: var(--font-size-xs); line-height: 1.6; }

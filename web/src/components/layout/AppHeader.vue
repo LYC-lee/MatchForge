@@ -7,7 +7,7 @@ import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const { companies, current, currentEnterpriseId, setCurrentEnterprise, dataSource } = useEnterpriseContext()
+const { current, dataSource } = useEnterpriseContext()
 
 const pageTitle = computed(() => String(route.meta.title || '经营驾驶舱'))
 
@@ -15,19 +15,14 @@ const mainNav = [
   { to: '/app', icon: 'D', label: '经营驾驶舱' },
   { to: '/products-bom', icon: 'B', label: '产品与 BOM' },
   { to: '/shortage-procurement', icon: '!', label: '缺件与采购' },
+  { to: '/chat', icon: '→', label: 'AI 寻源' },
   { to: '/company-chat', icon: 'C', label: '上下游协同' },
   { to: '/company-assistant', icon: 'AI', label: '企业内部问答' },
   { to: '/admin/knowledge', icon: 'K', label: '数据与知识库' },
   { to: '/supplier', icon: 'S', label: '供应商工作台' },
-  { to: '/admin/audit', icon: 'A', label: '审核管理' },
 ]
 
-const flowNav = [
-  { to: '/flow', icon: 'P', label: '采购寻源流程' },
-  { to: '/alternatives', icon: 'R', label: '替代料推荐' },
-  { to: '/supplier-match', icon: 'M', label: '供应商匹配' },
-  { to: '/rfq-edit', icon: 'Q', label: 'RFQ 编辑' },
-]
+const flowNav: Array<{ to: string; icon: string; label: string }> = []
 
 const sourceLabel = computed(() =>
   dataSource.value === 'api' ? '后端 API' : dataSource.value === 'loading' ? '加载中' : '暂无数据',
@@ -43,7 +38,11 @@ function logout() {
   <aside class="sidebar">
     <div class="sidebar__brand">
       <RouterLink to="/app" class="brand">
-        <span class="brand__mark" />
+        <span class="brand__mark">
+          <svg viewBox="0 0 48 46" class="brand__logo" aria-hidden="true">
+            <path d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" fill="currentColor"/>
+          </svg>
+        </span>
         <span>
           <span class="brand__name">MatchForge</span>
           <span class="brand__sub">产业链 AI 经营驾驶舱</span>
@@ -52,17 +51,10 @@ function logout() {
     </div>
 
     <div class="enterprise-card">
-      <label for="enterprise-switch">当前企业</label>
-      <select
-        id="enterprise-switch"
-        :value="currentEnterpriseId"
-        @change="setCurrentEnterprise(Number(($event.target as HTMLSelectElement).value))"
-      >
-        <option v-for="company in companies" :key="company.company_id" :value="company.company_id">
-          {{ company.company.name }}
-        </option>
-      </select>
-      <p>{{ current.segment_name || '-' }} · {{ current.role || '-' }}</p>
+      <span class="enterprise-card__label">当前绑定企业</span>
+      <b>{{ current.company.name }}</b>
+      <p>{{ current.segment_name || auth.user?.company_segment || '-' }} · {{ current.role || auth.user?.company_role || '-' }}</p>
+      <span v-if="auth.user?.is_demo" class="enterprise-badge">演示账号固定视角</span>
       <p class="enterprise-source">数据来源：{{ sourceLabel }}</p>
     </div>
 
@@ -73,7 +65,7 @@ function logout() {
       </RouterLink>
     </nav>
 
-    <div class="sidebar__section">
+    <div v-if="flowNav.length" class="sidebar__section">
       <p class="sidebar__label">保留流程入口</p>
       <RouterLink v-for="item in flowNav" :key="item.to" :to="item.to" class="nav__link">
         <span class="nav__icon">{{ item.icon }}</span>
@@ -129,8 +121,17 @@ function logout() {
   width: 30px;
   height: 30px;
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-md);
   background: var(--gradient-accent);
+  color: #fff;
+}
+.brand__logo {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 .brand__name { display: block; font-weight: 700; font-size: var(--font-size-md); line-height: 1.1; }
 .brand__sub { display: block; margin-top: 2px; font-size: var(--font-size-xs); color: var(--text-tertiary); }
@@ -141,27 +142,36 @@ function logout() {
   border-radius: 8px;
   background: var(--bg-1);
 }
-.enterprise-card label {
+.enterprise-card__label {
   display: block;
   margin-bottom: 6px;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   font-weight: 700;
 }
-.enterprise-card select {
-  width: 100%;
-  padding: 7px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--border-default);
+.enterprise-card b {
+  display: block;
   color: var(--text-primary);
-  background: var(--bg-2);
   font-size: var(--font-size-sm);
+  line-height: 1.35;
 }
 .enterprise-card p {
   margin-top: 7px;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   line-height: 1.5;
+}
+.enterprise-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  padding: 3px 7px;
+  color: #d9ddff;
+  border: 1px solid rgba(129, 140, 248, 0.45);
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.13);
+  font-size: 11px;
+  font-weight: 700;
 }
 .enterprise-source {
   margin-top: 4px !important;

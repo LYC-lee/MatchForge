@@ -12,26 +12,6 @@
  * 复用 web/src/api/index.ts 的 axios 实例 (自带 /api/v1 baseURL + Bearer 注入)。
  */
 import api from './index'
-import axios from 'axios'
-
-/**
- * Admin 专用 axios 实例 (审核队列)。
- *
- * 审核接口 require_admin, 普通用户 token (auto-registered role=user) 会 403。
- * MVP/Demo 期使用后端种子 admin token (kb-admin-demo); 生产环境应通过真实
- * 登录流程获取 admin token 并写入 auth store, 而非硬编码。
- *
- * 切换: VITE_ADMIN_TOKEN 环境变量覆盖默认 demo token。
- */
-const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_TOKEN || 'kb-admin-demo'
-const adminApi = axios.create({
-  baseURL: '/api/v1',
-  timeout: 60000,
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${ADMIN_TOKEN}`,
-  },
-})
 
 // ============================================================
 // 企业上下文 (enterprise_context.router)
@@ -101,6 +81,8 @@ export interface DashboardOrder {
   due_date: string | null
   priority: string
   status: string
+  /** 演示合并标记: true 表示来自 demo_orders (非基线业务表) */
+  is_demo?: boolean
 }
 
 export interface DashboardForecast {
@@ -137,6 +119,8 @@ export interface DashboardShortage {
   relationship_missing: boolean
   affected_order_numbers: string[]
   affected_product_ids: number[]
+  /** 演示合并标记: true 表示来自 demo_shortages (非基线 kb_shortages) */
+  is_demo?: boolean
 }
 
 export interface DashboardAction {
@@ -152,6 +136,8 @@ export interface DashboardAction {
   suggested_supplier_name: string | null
   relationship_missing: boolean
   shortage_id: number | null
+  /** 演示合并标记: true 表示由 demo 缺件合成 (非基线推荐动作) */
+  is_demo?: boolean
 }
 
 export interface ChatPartnerSummary {
@@ -455,7 +441,7 @@ export function declineLead(leadId: number, note?: string) {
 }
 
 // ============================================================
-// 审核队列 (audit.router) -- 需要 admin token
+// 审核队列 (audit.router) -- 需要 admin 会话
 // ============================================================
 
 export interface AuditQueueItem {
@@ -471,17 +457,17 @@ export interface AuditQueueItem {
   reviewed_at: string | null
 }
 
-/** 审核队列需要 admin 角色; 用专用 admin token 实例请求。 */
+/** 审核队列需要 admin 角色; 复用当前会话 token (管理员须通过真实登录获得 admin 会话)。 */
 export function getAuditQueue(params?: { status?: string; item_type?: string }) {
-  return adminApi.get('/admin/audit-queue', { params })
+  return api.get('/admin/audit-queue', { params })
 }
 
 export function approveAuditItem(itemId: number, note?: string) {
-  return adminApi.post(`/admin/audit-queue/${itemId}/approve`, note ? { note } : undefined)
+  return api.post(`/admin/audit-queue/${itemId}/approve`, note ? { note } : undefined)
 }
 
 export function rejectAuditItem(itemId: number, note?: string) {
-  return adminApi.post(`/admin/audit-queue/${itemId}/reject`, note ? { note } : undefined)
+  return api.post(`/admin/audit-queue/${itemId}/reject`, note ? { note } : undefined)
 }
 
 // ============================================================

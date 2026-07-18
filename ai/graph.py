@@ -33,6 +33,7 @@ LangGraph 多 Agent 工作流编排。
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -47,6 +48,15 @@ from ai.state import ProcureState
 from ai.config import POSTGRESQL_URL
 from ai.supervisor import route, ROUTING_ORDER
 from ai.monitor import TraceLogger
+
+# pg_store 为可选依赖（需要 psycopg2），导入失败不影响主流程
+try:
+    from ai.pg_store import save_session, init_sessions_table
+    _pg_available = True
+except ImportError:
+    _pg_available = False
+    save_session = None  # type: ignore
+    init_sessions_table = None  # type: ignore
 
 from ai.agents.parse import parse_agent
 from ai.agents.normalize import normalize_agent
@@ -262,6 +272,66 @@ def _extract_result(base_state: dict, node_output: dict, agent: str) -> Any:
 
 
 # ============================================================
+# 多轮引用解析 (C4, #23)
+# ============================================================
+import re as _re
+
+# 指代模式: "第N个" / "第二个" / "刚才那个" / "它" / "这个"
+_REFERENCE_RE = _re.compile(
+    r"(第\s*(?P<ordinal>[一二三四五六七八九十\d]+)\s*个|刚才那个|那个|它|这个)",
+    _re.IGNORECASE,
+)
+
+# 序数词映射
+_ORDINAL_MAP = {
+    "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+    "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+}
+
+
+def _resolve_references(raw_query: str, snapshot: dict | None) -> tuple[str, str | None]:
+    """解析多轮指代, 返回 (增强后的 query, 解析日志)。
+
+    snapshot: 上一轮的 entities_snapshot, 含 alternatives 列表和 current_spec。
+    若无法解析, 返回原始 query + 解析日志供 LLM 引导用户。
+    """
+    if not snapshot or not raw_query:
+        return raw_query, None
+
+    m = _REFERENCE_RE.search(raw_query)
+    if not m:
+        return raw_query, None
+
+    resolved = raw_query
+    log = None
+
+    if m.group("ordinal"):
+        ordinal_str = m.group("ordinal")
+        idx = _ORDINAL_MAP.get(ordinal_str, int(ordinal_str) if ordinal_str.isdigit() else None)
+        if idx is not None and snapshot.get("alternatives"):
+            alts = snapshot["alternatives"]
+            if 1 <= idx <= len(alts):
+                target = alts[idx - 1]
+                part = target.get("part", target.get("part_name", "未知"))
+                resolved = raw_query.replace(m.group(0), f"替代料列表第{idx}项 ({part})")
+                log = f"引用解析: 第{idx}个 -> {part}"
+    elif m.group(0) == "刚才那个" or m.group(0) == "那个" or m.group(0) == "它" or m.group(0) == "这个":
+        spec = snapshot.get("current_spec") or {}
+        pn = spec.get("part_number", "")
+        if pn:
+            resolved = raw_query.replace(m.group(0), f"{pn}")
+            log = f"引用解析: {m.group(0)} -> {pn}"
+        elif snapshot.get("alternatives"):
+            # 没有 spec.part_number, 取第一个替代料
+            target = snapshot["alternatives"][0]
+            part = target.get("part", target.get("part_name", "未知"))
+            resolved = raw_query.replace(m.group(0), f"{part}")
+            log = f"引用解析: {m.group(0)} -> {part} (首替代料)"
+
+    return resolved, log
+
+
+# ============================================================
 # 流式执行入口
 # ============================================================
 async def run_procure_stream(
@@ -292,9 +362,29 @@ async def run_procure_stream(
         SSE 格式的事件字符串。
     """
     state = init_state(raw_query, user_id, thread_id)
+    state["_phase"] = phase  # 记录原始阶段，供 supervisor 决策
 
-    if phase == "confirm" and confirmed_spec:
+    # ── 多轮引用解析 (C4, #23): 若 state 携带有上一轮的 entities_snapshot ──
+    # (前端通过 confirmed_spec 或 extra 字段传入 snapshot; 此处从 confirmed_spec 的 _snapshot 提取)
+    if isinstance(confirmed_spec, dict) and confirmed_spec.get("_snapshot"):
+        snapshot = confirmed_spec["_snapshot"]
+        resolved_query, ref_log = _resolve_references(raw_query, snapshot)
+        if ref_log:
+            state["raw_query"] = resolved_query
+            state["_reference_log"] = ref_log
+            logger.info("多轮引用解析: %s", ref_log)
+
+    # phase == "match"（前端传的）或 "confirm"（老名称兼容）时，跳过 parse/normalize
+    skip_parse = phase in ("match", "confirm") and confirmed_spec
+    if skip_parse:
         state["parsed_spec"] = state["normalized_spec"] = confirmed_spec
+        # 标记 parse + normalize 为"已完成"，使 Supervisor 路由直接到 alternatives
+        state["_attempted_agents"] = list(state.get("_attempted_agents", []))
+        for _done in ("parse", "normalize"):
+            if _done not in state["_attempted_agents"]:
+                state["_attempted_agents"].append(_done)
+        # 标记使用顺序路由（跳过 LLM 决策，避免 LLM 误跳到 gen_rfq/grade）
+        state["_use_ordered_fallback"] = True
 
     agent_keys = set(ROUTING_ORDER)
     graph = get_graph()
@@ -305,32 +395,155 @@ async def run_procure_stream(
     yield _sse("start", {"thread_id": state["thread_id"]})
 
     try:
-        async for event in graph.astream(state, config, stream_mode="updates"):
-            for node_name, node_output in event.items():
-                if node_name in agent_keys:
-                    yield _sse("progress", {
-                        "agent": node_name,
-                        "status": "done",
-                        "result": _extract_result(state, node_output, node_name),
-                    })
-                elif node_name == "supervisor" and node_output.get("next_agent") in agent_keys:
-                    yield _sse("progress", {
-                        "agent": node_output["next_agent"],
-                        "status": "running",
-                    })
-                if isinstance(node_output, dict):
-                    state.update(node_output)
+        # #24 真流式: 用 astream_events 捕获 on_chat_model_stream 事件,
+        # 逐 token 发 SSE。同时保留 updates 模式的其他事件 (progress/result)。
+        # 当 astream_events 不可用时, 降级到 astream(updates) + 伪流式切片。
+        use_events = hasattr(graph, "astream_events")
+
+        if use_events:
+            try:
+                async for event in graph.astream_events(state, config, version="v2"):
+                    kind = event.get("event", "")
+                    name = event.get("name", "")
+
+                    # on_chat_model_stream: 真 token 流 (#24)
+                    if kind == "on_chat_model_stream" and event.get("data", {}).get("chunk"):
+                        chunk = event["data"]["chunk"]
+                        if hasattr(chunk, "content") and chunk.content:
+                            yield _sse("token", {"agent": "chat", "text": chunk.content})
+
+                    # on_chain_end: 节点完成, 发 progress
+                    elif kind == "on_chain_end" and name in agent_keys:
+                        node_output = event.get("data", {}).get("output", {}) or {}
+                        if isinstance(node_output, dict):
+                            state.update(node_output)
+                        result = _extract_result(state, node_output, name)
+
+                        # rag_enrich citations (#22)
+                        if name == "rag_enrich" and isinstance(node_output, dict):
+                            enrich = node_output.get("rag_enrichment")
+                            if isinstance(enrich, dict) and enrich.get("citations"):
+                                yield _sse("citation", {
+                                    "agent": "rag_enrich",
+                                    "citations": enrich["citations"],
+                                })
+
+                        yield _sse("progress", {
+                            "agent": name,
+                            "status": "done",
+                            "result": result,
+                        })
+            except Exception:
+                # astream_events 失败, 降级到 astream(updates)
+                use_events = False
+
+        if not use_events:
+            # 降级: astream(updates) + 伪流式切片 (4 字符)
+            async for event in graph.astream(state, config, stream_mode="updates"):
+                for node_name, node_output in event.items():
+                    if node_name in agent_keys:
+                        result = _extract_result(state, node_output, node_name)
+
+                        # 伪流式 token (chat/rag_enrich)
+                        text_agents = {"chat", "rag_enrich"}
+                        if node_name in text_agents and isinstance(result, str) and len(result) > 1:
+                            chunk_size = 4
+                            for i in range(0, len(result), chunk_size):
+                                token = result[i:i + chunk_size]
+                                yield _sse("token", {"agent": node_name, "text": token})
+                                await asyncio.sleep(0.015)
+
+                        # rag_enrich citations (#22)
+                        if node_name == "rag_enrich" and isinstance(node_output, dict):
+                            enrich = node_output.get("rag_enrichment")
+                            if isinstance(enrich, dict) and enrich.get("citations"):
+                                yield _sse("citation", {
+                                    "agent": "rag_enrich",
+                                    "citations": enrich["citations"],
+                                })
+
+                        yield _sse("progress", {
+                            "agent": node_name,
+                            "status": "done",
+                            "result": result,
+                        })
+                    elif node_name == "supervisor" and node_output.get("next_agent") in agent_keys:
+                        yield _sse("progress", {
+                            "agent": node_output["next_agent"],
+                            "status": "running",
+                        })
+                    if isinstance(node_output, dict):
+                        state.update(node_output)
+    except asyncio.CancelledError:
+        # abort: 客户端断连 -> 取消流式 (#24)
+        logger.info("SSE 流被客户端 abort (CancelledError)")
+        state.setdefault("errors", []).append("[graph] 客户端断开连接, 流式已终止")
     except Exception as e:
         state.setdefault("errors", []).append(f"[graph] {str(e)}")
 
     trace.end(state)
+
+    # ── 保存会话到 PostgreSQL（跨会话/跨设备历史记录）──
+    _save_session_safe(state, phase)
+
+    # ── 构建 entities_snapshot (C4, #23): 供前端持久化 + 下轮引用解析 ──
+    entities_snapshot = {
+        "current_spec": state.get("normalized_spec") or state.get("parsed_spec"),
+        "alternatives": state.get("alternatives", []),
+        "matched_suppliers": state.get("matched_suppliers", []),
+    }
+    state["entities_snapshot"] = entities_snapshot
+
     yield _sse("result", {
         "state": {
             k: state.get(k) for k in [
                 "thread_id", "raw_query", "parsed_spec", "normalized_spec",
                 "alternatives", "matched_suppliers", "rag_enrichment",
                 "rfq_doc", "rfq_id", "lead_grade", "chat_response", "errors",
+                "entities_snapshot",
             ]
         }
     })
     yield _sse("end", {})
+
+
+# ============================================================
+# 会话持久化辅助
+# ============================================================
+def _save_session_safe(state: dict, phase: str):
+    """安全保存会话到 PostgreSQL（失败不影响主流程）。"""
+    if not _pg_available:
+        return
+
+    try:
+        # 确保表已创建（幂等，首次调用自动建表）
+        init_sessions_table()
+    except Exception:
+        pass  # 表初始化失败不阻塞主流程
+
+    try:
+        thread_id = state.get("thread_id", "")
+        user_id = state.get("user_id", "anonymous")
+        raw_query = state.get("raw_query", "")[:200]
+        title = raw_query if raw_query else "未命名会话"
+
+        # 提取可序列化的状态快照
+        state_snapshot = {
+            "raw_query": state.get("raw_query", ""),
+            "parsed_spec": state.get("parsed_spec"),
+            "normalized_spec": state.get("normalized_spec"),
+            "alternatives": state.get("alternatives", []),
+            "matched_suppliers": state.get("matched_suppliers", []),
+            "rag_enrichment": state.get("rag_enrichment"),
+            "rfq_doc": state.get("rfq_doc"),
+            "rfq_id": state.get("rfq_id"),
+            "lead_grade": state.get("lead_grade"),
+            "chat_response": state.get("chat_response"),
+            "errors": state.get("errors", []),
+            "entities_snapshot": state.get("entities_snapshot"),  # C4
+        }
+
+        status = "completed" if not state.get("errors") else "error"
+        save_session(thread_id, user_id, title, phase, status, state_snapshot)
+    except Exception:
+        pass  # 保存失败不阻塞 SSE 流

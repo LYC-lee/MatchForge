@@ -108,6 +108,8 @@ class ProcureState(TypedDict):
 
     # ── 执行追踪（防 supervisor 路由循环）──
     _attempted_agents: list[str]          # 已尝试执行的 Agent 列表
+    _use_ordered_fallback: Optional[bool]  # phase="match" 时跳过 LLM 路由
+    _phase: Optional[str]                  # 记录原始阶段（"spec"/"match"）供路由决策
 
     # ── 业务字段 ──
     raw_query: str
@@ -121,5 +123,6 @@ class ProcureState(TypedDict):
     rag_enrichment: Optional[RagEnrichment]  # 🔥 RAG 深度分析结果
     errors: list[str]
     chat_response: Optional[str]        # 💬 聊天 Agent 回复
+    entities_snapshot: Optional[dict]   # 🔄 多轮实体快照 (C4): current_spec + alternatives + suppliers
     started_at: str
     completed_at: Optional[str]

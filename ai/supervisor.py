@@ -17,11 +17,14 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    # langchain_openai 拉起 transformers (~25s); 延迟到 get_supervisor_llm 首次调用再 import。
+    from langchain_openai import ChatOpenAI
 
 from ai.config import LLM_API_KEY, LLM_BASE_URL, SUPERVISOR_MODEL
 
@@ -84,6 +87,7 @@ SYSTEM_PROMPT = """你是电子元器件寻源系统的主调度 Agent。
 
 ## 当前 State
 - raw_query: "{raw_query}"
+- chat_response: {chat_response_status}
 - parsed_spec: {parsed_spec_status}
 - normalized_spec: {normalized_spec_status}
 - alternatives: {alternatives_status}
@@ -96,11 +100,12 @@ SYSTEM_PROMPT = """你是电子元器件寻源系统的主调度 Agent。
 {brand_memory}
 
 ## 路由规则
-1. 如果用户是闲聊/问候/问功能 → 输出 chat
-2. 如果是寻源需求 → 按 parse → normalize → alternatives → match → gen_rfq → grade 顺序
-3. 已完成的不再执行
-4. 失败时记录 error，允许跳过
-5. 全部完成 → 输出 FINISH
+1. 如果用户是闲聊/问候/问功能/无效输入 → 输出 chat
+2. chat 已回复后 → 输出 FINISH（不要继续 parse）
+3. 如果是寻源需求 → 按 parse → normalize → alternatives → match → gen_rfq → grade 顺序
+4. 已完成的不再执行
+5. 失败时记录 error，允许跳过
+6. 全部完成 → 输出 FINISH
 
 请输出如下 JSON 格式（不要加 markdown 代码块标记）：
 {{"agent": "<Agent名称 或 FINISH>", "reason": "<路由理由>"}}"""
@@ -110,7 +115,7 @@ SYSTEM_PROMPT = """你是电子元器件寻源系统的主调度 Agent。
 class RouteDecision(BaseModel):
     """LLM 结构化输出的路由决策，agent 字段限定了合法的 Agent 名称枚举。"""
 
-    agent: Literal["chat", "parse", "normalize", "alternatives", "match", "gen_rfq", "grade", "FINISH"] = Field(
+    agent: Literal["chat", "parse", "normalize", "alternatives", "match", "rag_enrich", "gen_rfq", "grade", "FINISH"] = Field(
         description="路由到的 Agent 名称，或 FINISH 表示全部完成"
     )
     reason: str = Field(default="", description="路由理由，便于调试和日志追踪")
@@ -127,6 +132,8 @@ def get_supervisor_llm() -> ChatOpenAI:
     JSON。max_tokens 必须给足“思考+输出”预算，否则 token 耗尽时 content 为空、
     finish_reason=length，json_mode 与正则兜底双双失败 -> 分类器形同不可用。
     """
+    from langchain_openai import ChatOpenAI  # 延迟导入
+
     return ChatOpenAI(
         model=SUPERVISOR_MODEL,
         api_key=LLM_API_KEY,
@@ -171,6 +178,7 @@ def _build_supervisor_prompt(state: dict) -> str:
     return SYSTEM_PROMPT.format(
         agent_meta=agent_lines,
         raw_query=str(state.get("raw_query", ""))[:100],
+        chat_response_status=s(state.get("chat_response")),
         parsed_spec_status=s(state.get("parsed_spec")),
         normalized_spec_status=s(state.get("normalized_spec")),
         alternatives_status=s(
@@ -242,9 +250,28 @@ def _fallback_extract(text: str) -> str | None:
 
 
 def _ordered_fallback(state: dict) -> str:
-    """按顺序返回第一个未完成的 Agent（最终兜底）。"""
+    """按顺序返回第一个未完成的 Agent（最终兜底）。
+
+    注意: phase="match" 时 parsed_spec/normalized_spec 已由外部注入，
+    但 _attempted_agents 可能不含 parse/normalize。此时尝试走 alternatives。
+    """
+    attempted = state.get("_attempted_agents", [])
+
+    # 如果 chat 已执行但无 parsed_spec，说明用户输入是非寻源内容（闲聊/无效输入），
+    # chat 子 Agent 已回复引导提示，直接 FINISH 避免进入 parse→normalize 无效循环
+    if "chat" in attempted and not state.get("parsed_spec"):
+        return "FINISH"
+
+    # 如果 parse/normalize 未执行但 spec 已有值，说明外部注入的 → 跳至 alternatives
+    has_spec = bool(state.get("parsed_spec")) and bool(state.get("normalized_spec"))
+    if has_spec and "parse" not in attempted and "normalize" not in attempted:
+        for a in ("alternatives", "match", "gen_rfq", "grade", "rag_enrich"):
+            if a not in attempted:
+                return a
+        return "FINISH"
+
     for a in ROUTING_ORDER:
-        if not _check_done(state, a):
+        if a not in attempted:
             return a
     return "FINISH"
 
@@ -258,6 +285,8 @@ async def route(state: dict) -> dict:
     2. 结构化失败 → 普通 LLM 调用 + 正则兜底解析
     3. 兜底也失败 → 按顺序 fallback，保证系统不中断
 
+    如果外部通过 next_agent 指定了非 "chat" 的路由目标，直接采纳不走 LLM
+    （用于 phase="match" 时跳过 parse/normalize）。
     Parameters
     ----------
     state : dict
@@ -268,7 +297,27 @@ async def route(state: dict) -> dict:
     dict
         {"next_agent": str, "route_reason": str}，供下游节点使用。
     """
-    # ── 第 1 级：结构化输出 ──
+    # ── 第 0 级：外部显式路由（跳过 LLM 决策）──
+    forced = str(state.get("next_agent", "chat"))
+    if forced not in ("chat", "FINISH") and forced in ROUTING_ORDER:
+        attempted = state.get("_attempted_agents", [])
+        if forced not in attempted:
+            logger.info("Supervisor 采纳外部路由: %s", forced)
+            return {"next_agent": forced, "route_reason": "外部显式路由（跳过 parse/normalize）"}
+
+    # ── 第 0.5 级：spec 阶段 normalize 完成后直接 FINISH（避免绕过 gating）──
+    if state.get("_phase") == "spec":
+        attempted = state.get("_attempted_agents", [])
+        if "normalize" in attempted:
+            logger.info("Supervisor spec 阶段 normalize 已完成 -> FINISH")
+            return {"next_agent": "FINISH", "route_reason": "spec 阶段 normalize 已完成"}
+
+    # ── 第 0.6 级：顺序路由模式（phase="match" 时使用，避免 LLM 误决策）──
+    if state.get("_use_ordered_fallback"):
+        agent = _ordered_fallback(state)
+        logger.info("Supervisor 顺序路由: %s", agent)
+        return {"next_agent": agent, "route_reason": "顺序路由（_use_ordered_fallback 模式）"}
+
     chain = get_supervisor_chain()
     prompt = _build_supervisor_prompt(state)
 

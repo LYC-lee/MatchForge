@@ -1,0 +1,25 @@
+{
+  "consecutive_success": 0,
+  "mode": "semi-auto-delete",
+  "last_run": "2026-07-17T15:19:00+08:00",
+  "last_result": "partial-success: patrol/report/local-sync ok; github PR/issue sync blocked (no gh CLI, no token); no merge performed (only ready branch has conflict)",
+  "rounds": [
+    {
+      "time": "2026-07-17T15:19:00+08:00",
+      "result": "partial-success",
+      "merged_branch": null,
+      "main_commit": "38c96e4b1dd9bd40e877ebe0dd09e756023b2326",
+      "report": "docs/superpowers/summaries/2026-07-17-1519-branch-maintenance.md"
+    }
+  ],
+  "pending_cleanup_candidates": [],
+  "deleted_branches": [
+    {"branch": "codex/backend-integration-dashboard-rfq", "tip": "4cf466baf59e293d386a36ce9c3f720c2b4ba870", "deleted_at": "2026-07-17T15:34:00+08:00", "confirmed_by_user": true},
+    {"branch": "codex/demo-scenario-backend", "tip": "d654778b8984ff6b291fc6ea4af5bef7574dddde", "deleted_at": "2026-07-17T15:34:00+08:00", "confirmed_by_user": true},
+    {"branch": "codex/demo-scenario-frontend", "tip": "68e243737ac491f0103befa2e0583ecdc697eabf", "deleted_at": "2026-07-17T15:34:00+08:00", "confirmed_by_user": true},
+    {"branch": "codex/demo-scenario-integration", "tip": "c9b9eaa68616740a8121eae0ed7a14327e75a526", "deleted_at": "2026-07-17T15:34:00+08:00", "confirmed_by_user": true},
+    {"branch": "codex/loop-006-backend-startup", "tip": "03b62a89d63385f14b49e8079c706dcd2080ba56", "deleted_at": "2026-07-17T15:34:00+08:00", "confirmed_by_user": true},
+    {"branch": "codex/selective-zhl-api-alignment", "tip": "89cc4d6e3faeb0acdb86da13714f0837d4b6d36d", "deleted_at": "2026-07-17T15:34:00+08:00", "confirmed_by_user": true}
+  ],
+  "protected_branches": ["main", "origin/main", "zhl", "origin/zhl", "rag", "origin/rag", "lyc", "origin/lyc", "agent", "origin/agent", "feature/data-seed", "origin/feature/data-seed"]
+}

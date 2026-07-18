@@ -43,9 +43,12 @@ class User(MatchforgeBase):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     username = Column(String(50), nullable=False, unique=True, comment="用户名")
+    name = Column(String(100), default="", comment="用户姓名(展示用)")
     password_hash = Column(String(128), nullable=False, comment="bcrypt 密码哈希")
     enterprise_id = Column(BigInteger, ForeignKey("enterprises.id"), comment="关联企业")
-    role = Column(String(20), nullable=False, comment="buyer/supplier/admin")
+    role = Column(String(20), nullable=False, default="member", comment="用户权限角色: member/enterprise_admin/platform_admin")
+    enterprise_type = Column(String(40), default="other", comment="企业类型: manufacturer/component_material/oem_brand/channel_customer/logistics_service/government_park/other")
+    company = Column(String(200), default="", comment="企业名称(展示用; 关联企业见 enterprise_id)")
     email = Column(String(100))
     is_active = Column(Boolean, default=True, comment="是否激活")
     created_at = Column(DateTime, default=datetime.utcnow)

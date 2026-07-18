@@ -7,7 +7,8 @@
   POST /admin/audit-queue/{item_id}/reject    审核驳回
 
 审核对象: supplier_capability / rfq_supplier_match / quotation_anomaly
-访问控制: require_admin (token role=admin, 如 kb-admin-demo)。
+访问控制: require_admin (会话 token role=admin)。管理员账号需通过真实登录或显式
+seed 脚本创建; 源码不硬编码任何 admin token。
 """
 
 from __future__ import annotations

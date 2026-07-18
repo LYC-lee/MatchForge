@@ -1,7 +1,33 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
+import MarkdownContent from '@/components/chat/MarkdownContent.vue'
+import CitationList from '@/components/chat/CitationList.vue'
+import type { AgentState, Alternative, Citation, LeadGrade, SpecField, Supplier } from '@/types/procure'
 
 export type MessageRole = 'user' | 'assistant' | 'system'
+
+/**
+ * 单条消息携带的结构化结果快照 (#28)。
+ * 生成中的活跃消息从 store 实时取数; 新轮次开始 / 会话重建时把数据冻结进
+ * payload, 卡片随消息持久, 追问时上一轮卡片不再消失。
+ */
+export interface TurnPayload {
+  parsedSpec?: Record<string, SpecField> | null
+  normalizedSpec?: Record<string, SpecField> | null
+  alternatives?: Alternative[]
+  originalPart?: string
+  originalBrand?: string
+  matchedSuppliers?: Supplier[]
+  selectedSupplierIds?: string[]
+  rfqDoc?: string
+  rfqId?: string | null
+  rfqSent?: boolean
+  leadGrade?: LeadGrade | null
+  /** AgentTimeline 沉淀: 本轮 Agent 执行状态快照(生成完成时冻结, 默认折叠回看) */
+  agents?: AgentState[]
+  alternativesCount?: number
+  suppliersCount?: number
+}
 
 export interface ChatMessageData {
   id: string
@@ -11,10 +37,25 @@ export interface ChatMessageData {
   /** 结构化结果类型,非纯文本时标识内容类型 */
   resultType?: 'spec' | 'alternatives' | 'suppliers' | 'rfq' | 'grade' | 'error' | 'progress'
   timestamp?: number
+  /** 引用回显(C2): 助手消息附带的 RAG 引用片段 */
+  citations?: Citation[]
+  /** 所属轮次 id, 与 ChatView.activeTurnId 相同者为当前活跃轮(可交互) */
+  turnId?: number
+  /** 冻结标记: true 时卡片从 payload 只读渲染, 不再跟随 store 变化 */
+  frozen?: boolean
+  /** 冻结的卡片/时间线数据快照 */
+  payload?: TurnPayload
 }
 
 const props = defineProps<{
   message: ChatMessageData
+}>()
+
+const emit = defineEmits<{
+  /** 错误消息上的重试 */
+  (e: 'retry'): void
+  /** 以同一条用户输入重新发起 */
+  (e: 'regenerate'): void
 }>()
 
 const isUser = computed(() => props.message.role === 'user')
@@ -22,12 +63,82 @@ const isSystem = computed(() => props.message.role === 'system')
 const isStreaming = computed(() => props.message.streaming)
 const isError = computed(() => props.message.resultType === 'error')
 const isProgress = computed(() => props.message.resultType === 'progress')
+// 仅助手常规消息渲染 Markdown;用户/系统/错误/进度消息保持纯文本
+const renderMarkdown = computed(
+  () => !isUser.value && !isSystem.value && !isError.value && !isProgress.value,
+)
+// 引用回显: 助手消息带 citations 时,在正文下方渲染角标列表
+const showCitations = computed(
+  () => !isUser.value && !isSystem.value && !!props.message.citations?.length,
+)
 
 const displayContent = computed(() => {
   let text = props.message.content
   if (isStreaming.value && !text) return '⋯'
   return text
 })
+
+// ── 时间戳 HH:mm ──
+const timeLabel = computed(() => {
+  const t = props.message.timestamp
+  if (!t) return ''
+  const d = new Date(t)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${hh}:${mm}`
+})
+
+// ── 复制（原始 markdown 文本）──
+const copied = ref(false)
+let copyTimer: ReturnType<typeof setTimeout> | undefined
+
+async function copyContent() {
+  const text = props.message.content
+  let ok = false
+  try {
+    await navigator.clipboard.writeText(text)
+    ok = true
+  } catch {
+    // 兜底: execCommand（非安全上下文 / 权限被拒时）
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try {
+      ok = document.execCommand('copy')
+    } catch {
+      ok = false
+    }
+    document.body.removeChild(ta)
+  }
+  if (!ok) return
+  copied.value = true
+  clearTimeout(copyTimer)
+  copyTimer = setTimeout(() => { copied.value = false }, 1500)
+}
+
+onUnmounted(() => clearTimeout(copyTimer))
+
+// ── 消息级操作的显示条件 ──
+// 复制: 助手消息且有实际内容（复制原始文本而非渲染后 HTML）
+const showCopy = computed(
+  () => !isUser.value && !isSystem.value && !isStreaming.value && !isProgress.value && !!props.message.content,
+)
+// 重新生成: 助手的纯文本消息（非结构化卡片、非错误、非进度、非流式占位）
+const showRegenerate = computed(
+  () =>
+    !isUser.value &&
+    !isSystem.value &&
+    !isStreaming.value &&
+    !isError.value &&
+    !isProgress.value &&
+    !props.message.resultType &&
+    !!props.message.content &&
+    props.message.content !== '思考中…',
+)
+const showActions = computed(() => showCopy.value || showRegenerate.value || isError.value)
 </script>
 
 <template>
@@ -54,10 +165,23 @@ const displayContent = computed(() => {
       <div
         v-if="displayContent"
         class="msg__text"
-        :class="{ 'msg__text--typing': isStreaming }"
+        :class="{ 'msg__text--typing': isStreaming, 'msg__text--md': renderMarkdown }"
       >
-        {{ displayContent }}<span v-if="isStreaming" class="msg__cursor">▌</span>
+        <template v-if="renderMarkdown">
+          <MarkdownContent :content="displayContent" :streaming="isStreaming" />
+          <span v-if="isStreaming" class="msg__cursor">▌</span>
+        </template>
+        <template v-else>
+          {{ displayContent }}<span v-if="isStreaming" class="msg__cursor">▌</span>
+        </template>
       </div>
+
+      <!-- 引用回显: MarkdownContent 下方的引用角标列表 -->
+      <CitationList
+        v-if="showCitations"
+        class="msg__citations"
+        :citations="props.message.citations!"
+      />
 
       <!-- 插槽: 嵌入结构化结果卡片 -->
       <div v-if="$slots.default" class="msg__slot">
@@ -68,6 +192,52 @@ const displayContent = computed(() => {
       <div v-if="isProgress && !displayContent" class="msg__progress">
         <span class="msg__spinner" />
         <span>处理中…</span>
+      </div>
+
+      <!-- 元信息行: 时间戳 + 消息级操作 -->
+      <div v-if="!isSystem && (timeLabel || showActions)" class="msg__meta" :class="{ 'msg__meta--error': isError }">
+        <span v-if="timeLabel" class="msg__time">{{ timeLabel }}</span>
+        <div v-if="showActions" class="msg__actions">
+          <button
+            v-if="showCopy"
+            class="msg__action"
+            :class="{ 'msg__action--copied': copied }"
+            :title="copied ? '已复制' : '复制'"
+            @click="copyContent"
+          >
+            <svg v-if="!copied" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span v-if="copied" class="msg__action-label">已复制</span>
+          </button>
+          <button
+            v-if="showRegenerate"
+            class="msg__action"
+            title="重新生成"
+            @click="emit('regenerate')"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+          </button>
+          <button
+            v-if="isError"
+            class="msg__action msg__action--retry"
+            title="重试"
+            @click="emit('retry')"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+            <span class="msg__action-label">重试</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -140,6 +310,7 @@ const displayContent = computed(() => {
   background: var(--bg-2);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm) var(--radius-lg) var(--radius-lg) var(--radius-lg);
+  color: var(--text-primary);
 }
 .msg--system .msg__text {
   background: transparent;
@@ -165,6 +336,10 @@ const displayContent = computed(() => {
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* Markdown 内容自行管理换行,不再保留 pre-wrap */
+.msg__text--md {
+  white-space: normal;
+}
 .msg__text--typing {
   color: var(--text-secondary);
 }
@@ -178,6 +353,79 @@ const displayContent = computed(() => {
 
 .msg__slot {
   margin-top: var(--space-3);
+}
+
+/* 引用角标列表挂在气泡内正文下方 */
+.msg__citations {
+  max-width: 640px;
+  margin-top: var(--space-1);
+  padding: 0 var(--space-1);
+}
+
+/* 元信息行: 时间戳 + 消息级操作 */
+.msg__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  padding: 0 var(--space-1);
+  min-height: 18px;
+}
+.msg--user .msg__meta {
+  justify-content: flex-end;
+}
+.msg__time {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+.msg__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.msg:hover .msg__actions,
+.msg__meta--error .msg__actions {
+  opacity: 1;
+}
+.msg__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.msg__action:hover {
+  color: var(--text-primary);
+  background: var(--bg-3);
+  border-color: var(--border-default);
+}
+.msg__action--copied {
+  color: var(--success);
+}
+.msg__action--copied:hover {
+  color: var(--success);
+}
+.msg__action--retry {
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.3);
+  background: var(--danger-soft);
+}
+.msg__action--retry:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+.msg__action-label {
+  line-height: 1;
 }
 
 .msg__progress {

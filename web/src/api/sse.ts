@@ -22,12 +22,24 @@ export async function fetchSSE(
   })
 
   if (!res.ok || !res.body) {
-    throw new Error(`SSE 请求失败: HTTP ${res.status}`)
+    const detail = res.status === 422 ? await res.text().catch(() => '') : ''
+    throw new Error(`SSE 请求失败: HTTP ${res.status}${detail ? ' ' + detail : ''}`)
   }
 
   const reader = res.body.getReader()
   const decoder = new TextDecoder('utf-8')
   let buffer = ''
+  // 解析失败累计阈值: 超过则视为流异常,抛错走与断流相同的错误出口
+  const MAX_PARSE_FAILURES = 3
+  let parseFailures = 0
+
+  const processFrame = (raw: string) => {
+    if (handleEvent(raw, callbacks)) return
+    parseFailures++
+    if (parseFailures >= MAX_PARSE_FAILURES) {
+      throw new Error(`SSE 数据连续 ${MAX_PARSE_FAILURES} 帧解析失败，流已终止`)
+    }
+  }
 
   while (true) {
     const { done, value } = await reader.read()
@@ -38,23 +50,32 @@ export async function fetchSSE(
     while ((idx = buffer.indexOf('\n\n')) !== -1) {
       const raw = buffer.slice(0, idx)
       buffer = buffer.slice(idx + 2)
-      handleEvent(raw, callbacks)
+      processFrame(raw)
     }
   }
-  if (buffer.trim()) handleEvent(buffer, callbacks)
+  if (buffer.trim()) processFrame(buffer)
 }
 
-function handleEvent(raw: string, callbacks: SseCallbacks) {
+/** 返回 true 表示帧正常（含无 data 行的心跳/注释帧）；false 表示 JSON 解析失败 */
+function handleEvent(raw: string, callbacks: SseCallbacks): boolean {
   const dataLines = raw
     .split('\n')
     .filter((l) => l.startsWith('data:'))
     .map((l) => l.slice(5).trim())
-  if (!dataLines.length) return
+  if (!dataLines.length) return true
+  // 命名事件帧(event: citation): data 内无 type 时以事件名兜底
+  const eventLine = raw.split('\n').find((l) => l.startsWith('event:'))
+  const eventName = eventLine ? eventLine.slice(6).trim() : ''
   try {
     const evt = JSON.parse(dataLines.join('\n')) as SseEvent
+    if (!evt.type && eventName) (evt as { type?: string }).type = eventName
     dispatch(evt, callbacks)
-  } catch {
-    // 忽略无法解析的事件(如心跳注释)
+    return true
+  } catch (err) {
+    // 不再静默吞掉: 输出警告并上报,由调用方决定提示与阈值处理
+    console.warn('[sse] 无法解析的事件帧:', raw, err)
+    callbacks.onParseError?.(raw, err)
+    return false
   }
 }
 
@@ -67,7 +88,10 @@ function dispatch(evt: SseEvent, cb: SseCallbacks) {
       cb.onProgress?.(evt.agent, evt.status, evt.result)
       break
     case 'token':
-      cb.onToken?.(evt.text)
+      cb.onToken?.(evt.text, evt.agent)
+      break
+    case 'citation':
+      cb.onCitation?.(evt.agent, evt.citations)
       break
     case 'error':
       cb.onError?.(evt.agent, evt.message)

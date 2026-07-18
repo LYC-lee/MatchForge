@@ -1,7 +1,9 @@
 import { fetchSSE } from './sse'
-import type { SseCallbacks, StreamProcureParams } from '@/types/procure'
+import axios from 'axios'
+import type { SseCallbacks, StreamProcureParams, SessionSummary, SessionDetail } from '@/types/procure'
 
-const API_URL = '/api/v1/procure'
+const API_URL = '/api/v1/procure/stream'
+const SESSIONS_URL = '/api/v1/procure/sessions'
 
 /** 寻源 SSE 统一入口 — 直接调用真实后端。 */
 export function streamProcure(
@@ -10,17 +12,28 @@ export function streamProcure(
 ): AbortController {
   const controller = new AbortController()
 
+  // C4 (#28): 多轮快照回传 — 仅 phase=spec 的新查询附带 confirmed_spec._snapshot。
+  // 注意: phase=match 时后端会把 confirmed_spec 整体写入 normalized_spec (graph.py:380),
+  // 夹带 _snapshot 会污染规格字段, 故 match 阶段不附带。
+  const confirmedSpec =
+    params.phase === 'spec' && params.snapshot
+      ? { _snapshot: params.snapshot }
+      : params.confirmed_spec
+
   fetchSSE(
     API_URL,
     {
-      query: params.query,
+      raw_query: params.query,
       thread_id: params.thread_id,
-      confirmed_spec: params.confirmed_spec,
+      confirmed_spec: confirmedSpec,
       phase: params.phase,
+      user_id: params.user_id || 'anonymous',
     },
     callbacks,
     controller.signal,
-  ).catch((err: unknown) => {
+  ).then(() => {
+    callbacks.onEnd?.()
+  }).catch((err: unknown) => {
     if (err instanceof Error && err.name === 'AbortError') return
     const msg = err instanceof Error ? err.message : '网络异常'
     callbacks.onError?.(undefined, msg)
@@ -28,4 +41,32 @@ export function streamProcure(
   })
 
   return controller
+}
+
+// ── 会话历史 API ──
+
+/** 获取用户会话历史列表 */
+export async function fetchSessions(userId: string): Promise<SessionSummary[]> {
+  const res = await axios.get(SESSIONS_URL, { params: { user_id: userId } })
+  return res.data?.sessions || []
+}
+
+/** 获取单个会话详情（含完整状态快照） */
+export async function fetchSessionDetail(threadId: string): Promise<SessionDetail | null> {
+  try {
+    const res = await axios.get(`${SESSIONS_URL}/${threadId}`)
+    return res.data as SessionDetail
+  } catch {
+    return null
+  }
+}
+
+/** 删除会话 */
+export async function deleteSessionApi(threadId: string): Promise<boolean> {
+  try {
+    await axios.delete(`${SESSIONS_URL}/${threadId}`)
+    return true
+  } catch {
+    return false
+  }
 }

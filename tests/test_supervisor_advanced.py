@@ -72,7 +72,11 @@ def test_fallback_routing():
     """fallback 路由：基于 _attempted_agents 判断"""
     state = {"_attempted_agents": []}
     assert _ordered_fallback(state) == "chat"
+    # chat 已执行但无 parsed_spec -> FINISH (避免无效 parse 循环)
     state["_attempted_agents"] = ["chat"]
+    assert _ordered_fallback(state) == "FINISH"
+    # chat 已执行且有 parsed_spec -> 继续 parse
+    state["parsed_spec"] = {"category": "MLCC"}
     assert _ordered_fallback(state) == "parse"
     state["_attempted_agents"] = ["chat", "parse"]
     assert _ordered_fallback(state) == "normalize"

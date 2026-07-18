@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { DEFAULT_DEMO_COMPANY_ID, findDemoCompany, type DemoCompany } from '@/data/demoCompanies'
 
 const SESSION_KEY = 'matchforge:session'
 const USER_KEY = 'matchforge:user'
@@ -9,7 +10,13 @@ export interface AuthUser {
   name: string
   account: string
   company?: string
-  role?: 'buyer' | 'supplier' | 'admin'
+  company_id?: number
+  company_name?: string
+  company_role?: string
+  company_segment?: string
+  enterprise_type?: string
+  is_demo?: boolean
+  role?: 'buyer' | 'supplier' | 'admin' | 'member' | 'enterprise_admin' | 'platform_admin'
 }
 
 interface AuthSession {
@@ -49,8 +56,15 @@ export const useAuthStore = defineStore('auth', () => {
         password: password,
       })
 
-      const { token: newToken, name, role, account: acc } = res.data
-      persistSession(newToken, { name, account: acc, role })
+      const { token: newToken, name, role, account: acc, company_id, company_name, company } = res.data
+      persistSession(newToken, {
+        name,
+        account: acc,
+        role,
+        company,
+        company_id,
+        company_name: company_name || company,
+      })
       return { ok: true }
     } catch (err: any) {
       const status = err?.response?.status
@@ -60,12 +74,43 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function loginDemoCompany(
+    company: DemoCompany,
+  ): Promise<{ ok: boolean; msg?: string }> {
+    const selected = company || findDemoCompany(DEFAULT_DEMO_COMPANY_ID)
+    if (!selected) return { ok: false, msg: '未找到演示企业' }
+
+    // 通过受控的 demo-login 接口签发真实会话 token (后端需开启 KB_DEMO_MODE);
+    // 不再硬编码 'demo-token' 字面量。
+    try {
+      const res = await axios.post('/api/v1/auth/demo-login', {
+        company_id: selected.company_id,
+      })
+      const { token: newToken } = res.data
+      persistSession(newToken, {
+        name: 'Demo Buyer',
+        account: 'demo@matchforge.ai',
+        role: 'buyer',
+        company: selected.name,
+        company_id: selected.company_id,
+        company_name: selected.name,
+        company_role: selected.role,
+        company_segment: selected.segment_name,
+        is_demo: true,
+      })
+      return { ok: true }
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || '演示登录不可用 (需后端开启 KB_DEMO_MODE)'
+      return { ok: false, msg }
+    }
+  }
+
   async function register(payload: {
     name: string
     account: string
     password: string
     company: string
-    role: AuthUser['role']
+    enterpriseType: string
   }): Promise<{ ok: boolean; msg?: string }> {
     const account = payload.account.trim().toLowerCase()
     if (!payload.name.trim() || !account || !payload.password.trim() || !payload.company.trim()) {
@@ -82,16 +127,24 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     try {
+      // 自注册用户默认权限角色为 member; 供需角色由业务关系动态派生, 不在注册时固化
       const res = await axios.post('/api/v1/auth/register', {
         name: payload.name.trim(),
         account,
         password: payload.password,
         company: payload.company.trim(),
-        role: payload.role || 'buyer',
+        role: 'member',
+        enterprise_type: payload.enterpriseType,
       })
 
-      const { token: newToken, name, role, account: acc } = res.data
-      persistSession(newToken, { name, account: acc, company: payload.company.trim(), role })
+      const { token: newToken, name, role, account: acc, enterprise_type } = res.data
+      persistSession(newToken, {
+        name,
+        account: acc,
+        company: payload.company.trim(),
+        role,
+        enterprise_type,
+      })
       return { ok: true }
     } catch (err: any) {
       const status = err?.response?.status
@@ -106,6 +159,10 @@ export const useAuthStore = defineStore('auth', () => {
       clearSession()
       return false
     }
+    if (user.value?.is_demo) {
+      ensureDemoUserShape()
+      return true
+    }
     try {
       const res = await axios.get('/api/v1/auth/me', {
         headers: { Authorization: `Bearer ${session.value.token}` },
@@ -115,6 +172,9 @@ export const useAuthStore = defineStore('auth', () => {
           name: res.data.name,
           account: res.data.account,
           role: res.data.role,
+          company: res.data.company || user.value?.company,
+          company_id: res.data.company_id || user.value?.company_id,
+          company_name: res.data.company_name || res.data.company || user.value?.company_name,
         }
         localStorage.setItem(USER_KEY, JSON.stringify(user.value))
         return true
@@ -148,7 +208,24 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(USER_KEY, JSON.stringify(publicUser))
   }
 
-  return { token, user, isAuthenticated, login, register, validateSession, logout }
+  function ensureDemoUserShape() {
+    const selected = findDemoCompany(user.value?.company_id || DEFAULT_DEMO_COMPANY_ID)
+    if (!selected) return
+    user.value = {
+      name: user.value?.name || 'Demo Buyer',
+      account: user.value?.account || 'demo@matchforge.ai',
+      role: user.value?.role || 'buyer',
+      company: selected.name,
+      company_id: selected.company_id,
+      company_name: selected.name,
+      company_role: selected.role,
+      company_segment: selected.segment_name,
+      is_demo: true,
+    }
+    localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+  }
+
+  return { token, user, isAuthenticated, login, loginDemoCompany, register, validateSession, logout }
 })
 
 function readJson<T>(key: string, fallback: T): T {

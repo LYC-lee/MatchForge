@@ -15,10 +15,14 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from langchain_core.messages import SystemMessage, ToolMessage
-from langchain_openai import ChatOpenAI
+
+if TYPE_CHECKING:
+    # langchain_openai 会拉起 transformers (~25s); 延迟到工厂函数内首次调用再 import,
+    # 避免 api.main 启动被阻塞 (QA 09:06 报后端启动慢即此因)。
+    from langchain_openai import ChatOpenAI
 
 from ai.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_MODEL_LIGHT
 from ai.config import LLM_TEMPERATURE, LLM_MAX_TOKENS, LLM_TIMEOUT
@@ -60,6 +64,8 @@ def get_agent_llm(
     if timeout is None:
         timeout = LLM_TIMEOUT
 
+    from langchain_openai import ChatOpenAI  # 延迟导入: 避免 api.main 启动加载 transformers
+
     return ChatOpenAI(
         model=model,
         api_key=LLM_API_KEY,
@@ -72,24 +78,18 @@ def get_agent_llm(
     )
 
 
-def get_supervisor_llm() -> ChatOpenAI:
-    """
-    获取 Supervisor 专用的 LLM 实例。
+def get_supervisor_llm() -> "ChatOpenAI":
+    """获取 Supervisor 专用的 LLM 实例 (委托给 ai.supervisor.get_supervisor_llm)。
 
-    使用轻量快速模型（SUPERVISOR_MODEL），temperature 设为 0 保证路由稳定性，
-    短超时 + 2 次重试应对网络抖动。
+    历史上本模块与 ai.supervisor 各有一份 get_supervisor_llm 定义, 参数漂移
+    (本模块 max_tokens=64/timeout=10, supervisor max_tokens=1024/timeout=20)。
+    现统一收敛为 ai.supervisor 中的单一实现 (参数更合理: glm-5.2 是推理模型,
+    需要思考+输出预算), 此处仅保留薄委托以兼容旧的 `from ai.base_agent import
+    get_supervisor_llm` 调用方。
     """
-    from ai.config import SUPERVISOR_MODEL
-
-    return ChatOpenAI(
-        model=SUPERVISOR_MODEL,
-        api_key=LLM_API_KEY,
-        base_url=LLM_BASE_URL,
-        temperature=0,
-        max_tokens=64,
-        timeout=10,
-        max_retries=2,
-    )
+    # 延迟导入避免循环依赖
+    from ai.supervisor import get_supervisor_llm as _impl
+    return _impl()
 
 
 async def run_tool_agent(
@@ -99,6 +99,7 @@ async def run_tool_agent(
     user_id: str = "",
     max_tool_rounds: int = 5,
     heavy: bool = True,
+    tool_call_sink=None,
 ) -> dict:
     """
     执行工具型 Agent 的多轮 ReAct 流程：LLM 自主决策 → 工具执行 → 循环 → 最终回复。
@@ -115,6 +116,9 @@ async def run_tool_agent(
         user_id: 当前用户的唯一标识。
         max_tool_rounds: 最大工具调用轮数，默认 5。
         heavy: 是否使用重模型。
+        tool_call_sink: 可选回调 callable(tool_name, tool_args, output),
+            每次工具执行成功后调用一次, 供调用方收集工具返回的事实集合
+            (用于事后校验 LLM 输出是否幻觉)。默认 None, 行为不变。
 
     返回:
         dict: 状态更新字典，包含 "messages" 和 "next_agent"。
@@ -151,6 +155,12 @@ async def run_tool_agent(
                 try:
                     import asyncio
                     output = await asyncio.to_thread(tool.invoke, fn_args)
+                    # 回传工具调用事实, 供调用方做幻觉校验
+                    if tool_call_sink is not None:
+                        try:
+                            tool_call_sink(fn_name, fn_args, output)
+                        except Exception:
+                            logger.warning('tool_call_sink 回调异常, 已忽略', exc_info=True)
                 except Exception as e:
                     output = f"工具执行出错: {e}"
                     logger.warning(f"Tool {fn_name} failed: {e}")
