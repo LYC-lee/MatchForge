@@ -407,9 +407,14 @@ async def run_procure_stream(
                     name = event.get("name", "")
 
                     # on_chat_model_stream: 真 token 流 (#24)
+                    # 只发送 chat 节点的 token (排除 supervisor 推理过程)
                     if kind == "on_chat_model_stream" and event.get("data", {}).get("chunk"):
                         chunk = event["data"]["chunk"]
-                        if hasattr(chunk, "content") and chunk.content:
+                        if not hasattr(chunk, "content") or not chunk.content:
+                            continue
+                        # langgraph_node 为 "chat" → 纯 chat 响应; 其他 (如 "supervisor") 忽略
+                        node = (event.get("metadata") or {}).get("langgraph_node", "") or event.get("name", "")
+                        if node in ("chat",):
                             yield _sse("token", {"agent": "chat", "text": chunk.content})
 
                     # on_chain_end: 节点完成, 发 progress
