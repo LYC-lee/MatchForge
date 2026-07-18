@@ -15,7 +15,7 @@ const mainNav = [
   { to: '/app', icon: 'D', label: '经营驾驶舱' },
   { to: '/products-bom', icon: 'B', label: '产品与 BOM' },
   { to: '/shortage-procurement', icon: '!', label: '缺件与采购' },
-  { to: '/chat', icon: '🔍', label: 'AI 寻源' },
+  { to: '/chat', icon: '→', label: 'AI 寻源' },
   { to: '/company-chat', icon: 'C', label: '上下游协同' },
   { to: '/company-assistant', icon: 'AI', label: '企业内部问答' },
   { to: '/admin/knowledge', icon: 'K', label: '数据与知识库' },
