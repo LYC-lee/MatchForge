@@ -7,13 +7,13 @@ import { saveToLocal } from '@/composables/useHistory'
 import type { SpecField } from '@/types/procure'
 import Card from '@/components/ui/Card.vue'
 import AppButton from '@/components/ui/AppButton.vue'
-import Tag from '@/components/ui/Tag.vue'
 import StepNav from '@/components/layout/StepNav.vue'
 import AgentTimeline from '@/components/procure/AgentTimeline.vue'
 import SpecConfirm from '@/components/procure/SpecConfirm.vue'
 import AlternativesList from '@/components/procure/AlternativesList.vue'
 import SuppliersMatch from '@/components/procure/SuppliersMatch.vue'
 import RfqEditor from '@/components/procure/RfqEditor.vue'
+import GradeCard from '@/components/procure/GradeCard.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -35,6 +35,8 @@ const {
   errors,
   isVague,
   streamProgress,
+  streamError,
+  streamNotice,
   matchError,
 } = storeToRefs(store)
 
@@ -78,13 +80,6 @@ const showSuppliers = computed(
 )
 const showRfq = computed(() => rfqDoc.value.length > 0 || genRfqRunning.value)
 
-const gradeType = computed(() => {
-  const g = leadGrade.value?.grade
-  if (g === 'A' || g === 'B') return 'success'
-  if (g === 'C') return 'warning'
-  return 'danger'
-})
-
 // 寻源完成时保存到 localStorage 作为降级备份
 watch(phase, (p) => {
   if (p === 'done' && !isVague.value) {
@@ -120,6 +115,42 @@ function newProcure() {
   store.reset()
   router.push('/chat')
 }
+
+/** 返回对话补充需求：不重置当前轮，回到对话页继续追问 */
+function backToChat() {
+  router.push('/chat')
+}
+
+/** 断流重试：匹配阶段重试匹配，其他阶段回到对话重新发起 */
+function retryStream() {
+  if (matchError.value || phase.value === 'match') {
+    store.retryMatch()
+  } else {
+    router.push('/chat')
+  }
+}
+
+// ── 纳入询价单的替代料（默认前 3 个非 L5，用户可改选）──
+const selectedAltParts = ref<Set<string>>(new Set())
+watch(
+  alternatives,
+  (alts) => {
+    // 仅在尚未选择时初始化默认勾选
+    if (selectedAltParts.value.size > 0) return
+    const defaults = alts
+      .filter((a) => a.level !== 'L5')
+      .slice(0, 3)
+      .map((a) => a.part_name || a.part || '')
+    if (defaults.length) selectedAltParts.value = new Set(defaults)
+  },
+  { immediate: true },
+)
+function toggleAltPart(part: string) {
+  const s = new Set(selectedAltParts.value)
+  if (s.has(part)) s.delete(part)
+  else s.add(part)
+  selectedAltParts.value = s
+}
 </script>
 
 <template>
@@ -138,6 +169,17 @@ function newProcure() {
     </div>
 
     <div class="procure__body">
+      <!-- 断流/传输错误横幅（可关闭，错误带重试入口） -->
+      <div v-if="streamError" class="procure__alert procure__alert--error" role="alert">
+        <span class="procure__alert-text">连接中断：{{ streamError }}</span>
+        <button class="procure__alert-btn" @click="retryStream">重试</button>
+        <button class="procure__alert-close" title="关闭" @click="store.clearStreamError()">✕</button>
+      </div>
+      <div v-else-if="streamNotice" class="procure__alert procure__alert--notice" role="alert">
+        <span class="procure__alert-text">{{ streamNotice }}</span>
+        <button class="procure__alert-close" title="关闭" @click="store.clearStreamNotice()">✕</button>
+      </div>
+
       <!-- 加载历史会话中 -->
       <div v-if="sessionLoading" class="procure__session-loading">
         <span class="history__spinner" />
@@ -170,11 +212,7 @@ function newProcure() {
           <section class="procure__main">
             <!-- 寻源进度 -->
             <Card title="寻源进度" subtitle="6 个智能体阶段实时推进">
-              <AgentTimeline
-                :agents="agents"
-                :alternatives-count="alternatives.length"
-                :suppliers-count="matchedSuppliers.length"
-              />
+              <AgentTimeline :agents="agents" :stream-error="streamError" />
             </Card>
 
             <!-- 规格确认 -->
@@ -191,6 +229,7 @@ function newProcure() {
                 :spec="specForConfirm"
                 :gating="phase === 'gating'"
                 @confirm="store.confirmSpec"
+                @back="backToChat"
               />
             </Card>
 
@@ -204,6 +243,9 @@ function newProcure() {
                 :alternatives="alternatives"
                 :original-part="originalPart"
                 :original-brand="originalBrand"
+                selectable
+                :selected-parts="selectedAltParts"
+                @toggle-part="toggleAltPart"
               />
             </Card>
 
@@ -241,6 +283,7 @@ function newProcure() {
                 :alternatives="alternatives"
                 :suppliers="matchedSuppliers"
                 :selected-supplier-ids="selectedSupplierIds"
+                :selected-alternative-parts="selectedAltParts"
                 :sent="rfqSent"
                 :streaming="genRfqRunning"
                 @update="store.setRfqDoc"
@@ -250,23 +293,7 @@ function newProcure() {
             </Card>
 
             <!-- 线索分级 -->
-            <Card v-if="leadGrade" title="线索分级" subtitle="对该询价线索的质量评估">
-              <div class="procure__grade">
-                <div class="procure__grade-main">
-                  <span
-                    class="procure__grade-letter"
-                    :class="`grade-${leadGrade.grade}`"
-                  >
-                    {{ leadGrade.grade }}
-                  </span>
-                  <span class="procure__grade-score">{{ leadGrade.score }} 分</span>
-                  <Tag :type="gradeType" :value="`${leadGrade.grade} 级线索`" />
-                </div>
-                <ul class="procure__grade-reasons">
-                  <li v-for="(r, i) in leadGrade.reasons" :key="i">{{ r }}</li>
-                </ul>
-              </div>
-            </Card>
+            <GradeCard v-if="leadGrade" :grade="leadGrade" />
 
             <!-- 完成 -->
             <div v-if="phase === 'done'" class="procure__done">
@@ -321,14 +348,13 @@ function newProcure() {
 }
 .procure__topbar {
   position: sticky;
-  top: 56px;
-  z-index: 40;
-  background: rgba(15, 17, 23, 0.88);
-  backdrop-filter: blur(12px);
+  top: var(--header-h);
+  z-index: var(--z-sticky);
+  background: var(--bg-canvas);
   border-bottom: 1px solid var(--border-default);
 }
 .procure__topbar-inner {
-  max-width: 1200px;
+  max-width: var(--container-md);
   margin: 0 auto;
   padding: var(--space-3) var(--space-5);
   display: flex;
@@ -337,10 +363,11 @@ function newProcure() {
 }
 .procure__back {
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
   color: var(--text-secondary);
-  padding: 6px 10px;
+  padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
   flex-shrink: 0;
   background: none;
   border: none;
@@ -348,7 +375,7 @@ function newProcure() {
 }
 .procure__back:hover {
   color: var(--text-primary);
-  background: var(--bg-3);
+  background: var(--bg-subtle);
 }
 .procure__query {
   display: flex;
@@ -359,11 +386,13 @@ function newProcure() {
 }
 .procure__query-label {
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   color: var(--text-tertiary);
   flex-shrink: 0;
 }
 .procure__query-text {
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -374,7 +403,7 @@ function newProcure() {
 }
 
 .procure__body {
-  max-width: 1240px;
+  max-width: var(--container-md);
   margin: 0 auto;
   padding: var(--space-5);
 }
@@ -391,7 +420,7 @@ function newProcure() {
 }
 .procure__aside {
   position: sticky;
-  top: 128px;
+  top: calc(var(--header-h) + var(--space-5));
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -400,12 +429,7 @@ function newProcure() {
   padding: var(--space-4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
-  background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.035),
-      rgba(255, 255, 255, 0.01)
-    ),
-    var(--bg-1);
+  background: var(--bg-surface);
 }
 .aside-card--muted {
   border-style: dashed;
@@ -415,6 +439,7 @@ function newProcure() {
   margin-bottom: var(--space-2);
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -423,12 +448,13 @@ function newProcure() {
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
 }
 .aside-card p {
   margin-top: var(--space-2);
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
-  line-height: 1.6;
+  line-height: var(--leading-xs);
   word-break: break-word;
 }
 .aside-metric {
@@ -441,83 +467,78 @@ function newProcure() {
 .aside-metric span {
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
 }
 .aside-metric--ok {
   color: var(--success) !important;
 }
+
+/* 断流 / 通知横幅 */
+.procure__alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid;
+}
+.procure__alert--error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+.procure__alert--notice {
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
+}
+.procure__alert-text { flex: 1; }
+.procure__alert-btn {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
+  color: var(--danger);
+  background: transparent;
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+.procure__alert-btn:hover { border-color: var(--danger); }
+.procure__alert-close {
+  color: inherit;
+  background: none;
+  border: none;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  opacity: 0.7;
+}
+.procure__alert-close:hover { opacity: 1; }
 
 .procure__vague {
   text-align: center;
   padding: var(--space-6) var(--space-4);
 }
 .procure__vague-icon {
-  font-size: 40px;
+  font-size: var(--font-size-3xl);
   color: var(--text-tertiary);
   margin-bottom: var(--space-3);
 }
 .procure__vague-title {
   font-size: var(--font-size-lg);
+  line-height: var(--leading-lg);
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: var(--space-2);
 }
 .procure__vague-desc {
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
   color: var(--text-tertiary);
   margin-bottom: var(--space-4);
-}
-
-.procure__grade-main {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-.procure__grade-letter {
-  width: 40px;
-  height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-size-xl);
-  font-weight: 700;
-  border-radius: var(--radius-md);
-  font-family: var(--font-mono);
-}
-.grade-A,
-.grade-B {
-  color: var(--success);
-  background: var(--success-soft);
-}
-.grade-C {
-  color: var(--warning);
-  background: var(--warning-soft);
-}
-.grade-D {
-  color: var(--danger);
-  background: var(--danger-soft);
-}
-.procure__grade-score {
-  font-size: var(--font-size-md);
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-}
-.procure__grade-reasons {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.procure__grade-reasons li {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  padding-left: var(--space-4);
-  position: relative;
-}
-.procure__grade-reasons li::before {
-  content: '·';
-  position: absolute;
-  left: var(--space-2);
-  color: var(--text-tertiary);
 }
 
 .procure__done {
@@ -530,20 +551,26 @@ function newProcure() {
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
-  padding: 80px var(--space-4);
+  padding: var(--space-8) var(--space-4);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
 }
 .procure__session-loading .history__spinner {
-  width: 18px; height: 18px;
-  border: 2px solid var(--accent-soft);
+  width: var(--space-4);
+  height: var(--space-4);
+  border: 2px solid var(--border-default);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-@media (max-width: 768px) {
+/* 移动端：AppHeader 双层顶栏，sticky 偏移随之加倍，不被遮挡 */
+@media (max-width: 920px) {
+  .procure__topbar {
+    top: calc(var(--header-h) * 2);
+  }
   .procure__topbar-inner {
     flex-wrap: wrap;
   }

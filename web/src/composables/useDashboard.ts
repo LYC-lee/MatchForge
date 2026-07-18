@@ -16,9 +16,9 @@ import { onDemoRefresh } from '@/composables/useDemoRefresh'
 import { getDemoState, type DemoState, type DemoOrderItem, type DemoShortageItem } from '@/api/demo'
 import { useAuthStore } from '@/stores/auth'
 
-/** 风险等级排序辅助 (critical > high > medium > low) */
+/** 风险等级排序辅助 (urgent > critical > high > medium > low) */
 export function severityRank(severity: string): number {
-  return { critical: 4, high: 3, medium: 2, low: 1 }[severity] || 0
+  return { urgent: 5, critical: 4, high: 3, medium: 2, low: 1 }[severity] || 0
 }
 
 // ============================================================

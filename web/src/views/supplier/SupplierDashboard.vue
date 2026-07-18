@@ -6,6 +6,8 @@ import { onDemoRefresh } from '@/composables/useDemoRefresh'
 import { getSupplierLeads, type SupplierLead } from '@/api/enterprise'
 import { useDemo } from '@/composables/useDemo'
 import AppButton from '@/components/ui/AppButton.vue'
+import Tag from '@/components/ui/Tag.vue'
+import { leadStatusLabel, leadTagType } from '@/data/leadStatus'
 
 const router = useRouter()
 const { current, currentEnterpriseId } = useEnterpriseContext()
@@ -84,19 +86,11 @@ const recentLeads = computed(() => {
 })
 
 function statusLabel(s: string) {
-  const map: Record<string, string> = {
-    pending: '待发送', sent: '新线索', viewed: '已查看', quoted: '已报价', declined: '已拒绝',
-    closed: '已关闭',
-  }
-  return map[s] || s
+  return leadStatusLabel(s)
 }
 
-function statusClass(s: string) {
-  const map: Record<string, string> = {
-    pending: 'state-pending', sent: 'state-new', viewed: 'state-contacted', quoted: 'state-won', declined: 'state-lost',
-    closed: 'state-lost',
-  }
-  return map[s] || 'state-pending'
+function statusTagType(s: string) {
+  return leadTagType(s)
 }
 </script>
 
@@ -164,7 +158,7 @@ function statusClass(s: string) {
               <td>{{ lead.part_name || lead.part_number || '-' }}</td>
               <td>{{ lead.quantity?.toLocaleString() || '-' }}</td>
               <td>
-                <span class="state-tag" :class="statusClass(lead.status)">{{ statusLabel(lead.status) }}</span>
+                <Tag :type="statusTagType(lead.status)" :value="statusLabel(lead.status)" />
               </td>
               <td>
                 <AppButton variant="ghost" size="sm" @click="router.push('/supplier/leads')">处理</AppButton>
@@ -185,10 +179,10 @@ function statusClass(s: string) {
         <div class="quick-card__title">线索管理</div>
         <div class="quick-card__desc">查看和处理采购询价, 在线提交报价</div>
       </div>
-      <div class="quick-card" @click="router.push('/products-bom')">
+      <div class="quick-card" @click="router.push('/supplier/products')">
         <div class="quick-card__icon">📦</div>
-        <div class="quick-card__title">产品与 BOM</div>
-        <div class="quick-card__desc">查看当前企业的可生产产品与 BOM</div>
+        <div class="quick-card__title">产品管理</div>
+        <div class="quick-card__desc">维护当前企业的元器件产品目录、库存与起订量</div>
       </div>
       <div class="quick-card" @click="router.push('/company-assistant')">
         <div class="quick-card__icon">🏢</div>
@@ -212,12 +206,12 @@ function statusClass(s: string) {
   gap: var(--space-4);
   margin-bottom: var(--space-5);
 }
-.eyebrow { color: var(--text-tertiary); font-size: var(--font-size-xs); font-weight: 700; }
-.page-title { font-size: var(--font-size-xl); font-weight: 700; margin-top: 4px; }
-.page-desc { color: var(--text-secondary); margin-top: 4px; font-size: var(--font-size-sm); }
-.loading-bar { padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border-radius: 6px; border: 1px solid var(--border-subtle); background: var(--bg-2); color: var(--text-tertiary); font-size: var(--font-size-sm); }
-.notice-bar { padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border-radius: 6px; border: 1px solid rgba(234, 179, 8, 0.25); background: var(--warning-soft); color: var(--warning); font-size: var(--font-size-sm); }
-.notice-bar--demo { border: 1px solid rgba(99, 102, 241, 0.3); background: var(--accent-soft); color: var(--accent); }
+.eyebrow { color: var(--text-tertiary); font-size: var(--font-size-xs); line-height: var(--leading-xs); font-weight: 700; }
+.page-title { font-size: var(--font-size-xl); line-height: var(--leading-xl); font-weight: 700; margin-top: var(--space-1); }
+.page-desc { color: var(--text-secondary); margin-top: var(--space-1); font-size: var(--font-size-sm); line-height: var(--leading-sm); }
+.loading-bar { padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: var(--bg-subtle); color: var(--text-tertiary); font-size: var(--font-size-sm); line-height: var(--leading-sm); }
+.notice-bar { padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--warning-border); background: var(--warning-soft); color: var(--warning); font-size: var(--font-size-sm); line-height: var(--leading-sm); }
+.notice-bar--demo { border: 1px solid var(--accent-border); background: var(--accent-soft); color: var(--accent-text); }
 
 /* 统计卡片 */
 .stats-grid {
@@ -228,17 +222,17 @@ function statusClass(s: string) {
 }
 .stat-card {
   padding: var(--space-5);
-  background: var(--bg-2);
+  background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
 }
-.stat-card__value { font-size: var(--font-size-3xl); font-weight: 700; color: var(--text-primary); }
+.stat-card__value { font-size: var(--font-size-3xl); line-height: var(--leading-3xl); font-weight: 700; color: var(--text-primary); font-family: var(--font-mono); }
 .stat-card__value--warn { color: var(--warning); }
-.stat-card__label { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-top: 4px; }
+.stat-card__label { font-size: var(--font-size-sm); line-height: var(--leading-sm); color: var(--text-tertiary); margin-top: var(--space-1); }
 
 /* 卡片通用 */
 .card {
-  background: var(--bg-2);
+  background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   margin-bottom: var(--space-5);
@@ -250,24 +244,13 @@ function statusClass(s: string) {
   padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--border-subtle);
 }
-.card__head h3 { font-size: var(--font-size-md); font-weight: 600; }
+.card__head h3 { font-size: var(--font-size-md); line-height: var(--leading-md); font-weight: 600; }
 .card__body { padding: var(--space-4); }
 
 .table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
-.table th { text-align: left; color: var(--text-tertiary); font-size: var(--font-size-xs); padding: 8px 12px; border-bottom: 1px solid var(--border-default); font-weight: 600; }
-.table td { padding: 10px 12px; border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); }
+.table th { text-align: left; color: var(--text-tertiary); font-size: var(--font-size-xs); line-height: var(--leading-xs); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-default); font-weight: 600; }
+.table td { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); }
 .mono { font-family: var(--font-mono); font-size: var(--font-size-xs); }
-
-.state-tag {
-  font-size: var(--font-size-xs);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-}
-.state-pending { color: var(--text-tertiary); background: var(--bg-3); }
-.state-new { color: var(--accent); background: var(--accent-soft); }
-.state-contacted { color: var(--warning); background: var(--warning-soft); }
-.state-won { color: var(--success); background: var(--success-soft); }
-.state-lost { color: var(--text-tertiary); background: var(--bg-3); }
 
 .empty-state { text-align: center; padding: var(--space-6); color: var(--text-tertiary); }
 
@@ -279,19 +262,19 @@ function statusClass(s: string) {
 }
 .quick-card {
   padding: var(--space-5);
-  background: var(--bg-2);
+  background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
 .quick-card:hover {
   border-color: var(--accent-border);
   background: var(--bg-elevated);
 }
-.quick-card__icon { font-size: 28px; margin-bottom: var(--space-3); }
-.quick-card__title { font-size: var(--font-size-md); font-weight: 600; margin-bottom: var(--space-2); }
-.quick-card__desc { font-size: var(--font-size-sm); color: var(--text-tertiary); }
+.quick-card__icon { font-size: var(--font-size-2xl); margin-bottom: var(--space-3); }
+.quick-card__title { font-size: var(--font-size-md); line-height: var(--leading-md); font-weight: 600; margin-bottom: var(--space-2); }
+.quick-card__desc { font-size: var(--font-size-sm); line-height: var(--leading-sm); color: var(--text-tertiary); }
 
 @media (max-width: 768px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }

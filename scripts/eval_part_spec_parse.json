@@ -1,0 +1,81 @@
+{
+  "summary": {
+    "total": 8,
+    "accuracy": 0.0,
+    "refusal_correctness": 0,
+    "hallucination_block": 0,
+    "overall_pass_rate": 0.0,
+    "by_category": {
+      "spec_parse": {
+        "total": 8,
+        "passed": 0
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "eval-001",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "TMK212BJ105KG-T 缺货，找替代，月用量50万，交期2周"
+    },
+    {
+      "id": "eval-002",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "0805 10uF X7R 50V MLCC，月用量50万，要国巨或华新科"
+    },
+    {
+      "id": "eval-003",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "寻找 GRM188R61A106KE69D 的替代料，交期2周"
+    },
+    {
+      "id": "eval-004",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "0603 100nF X7R 50V"
+    },
+    {
+      "id": "eval-005",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "1206 22uF X5R 25V 钽电容"
+    },
+    {
+      "id": "eval-006",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "0402 1uF X5R 6.3V"
+    },
+    {
+      "id": "eval-007",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "贴片电阻 0603 10kΩ ±1%"
+    },
+    {
+      "id": "eval-008",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "0805 4.7uF X7R 25V MLCC 月用量20万"
+    }
+  ]
+}

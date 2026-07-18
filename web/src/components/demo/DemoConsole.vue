@@ -1,8 +1,14 @@
 <script setup lang="ts">
+/**
+ * 演示场景悬浮控制台（仅 demo 用户可见）。
+ * 推进演示沙盘：生成订单 / 消耗库存 / 重算缺件 / 生成 RFQ / 模拟报价 / 执行补货 / 选择替代料 / 重置场景。
+ * 拖拽移动；动作后刷新全局 demo 数据（emitDemoRefresh）。
+ */
 import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 import { emitDemoRefresh } from '@/composables/useDemoRefresh'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import {
   consumeDemoInventory,
   executeDemoReplenishment,
@@ -82,7 +88,7 @@ const consoleStyle = computed(() => ({
 }))
 
 function clampPosition(x: number, y: number) {
-  const width = expanded.value ? 360 : 220
+  const width = expanded.value ? 360 : 240
   const height = expanded.value ? 620 : 72
   const pad = 12
   return {
@@ -141,7 +147,6 @@ async function runAction(key: string, runner: () => Promise<unknown>) {
     const res = await runner() as any
     await loadEvents()
     emitDemoRefresh()
-    // 展示动作结果摘要 (RFQ 编号 / no_direct_supplier / 缺件数等)
     const data = res?.data ?? res
     const summary = resultSummary(data)
     if (summary) {
@@ -155,24 +160,26 @@ async function runAction(key: string, runner: () => Promise<unknown>) {
   }
 }
 
-async function resetScenario() {
-  const ok = window.confirm('这会重置整个演示场景下全部公司的演示状态和事件，不只是当前企业。确认继续？')
-  if (!ok) return
+// 重置场景：ConfirmDialog 二次确认（影响全部演示企业）
+const showResetConfirm = ref(false)
+const resetting = ref(false)
+function askReset() {
+  showResetConfirm.value = true
+}
+async function doReset() {
+  showResetConfirm.value = false
   await runAction('reset', () => resetDemoScenario(currentEnterpriseId.value))
 }
 
 function eventCompany(event: DemoEvent) {
   return event.affected_company_name || event.company_name || `企业 ${event.affected_company_id || event.company_id || '-'}`
 }
-
 function eventType(event: DemoEvent) {
   return event.action_type || event.event_type || '演示事件'
 }
-
 function eventSummary(event: DemoEvent) {
   return event.result_summary || event.summary || event.message || '已产生联动变化'
 }
-
 function eventTime(event: DemoEvent) {
   const raw = event.created_at || event.timestamp
   if (!raw) return ''
@@ -193,14 +200,16 @@ onMounted(() => {
     :class="{ 'demo-console--open': expanded, 'is-dragging': dragging }"
     :style="consoleStyle"
   >
+    <!-- 收起态：悬浮条 -->
     <div v-if="!expanded" class="demo-console__fab" @pointerdown="startDrag">
-      <button type="button" class="demo-console__drag" title="拖动演示控制台">⋮⋮</button>
+      <button type="button" class="demo-console__drag" title="拖动演示控制台" aria-label="拖动">⋮⋮</button>
       <button type="button" class="demo-console__fab-main" @click="expanded = true">
         <span>演示控制台</span>
         <b>{{ current.company.name }}</b>
       </button>
     </div>
 
+    <!-- 展开态：面板 -->
     <section v-else class="demo-console__panel" aria-label="演示控制台">
       <header class="demo-console__head" @pointerdown="startDrag">
         <div>
@@ -208,7 +217,7 @@ onMounted(() => {
           <b>{{ current.company.name }}</b>
         </div>
         <div class="demo-console__head-actions">
-          <button type="button" class="demo-console__drag" title="拖动演示控制台">⋮⋮</button>
+          <button type="button" class="demo-console__drag" title="拖动演示控制台" aria-label="拖动">⋮⋮</button>
           <button type="button" @click="expanded = false">收起</button>
         </div>
       </header>
@@ -218,17 +227,23 @@ onMounted(() => {
           v-for="action in actions"
           :key="action.key"
           type="button"
+          class="demo-console__action"
           :disabled="!!loadingKey"
           @click="runAction(action.key, action.run)"
         >
-          {{ loadingKey === action.key ? '执行中...' : action.label }}
+          {{ loadingKey === action.key ? '执行中…' : action.label }}
         </button>
-        <button type="button" class="demo-console__reset" :disabled="!!loadingKey" @click="resetScenario">
-          {{ loadingKey === 'reset' ? '重置中...' : '重置场景' }}
+        <button
+          type="button"
+          class="demo-console__action demo-console__action--danger"
+          :disabled="!!loadingKey"
+          @click="askReset"
+        >
+          {{ loadingKey === 'reset' ? '重置中…' : '重置场景' }}
         </button>
       </div>
 
-      <p v-if="error" class="demo-console__error">{{ error }}</p>
+      <p v-if="error" class="demo-console__error" role="alert">{{ error }}</p>
       <p v-else-if="lastResultSummary" class="demo-console__result">
         <b>{{ actions.find(a => a.key === lastResultKey)?.label || '操作' }}:</b> {{ lastResultSummary }}
       </p>
@@ -249,223 +264,229 @@ onMounted(() => {
         </article>
       </div>
     </section>
+
+    <ConfirmDialog
+      v-model:open="showResetConfirm"
+      title="重置整个演示场景？"
+      description="这会清空全部公司的演示状态和事件（不只是当前企业），恢复到初始基线。"
+      confirm-text="重置场景"
+      danger
+      :loading="resetting"
+      @confirm="doReset"
+    />
   </div>
 </template>
 
 <style scoped>
 .demo-console {
   position: fixed;
-  z-index: 90;
-  color: #eef2ff;
+  z-index: var(--z-modal);
+  color: var(--text-primary);
   user-select: none;
 }
-
 .demo-console.is-dragging {
   cursor: grabbing;
 }
 
+/* 收起态 FAB */
 .demo-console__fab {
-  width: 220px;
+  width: 240px;
   min-height: 68px;
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: var(--space-6) minmax(0, 1fr);
   align-items: stretch;
   overflow: hidden;
-  border: 1px solid rgba(129, 140, 248, 0.75);
-  border-radius: 14px;
-  background: linear-gradient(135deg, #242a42, #141927 60%);
-  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.42), 0 0 0 4px rgba(99, 102, 241, 0.14);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
 }
-
 .demo-console__fab-main {
-  padding: 10px 14px 10px 4px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-1);
   text-align: left;
+  color: var(--text-primary);
 }
-
 .demo-console__drag {
-  min-width: 32px;
-  color: #c7d2fe;
+  min-width: var(--space-6);
+  color: var(--accent-text);
   cursor: grab;
   font-weight: 800;
   letter-spacing: -2px;
 }
-
 .demo-console__drag:active {
   cursor: grabbing;
 }
-
 .demo-console__fab span,
 .demo-console__head p {
   display: block;
-  color: #aeb7d2;
-  font-size: 12px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
 }
-
 .demo-console__fab b,
 .demo-console__head b {
   display: block;
-  margin-top: 3px;
-  color: #f7f8ff;
-  font-size: 13px;
+  margin-top: var(--space-1);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
 }
 
+/* 展开态面板 */
 .demo-console__panel {
   width: min(360px, calc(100vw - 28px));
   max-height: min(680px, calc(100vh - 36px));
   overflow: auto;
-  border: 1px solid #3a4258;
-  border-radius: 14px;
-  background: #111520;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48), 0 0 0 4px rgba(99, 102, 241, 0.12);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
 }
-
 .demo-console__head,
 .demo-console__events-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
 }
-
 .demo-console__head {
   position: sticky;
   top: 0;
-  padding: 14px 16px;
-  border-bottom: 1px solid #2e3548;
-  background: #111520;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
   cursor: grab;
 }
-
 .demo-console__head-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
-
 .demo-console__head-actions button,
 .demo-console__events-head button {
-  color: #c8d1ea;
-  font-size: 12px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
+  transition: color var(--transition-fast);
+}
+.demo-console__head-actions button:hover,
+.demo-console__events-head button:hover:not(:disabled) {
+  color: var(--text-primary);
 }
 
+/* 动作按钮 */
 .demo-console__actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 14px 16px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
 }
-
-.demo-console__actions button {
+.demo-console__action {
   min-height: 36px;
-  padding: 8px 10px;
-  color: #eef2ff;
-  border: 1px solid #394258;
-  border-radius: 8px;
-  background: #171c2a;
-  font-size: 12px;
-  font-weight: 700;
+  padding: var(--space-2) var(--space-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
-
-.demo-console__actions button:hover:not(:disabled) {
-  border-color: #7c83ff;
-  background: #20263a;
+.demo-console__action:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--bg-subtle);
 }
-
-.demo-console__actions button:disabled {
+.demo-console__action:disabled {
   cursor: wait;
   opacity: 0.62;
 }
-
-.demo-console__reset {
-  color: #ffd1d1 !important;
-  border-color: rgba(248, 113, 113, 0.5) !important;
+.demo-console__action--danger {
+  color: var(--danger);
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+}
+.demo-console__action--danger:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: var(--danger);
+  border-color: var(--danger);
 }
 
+/* 错误 / 结果 */
 .demo-console__error {
-  margin: 0 16px 12px;
-  padding: 9px 10px;
-  color: #fecaca;
-  border: 1px solid rgba(248, 113, 113, 0.35);
-  border-radius: 8px;
-  background: rgba(127, 29, 29, 0.22);
-  font-size: 12px;
-  line-height: 1.5;
+  margin: 0 var(--space-4) var(--space-3);
+  padding: var(--space-2) var(--space-2);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-md);
+  background: var(--danger-soft);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
 }
-
 .demo-console__result {
-  margin: 0 16px 12px;
-  padding: 9px 10px;
-  color: #d1fae5;
-  border: 1px solid rgba(52, 211, 153, 0.35);
-  border-radius: 8px;
-  background: rgba(6, 78, 59, 0.22);
-  font-size: 12px;
-  line-height: 1.5;
+  margin: 0 var(--space-4) var(--space-3);
+  padding: var(--space-2) var(--space-2);
+  color: var(--success);
+  border: 1px solid var(--success-border);
+  border-radius: var(--radius-md);
+  background: var(--success-soft);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
 }
-
 .demo-console__result b {
-  color: #6ee7b7;
+  color: var(--success);
   font-weight: 700;
 }
 
+/* 事件列表 */
 .demo-console__events {
-  padding: 0 16px 16px;
+  padding: 0 var(--space-4) var(--space-4);
 }
-
 .demo-console__events-head {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
-
 .demo-console__events-head b {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-primary);
 }
-
 .demo-console__empty {
-  padding: 10px;
-  color: #9aa6c2;
-  border: 1px dashed #3a4258;
-  border-radius: 8px;
-  font-size: 12px;
+  padding: var(--space-2);
+  color: var(--text-tertiary);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
 }
-
 .demo-console__events article {
-  padding: 9px 0;
-  border-top: 1px solid #2a3144;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--border-subtle);
 }
-
 .demo-console__events article div {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-2);
 }
-
 .demo-console__events article b {
-  color: #f7f8ff;
-  font-size: 12px;
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
 }
-
 .demo-console__events article span,
 .demo-console__events article p,
 .demo-console__events article small {
-  color: #9aa6c2;
-  font-size: 12px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
 }
-
 .demo-console__events article p {
-  margin-top: 4px;
-  color: #c7d2fe;
+  margin-top: var(--space-1);
+  color: var(--accent-text);
 }
-
 .demo-console__events article small {
   display: block;
-  margin-top: 3px;
-  line-height: 1.45;
-}
-
-@media (max-width: 920px) {
-  .demo-console {
-    right: 12px;
-    bottom: 12px;
-  }
+  margin-top: var(--space-1);
+  line-height: var(--leading-xs);
 }
 </style>

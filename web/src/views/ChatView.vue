@@ -4,11 +4,12 @@ import { useProcureStore } from '@/stores/procure'
 import { saveToLocal, loadLocalMessages, useHistory } from '@/composables/useHistory'
 import type { SpecField, Alternative, Supplier, LeadGrade } from '@/types/procure'
 import ChatMessage, { type ChatMessageData, type TurnPayload } from '@/components/chat/ChatMessage.vue'
+import ChatInput from '@/components/chat/ChatInput.vue'
 import SpecConfirm from '@/components/procure/SpecConfirm.vue'
 import AlternativesList from '@/components/procure/AlternativesList.vue'
 import SuppliersMatch from '@/components/procure/SuppliersMatch.vue'
 import RfqEditor from '@/components/procure/RfqEditor.vue'
-import Tag from '@/components/ui/Tag.vue'
+import GradeCard from '@/components/procure/GradeCard.vue'
 import SessionHistoryPanel from '@/components/procure/SessionHistoryPanel.vue'
 import AgentTimeline from '@/components/procure/AgentTimeline.vue'
 
@@ -35,10 +36,19 @@ const activeTurnId = ref(0)
 const restoringSession = ref(false)
 
 function uid() { return `m-${++msgId}-${Date.now()}` }
-function scrollDown() {
+
+// ── 自动滚动：用户上翻阅读时不强制拉回；自己发消息时强制到底 ──
+const stickToBottom = ref(true)
+function onChatScroll() {
+  const el = chatContainer.value
+  if (!el) return
+  stickToBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+}
+function scrollDown(force = false) {
   nextTick(() => {
-    if (chatContainer.value) {
-      chatContainer.value.scrollTop = chatContainer.value.scrollHeight
+    const el = chatContainer.value
+    if (el && (force || stickToBottom.value)) {
+      el.scrollTop = el.scrollHeight
     }
   })
 }
@@ -208,14 +218,7 @@ function finalizeStreamingFlag() {
   }
 }
 
-// ── 发送 ──
-function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    send()
-  }
-}
-
+// ── 发送（IME 安全与 Enter 行为由 ChatInput 统一处理）──
 function send() {
   const q = inputText.value.trim()
   if (!q || isProcessing.value) return
@@ -225,8 +228,9 @@ function send() {
   freezeCurrentTurn()
   activeTurnId.value++
 
-  // 用户消息
+  // 用户消息（自己发言，强制滚到底）
   addMsg('user', q)
+  scrollDown(true)
 
   // 处理中
   isProcessing.value = true
@@ -691,7 +695,7 @@ const examples = [
     </button>
 
     <!-- 消息列表 -->
-    <div ref="chatContainer" class="chat__msgs">
+    <div ref="chatContainer" class="chat__msgs" role="log" aria-live="polite" @scroll.passive="onChatScroll">
       <!-- 空态 -->
       <div v-if="messages.length === 0" class="chat__welcome">
         <div class="welcome__mark">M</div>
@@ -712,8 +716,7 @@ const examples = [
             <AgentTimeline
               v-if="msg.resultType === 'progress'"
               :agents="store.agents"
-              :alternatives-count="store.alternatives.length"
-              :suppliers-count="store.matchedSuppliers.length"
+              :stream-error="store.streamError"
             />
             <details v-else class="tl-fold">
               <summary class="tl-fold__summary">
@@ -723,8 +726,6 @@ const examples = [
               <AgentTimeline
                 class="tl-fold__body"
                 :agents="timelineAgents(msg)"
-                :alternatives-count="msg.payload?.alternativesCount ?? 0"
-                :suppliers-count="msg.payload?.suppliersCount ?? 0"
                 :live="false"
               />
             </details>
@@ -779,26 +780,7 @@ const examples = [
           />
 
           <!-- 线索分级 -->
-          <div v-if="msg.resultType === 'grade' && gradeFor(msg)" class="grade-card">
-            <div class="grade-card__head">
-              <span class="grade-card__label">线索分级</span>
-            </div>
-            <div class="grade-card__body">
-              <div class="grade-card__main">
-                <span class="grade-letter" :class="`grade-${gradeFor(msg)!.grade}`">
-                  {{ gradeFor(msg)!.grade }}
-                </span>
-                <span class="grade-score">{{ gradeFor(msg)!.score }} 分</span>
-                <Tag
-                  :type="gradeFor(msg)!.grade === 'A' || gradeFor(msg)!.grade === 'B' ? 'success' : gradeFor(msg)!.grade === 'C' ? 'warning' : 'danger'"
-                  :value="`${gradeFor(msg)!.grade} 级`"
-                />
-              </div>
-              <ul class="grade-card__reasons">
-                <li v-for="(r, ri) in gradeFor(msg)!.reasons" :key="ri">{{ r }}</li>
-              </ul>
-            </div>
-          </div>
+          <GradeCard v-if="msg.resultType === 'grade' && gradeFor(msg)" :grade="gradeFor(msg)!" />
         </ChatMessage>
       </template>
     </div>
@@ -806,31 +788,37 @@ const examples = [
     <!-- 输入栏 -->
     <div class="chat__input-bar">
       <!-- 断流/传输错误条: 无论是否有 Agent 跑过都显示,可手动重试 -->
-      <div v-if="store.streamError" class="chat__stream-alert chat__stream-alert--error">
+      <div v-if="store.streamError" class="chat__stream-alert chat__stream-alert--error" role="alert">
         <span class="stream-alert__text">连接中断，请重试</span>
         <button class="stream-alert__btn" @click="retryLast">重试</button>
         <button class="stream-alert__close" title="关闭" @click="store.clearStreamError()">✕</button>
       </div>
       <!-- 非致命流警告（个别帧解析失败） -->
-      <div v-else-if="store.streamNotice" class="chat__stream-alert chat__stream-alert--notice">
+      <div v-else-if="store.streamNotice" class="chat__stream-alert chat__stream-alert--notice" role="alert">
         <span class="stream-alert__text">{{ store.streamNotice }}</span>
         <button class="stream-alert__close" title="关闭" @click="store.clearStreamNotice()">✕</button>
       </div>
-      <div class="chat__input-wrap">
-        <textarea
-          v-model="inputText"
-          class="chat__input"
-          rows="1"
-          placeholder="输入型号或需求描述…"
-          :disabled="isProcessing"
-          @keydown="handleKeydown"
-        />
-        <button v-if="isProcessing" class="chat__send chat__send--stop" @click="stopSending">
-          <span class="stop-icon" />
-          <span>停止</span>
-        </button>
-        <button v-else class="chat__send" :disabled="!inputText.trim()" @click="send">发送</button>
-      </div>
+      <ChatInput
+        v-model="inputText"
+        :busy="isProcessing"
+        placeholder="输入型号或需求描述…"
+        menu-label="示例与快捷操作"
+        @send="send"
+        @stop="stopSending"
+      >
+        <template #menu>
+          <p class="chat-menu-title">示例需求</p>
+          <button
+            v-for="ex in examples"
+            :key="ex"
+            type="button"
+            class="chat-menu-item"
+            @click="inputText = ex"
+          >
+            {{ ex }}
+          </button>
+        </template>
+      </ChatInput>
       <p class="chat__hint">Enter 发送 · Shift+Enter 换行</p>
     </div>
 
@@ -843,10 +831,12 @@ const examples = [
 
 <style scoped>
 .chat-view {
+  /* 对话列宽：消息、输入区、提示条共用 */
+  --chat-col: 800px;
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 56px);
-  max-width: 900px;
+  min-height: calc(100vh - var(--header-h));
+  max-width: calc(var(--chat-col) + var(--space-6));
   margin: 0 auto;
   position: relative;
 }
@@ -854,27 +844,27 @@ const examples = [
 /* 历史记录切换按钮 */
 .chat__history-toggle {
   position: fixed;
-  top: 64px;
-  right: 12px;
-  z-index: 45;
+  top: calc(var(--header-h) + var(--space-2));
+  right: var(--space-3);
+  z-index: var(--z-dropdown);
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
-  background: var(--bg-2);
+  background: var(--bg-surface);
   border: 1px solid var(--border-default);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
 }
 .chat__history-toggle:hover {
   color: var(--text-primary);
   border-color: var(--accent-border);
 }
 .chat__history-toggle.active {
-  color: var(--accent-hover);
+  color: var(--accent-text);
   border-color: var(--accent-border);
   background: var(--accent-soft);
 }
@@ -882,14 +872,14 @@ const examples = [
 /* 历史记录侧边栏 */
 .chat__history-sidebar {
   position: fixed;
-  top: 56px;
+  top: var(--header-h);
   right: 0;
   bottom: 0;
   width: 280px;
-  z-index: 44;
-  background: rgba(10, 11, 15, 0.96);
+  z-index: var(--z-dropdown);
+  background: var(--bg-elevated);
   border-left: 1px solid var(--border-default);
-  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -907,7 +897,7 @@ const examples = [
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 80px var(--space-4) 40px;
+  padding: var(--space-8) var(--space-4) var(--space-6);
   text-align: center;
 }
 .welcome__mark {
@@ -920,17 +910,19 @@ const examples = [
   font-weight: 700;
   border-radius: var(--radius-lg);
   background: var(--gradient-accent);
-  color: #fff;
+  color: var(--on-accent);
   margin-bottom: var(--space-4);
 }
 .welcome__title {
   font-size: var(--font-size-2xl);
+  line-height: var(--leading-2xl);
   font-weight: 700;
   margin-bottom: var(--space-2);
 }
 .welcome__sub {
   color: var(--text-secondary);
   font-size: var(--font-size-md);
+  line-height: var(--leading-md);
   margin-bottom: var(--space-6);
   max-width: 480px;
 }
@@ -941,17 +933,18 @@ const examples = [
   justify-content: center;
 }
 .welcome__chip {
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
   color: var(--text-secondary);
-  background: var(--bg-2);
+  background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-full);
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
   cursor: pointer;
 }
 .welcome__chip:hover {
-  color: var(--accent-hover);
+  color: var(--accent-text);
   border-color: var(--accent-border);
   background: var(--accent-soft);
 }
@@ -959,62 +952,12 @@ const examples = [
 /* 输入栏 */
 .chat__input-bar {
   border-top: 1px solid var(--border-default);
-  background: var(--bg-1);
+  background: var(--bg-canvas);
   padding: var(--space-3) var(--space-4);
 }
-.chat__input-wrap {
-  display: flex;
-  gap: var(--space-3);
-  max-width: 800px;
+.chat__input-bar :deep(.chat-input) {
+  max-width: var(--chat-col);
   margin: 0 auto;
-  background: var(--bg-2);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  padding: var(--space-2);
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
-}
-.chat__input-wrap:focus-within {
-  border-color: var(--accent-border);
-  box-shadow: var(--shadow-glow);
-}
-.chat__input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-md);
-  color: var(--text-primary);
-  resize: none;
-  max-height: 120px;
-  line-height: 1.6;
-}
-.chat__input::placeholder { color: var(--text-tertiary); }
-.chat__input:disabled { opacity: 0.5; }
-.chat__send {
-  align-self: flex-end;
-  padding: 8px 20px;
-  background: var(--accent);
-  color: #fff;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
-  white-space: nowrap;
-}
-.chat__send:hover:not(:disabled) { background: var(--accent-hover); }
-.chat__send:disabled { opacity: 0.4; cursor: not-allowed; }
-.chat__send--stop {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.stop-icon {
-  display: block;
-  width: 10px;
-  height: 10px;
-  background: #fff;
-  border-radius: 2px;
 }
 
 /* 断流错误条 / 流警告条 */
@@ -1022,33 +965,34 @@ const examples = [
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  max-width: 800px;
+  max-width: var(--chat-col);
   margin: 0 auto var(--space-2);
   padding: var(--space-2) var(--space-3);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
   border-radius: var(--radius-md);
   border: 1px solid;
 }
 .chat__stream-alert--error {
   color: var(--danger);
   background: var(--danger-soft);
-  border-color: rgba(239, 68, 68, 0.3);
+  border-color: var(--danger-border);
 }
 .chat__stream-alert--notice {
   color: var(--warning);
   background: var(--warning-soft);
-  border-color: rgba(234, 179, 8, 0.3);
+  border-color: var(--warning-border);
 }
 .stream-alert__text { flex: 1; }
 .stream-alert__btn {
-  padding: 2px 10px;
+  padding: var(--space-1) var(--space-2);
   font-size: var(--font-size-xs);
   color: var(--danger);
   background: transparent;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid var(--danger-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: border-color var(--transition-fast);
 }
 .stream-alert__btn:hover { border-color: var(--danger); }
 .stream-alert__close {
@@ -1064,55 +1008,7 @@ const examples = [
   text-align: center;
   margin-top: var(--space-2);
   font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-}
-
-/* 线索卡片 */
-.grade-card {
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--bg-2);
-}
-.grade-card__head {
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-}
-.grade-card__body { padding: var(--space-4); }
-.grade-card__main {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-.grade-letter {
-  width: 36px; height: 36px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: var(--font-size-lg); font-weight: 700;
-  border-radius: var(--radius-md);
-  font-family: var(--font-mono);
-}
-.grade-A, .grade-B { color: var(--success); background: var(--success-soft); }
-.grade-C { color: var(--warning); background: var(--warning-soft); }
-.grade-D { color: var(--danger); background: var(--danger-soft); }
-.grade-score {
-  font-size: var(--font-size-md);
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-}
-.grade-card__reasons { display: flex; flex-direction: column; gap: var(--space-2); }
-.grade-card__reasons li {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  padding-left: var(--space-4);
-  position: relative;
-}
-.grade-card__reasons li::before {
-  content: '·';
-  position: absolute;
-  left: var(--space-2);
+  line-height: var(--leading-xs);
   color: var(--text-tertiary);
 }
 
@@ -1120,7 +1016,7 @@ const examples = [
 .chat__timeline {
   margin: var(--space-3) 0;
   padding: var(--space-3);
-  background: var(--bg-1);
+  background: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
 }
@@ -1135,6 +1031,7 @@ const examples = [
   gap: var(--space-2);
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   cursor: pointer;
   user-select: none;
   list-style: none;
@@ -1150,7 +1047,7 @@ const examples = [
 .tl-fold__caret {
   display: inline-block;
   transition: transform var(--transition-fast);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
 }
 .tl-fold[open] .tl-fold__caret {
   transform: rotate(90deg);

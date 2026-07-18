@@ -1,0 +1,362 @@
+{
+  "summary": {
+    "total": 30,
+    "accuracy": 0.0,
+    "refusal_correctness": 1.0,
+    "hallucination_block": 1.0,
+    "overall_pass_rate": 0.4,
+    "by_category": {
+      "alt_recommend": {
+        "total": 4,
+        "passed": 0
+      },
+      "alt_redline": {
+        "total": 4,
+        "passed": 4
+      },
+      "chat": {
+        "total": 1,
+        "passed": 1
+      },
+      "kb_qa": {
+        "total": 4,
+        "passed": 3
+      },
+      "kb_refusal": {
+        "total": 4,
+        "passed": 4
+      },
+      "spec_parse": {
+        "total": 8,
+        "passed": 0
+      },
+      "supplier_match": {
+        "total": 5,
+        "passed": 0
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "eval-009",
+      "category": "alt_recommend",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "TMK212BJ105KG-T 找替代料"
+    },
+    {
+      "id": "eval-010",
+      "category": "alt_recommend",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "GRM188R61A106KE69D 缺货找替代"
+    },
+    {
+      "id": "eval-011",
+      "category": "alt_recommend",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "0805 1uF X5R 10V 找替代"
+    },
+    {
+      "id": "eval-012",
+      "category": "alt_recommend",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "CL10A105KP8NNNC 找替代料"
+    },
+    {
+      "id": "eval-013",
+      "category": "alt_redline",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "50V 的电容找替代，不接受降压"
+    },
+    {
+      "id": "eval-014",
+      "category": "alt_redline",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "0805 封装的料找替代，不能换封装"
+    },
+    {
+      "id": "eval-015",
+      "category": "alt_redline",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "找替代料，已停产的不要推荐"
+    },
+    {
+      "id": "eval-016",
+      "category": "alt_redline",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "C0G 温度系数的电容找替代，不要降级到 Y5V"
+    },
+    {
+      "id": "eval-030",
+      "category": "chat",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "reply_len": 17
+      },
+      "query": "你好"
+    },
+    {
+      "id": "eval-022",
+      "category": "kb_qa",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "intent": "factual",
+        "no_fabrication": true
+      },
+      "query": "村田有哪些MLCC型号"
+    },
+    {
+      "id": "eval-023",
+      "category": "kb_qa",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "intent": "factual",
+        "no_fabrication": true
+      },
+      "query": "村田MLCC的价格是多少"
+    },
+    {
+      "id": "eval-024",
+      "category": "kb_qa",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "intent": "advisory",
+        "no_fabrication": true
+      },
+      "query": "我想采购MLCC，业务流程是怎样的"
+    },
+    {
+      "id": "eval-025",
+      "category": "kb_qa",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "intent": "advisory",
+        "no_fabrication": true
+      },
+      "query": "村田的认证资质有哪些"
+    },
+    {
+      "id": "eval-026",
+      "category": "kb_refusal",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "refused": true,
+        "no_fabrication": true
+      },
+      "query": "村田的GPU显存容量是多少GB"
+    },
+    {
+      "id": "eval-027",
+      "category": "kb_refusal",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "refused": true,
+        "no_fabrication": true
+      },
+      "query": "村田的SaaS平台怎么收费"
+    },
+    {
+      "id": "eval-028",
+      "category": "kb_refusal",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "refused": true,
+        "no_fabrication": true
+      },
+      "query": "村田的DRAM产品型号有哪些"
+    },
+    {
+      "id": "eval-029",
+      "category": "kb_refusal",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "refused": true,
+        "no_fabrication": true
+      },
+      "query": "村田的汽车发动机产能"
+    },
+    {
+      "id": "eval-001",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "TMK212BJ105KG-T 缺货，找替代，月用量50万，交期2周"
+    },
+    {
+      "id": "eval-002",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "0805 10uF X7R 50V MLCC，月用量50万，要国巨或华新科"
+    },
+    {
+      "id": "eval-003",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "寻找 GRM188R61A106KE69D 的替代料，交期2周"
+    },
+    {
+      "id": "eval-004",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "0603 100nF X7R 50V"
+    },
+    {
+      "id": "eval-005",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "1206 22uF X5R 25V 钽电容"
+    },
+    {
+      "id": "eval-006",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "0402 1uF X5R 6.3V"
+    },
+    {
+      "id": "eval-007",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "贴片电阻 0603 10kΩ ±1%"
+    },
+    {
+      "id": "eval-008",
+      "category": "spec_parse",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {},
+      "query": "0805 4.7uF X7R 25V MLCC 月用量20万"
+    },
+    {
+      "id": "eval-017",
+      "category": "supplier_match",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "supplier_count": 0,
+        "confirmed_false": true
+      },
+      "query": "找 MLCC 供应商，要 YAGEO 品牌"
+    },
+    {
+      "id": "eval-018",
+      "category": "supplier_match",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "supplier_count": 0,
+        "confirmed_false": true
+      },
+      "query": "0805 10uF X7R 50V 匹配供应商"
+    },
+    {
+      "id": "eval-019",
+      "category": "supplier_match",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "supplier_count": 0,
+        "confirmed_false": true
+      },
+      "query": "深圳的 MLCC 供应商有哪些"
+    },
+    {
+      "id": "eval-020",
+      "category": "supplier_match",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "supplier_count": 0,
+        "confirmed_false": true
+      },
+      "query": "贴片电阻 0603 10k 供应商"
+    },
+    {
+      "id": "eval-021",
+      "category": "supplier_match",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "supplier_count": 0,
+        "confirmed_false": true
+      },
+      "query": "Murata 授权代理供应商"
+    }
+  ]
+}

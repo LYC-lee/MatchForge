@@ -74,8 +74,9 @@ const showUnverified = computed(() => props.verified === false)
   display: inline-flex;
   align-items: center;
   height: 20px;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   font-weight: 600;
   border-radius: var(--radius-sm);
   border: 1px solid;
@@ -84,21 +85,21 @@ const showUnverified = computed(() => props.verified === false)
 .src-badge--neo4j {
   color: var(--success);
   background: var(--success-soft);
-  border-color: rgba(34, 197, 94, 0.3);
+  border-color: var(--success-border);
 }
 .src-badge--llm {
   color: var(--warning);
   background: var(--warning-soft);
-  border-color: rgba(234, 179, 8, 0.3);
+  border-color: var(--warning-border);
 }
 .src-badge--fallback {
   color: var(--danger);
   background: var(--danger-soft);
-  border-color: rgba(239, 68, 68, 0.3);
+  border-color: var(--danger-border);
 }
 .src-badge--unknown {
   color: var(--text-secondary);
-  background: var(--bg-3);
+  background: var(--bg-subtle);
   border-color: var(--border-default);
 }
 
@@ -106,17 +107,19 @@ const showUnverified = computed(() => props.verified === false)
   display: inline-flex;
   align-items: center;
   height: 20px;
-  padding: 0 6px;
+  padding: 0 var(--space-1);
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   color: var(--warning);
   background: var(--warning-soft);
-  border: 1px dashed rgba(234, 179, 8, 0.4);
+  border: 1px dashed var(--warning-border);
   border-radius: var(--radius-sm);
   white-space: nowrap;
 }
 
 .src-badge__note {
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   color: var(--danger);
   opacity: 0.85;
 }

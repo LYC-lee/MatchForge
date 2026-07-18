@@ -50,33 +50,34 @@ const items = computed(() =>
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 6px 10px;
+  padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
   color: var(--text-tertiary);
 }
 .step__dot {
-  width: 16px;
-  height: 16px;
+  width: var(--space-4);
+  height: var(--space-4);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   border: 1.5px solid var(--border-strong);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
 }
-.step--running { color: var(--accent-hover); }
+.step--running { color: var(--accent-text); }
 .step--running .step__dot { border-color: var(--accent); background: var(--accent-soft); }
 .step--done { color: var(--text-secondary); }
-.step--done .step__dot { border-color: var(--success); background: var(--success); color: #fff; }
+.step--done .step__dot { border-color: var(--success); background: var(--success); color: var(--on-accent); }
 .step--error { color: var(--danger); }
 .step--error .step__dot { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
 
-.check { color: #fff; font-weight: 700; line-height: 1; }
+.check { color: var(--on-accent); font-weight: 700; line-height: 1; }
 .x { color: var(--danger); font-weight: 700; }
 .pulse {
-  width: 8px;
-  height: 8px;
+  width: var(--space-2);
+  height: var(--space-2);
   border-radius: 50%;
   background: var(--accent);
   animation: pulse 1s ease-in-out infinite;

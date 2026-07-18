@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 import { onDemoRefresh } from '@/composables/useDemoRefresh'
 import {
@@ -11,7 +12,10 @@ import {
   type BomSummary,
 } from '@/api/enterprise'
 import { useDashboard } from '@/composables/useDashboard'
+import AppButton from '@/components/ui/AppButton.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
+const router = useRouter()
 const { current, currentEnterpriseId } = useEnterpriseContext()
 const { dashboard } = useDashboard()
 
@@ -21,6 +25,17 @@ const bomSummary = ref<BomSummary | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const expandedProduct = ref<number | null>(null)
+
+// BOM 截断：单产品最多展示 100 行，超出给提示
+const BOM_MAX = 100
+function visibleBom(productId: number): BomItem[] {
+  const arr = bomMap.value[productId] || []
+  return arr.slice(0, BOM_MAX)
+}
+function bomOverflow(productId: number): number {
+  const arr = bomMap.value[productId] || []
+  return Math.max(0, arr.length - BOM_MAX)
+}
 
 async function fetchData(companyId: number) {
   loading.value = true
@@ -99,7 +114,7 @@ function riskClass(isCritical: boolean) {
         <h1>产品与 BOM</h1>
         <p>按当前企业展示可生产产品、关键物料、BOM 零件和首选供应商。</p>
       </div>
-      <RouterLink to="/shortage-procurement" class="action-link">查看缺件与采购</RouterLink>
+      <AppButton variant="secondary" size="sm" @click="router.push('/shortage-procurement')">查看缺件与采购</AppButton>
     </header>
 
     <div v-if="loading" class="loading-bar">正在拉取产品与 BOM 数据…</div>
@@ -108,15 +123,15 @@ function riskClass(isCritical: boolean) {
     <!-- BOM 汇总 -->
     <section v-if="bomSummary" class="bom-summary-bar">
       <div class="summary-stat">
-        <b>{{ bomSummary.total_parts }}</b>
+        <b class="num">{{ bomSummary.total_parts }}</b>
         <span>BOM 零件总数</span>
       </div>
       <div class="summary-stat">
-        <b>{{ bomSummary.critical_parts }}</b>
+        <b class="num">{{ bomSummary.critical_parts }}</b>
         <span>关键件</span>
       </div>
       <div class="summary-stat">
-        <b>{{ products.length }}</b>
+        <b class="num">{{ products.length }}</b>
         <span>在产产品</span>
       </div>
     </section>
@@ -148,31 +163,39 @@ function riskClass(isCritical: boolean) {
               <span>关键零件</span>
               <span>编码</span>
               <span>品类</span>
-              <span>需求量</span>
-              <span>安全库存</span>
+              <span class="bom-row--num">需求量</span>
+              <span class="bom-row--num">安全库存</span>
               <span>首选供应商</span>
               <span>关键</span>
             </div>
-            <div v-for="part in bomMap[product.id]" :key="part.id" class="bom-row">
+            <div v-for="part in visibleBom(product.id)" :key="part.id" class="bom-row">
               <span class="strong">{{ part.part_name }}</span>
               <span class="mono">{{ part.part_number }}</span>
               <span>{{ part.category_name || '-' }}</span>
-              <span>{{ part.required_qty?.toLocaleString() || '-' }} {{ part.unit || '' }}</span>
-              <span>{{ part.safety_stock_qty?.toLocaleString() || '-' }}</span>
+              <span class="bom-row--cell num">{{ part.required_qty?.toLocaleString() || '-' }} {{ part.unit || '' }}</span>
+              <span class="bom-row--cell num">{{ part.safety_stock_qty?.toLocaleString() || '-' }}</span>
               <span>{{ part.preferred_supplier_name || '-' }}</span>
               <span :class="riskClass(part.is_critical)">{{ part.is_critical ? '是' : '否' }}</span>
+            </div>
+            <div v-if="bomOverflow(product.id)" class="bom-truncate">
+              仅显示前 {{ BOM_MAX }} 项，共 {{ bomMap[product.id].length }} 项
             </div>
           </div>
         </div>
       </article>
-      <div v-if="!loading && !products.length" class="empty-line">当前企业暂无可生产产品</div>
+      <EmptyState
+        v-if="!loading && !products.length"
+        title="当前企业暂无可生产产品"
+        description="后端产品/BOM 接口暂未返回数据，可稍后重试。"
+        compact
+      />
     </section>
   </div>
 </template>
 
 <style scoped>
 .page {
-  max-width: 1280px;
+  max-width: var(--container-md);
   margin: 0 auto;
   padding: var(--space-5);
 }
@@ -184,30 +207,22 @@ function riskClass(isCritical: boolean) {
   margin-bottom: var(--space-4);
   padding: var(--space-4);
   border: 1px solid var(--border-default);
-  border-radius: 8px;
-  background: var(--bg-1);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
 }
-.eyebrow { color: var(--text-tertiary); font-size: var(--font-size-xs); font-weight: 700; }
-h1 { margin-top: 4px; color: var(--text-primary); font-size: var(--font-size-2xl); }
-.page-head p { margin-top: 6px; color: var(--text-secondary); font-size: var(--font-size-sm); }
-.action-link {
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--accent-border);
-  background: var(--accent-soft);
-  color: var(--accent-hover);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-}
+.eyebrow { color: var(--text-tertiary); font-size: var(--font-size-xs); line-height: var(--leading-xs); font-weight: 700; }
+h1 { margin-top: var(--space-1); color: var(--text-primary); font-size: var(--font-size-2xl); line-height: var(--leading-2xl); }
+.page-head p { margin-top: var(--space-1); color: var(--text-secondary); font-size: var(--font-size-sm); line-height: var(--leading-sm); }
 .loading-bar,
 .notice-bar {
   padding: var(--space-3) var(--space-4);
   margin-bottom: var(--space-4);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
 }
-.loading-bar { border: 1px solid var(--border-subtle); background: var(--bg-2); color: var(--text-tertiary); }
-.notice-bar { border: 1px solid rgba(234, 179, 8, 0.25); background: var(--warning-soft); color: var(--warning); }
+.loading-bar { border: 1px solid var(--border-subtle); background: var(--bg-subtle); color: var(--text-tertiary); }
+.notice-bar { border: 1px solid var(--warning-border); background: var(--warning-soft); color: var(--warning); }
 .bom-summary-bar {
   display: flex;
   gap: var(--space-3);
@@ -217,16 +232,16 @@ h1 { margin-top: 4px; color: var(--text-primary); font-size: var(--font-size-2xl
   flex: 1;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-default);
-  border-radius: 8px;
-  background: var(--bg-1);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
 }
-.summary-stat b { display: block; color: var(--text-primary); font-size: var(--font-size-xl); }
-.summary-stat span { color: var(--text-tertiary); font-size: var(--font-size-xs); }
+.summary-stat b { display: block; color: var(--text-primary); font-size: var(--font-size-xl); line-height: var(--leading-xl); font-family: var(--font-mono); }
+.summary-stat span { color: var(--text-tertiary); font-size: var(--font-size-xs); line-height: var(--leading-xs); }
 .product-stack { display: grid; gap: var(--space-4); }
 .product-section {
   border: 1px solid var(--border-default);
-  border-radius: 8px;
-  background: var(--bg-1);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
   overflow: hidden;
 }
 .product-head {
@@ -239,22 +254,23 @@ h1 { margin-top: 4px; color: var(--text-primary); font-size: var(--font-size-2xl
   background: none;
   cursor: pointer;
   text-align: left;
-  transition: background var(--transition-fast);
+  transition: background-color var(--transition-fast);
 }
-.product-head:hover { background: var(--bg-2); }
+.product-head:hover { background: var(--bg-subtle); }
 .product-head__info { min-width: 0; }
-.product-head h2 { color: var(--text-primary); font-size: var(--font-size-lg); }
-.product-head p { margin-top: 4px; color: var(--text-tertiary); font-size: var(--font-size-sm); }
+.product-head h2 { color: var(--text-primary); font-size: var(--font-size-lg); line-height: var(--leading-lg); }
+.product-head p { margin-top: var(--space-1); color: var(--text-tertiary); font-size: var(--font-size-sm); line-height: var(--leading-sm); }
 .product-head__right { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; }
 .status-pill {
-  padding: 2px 8px;
-  border-radius: 999px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   font-weight: 600;
 }
 .status-pill--ok { color: var(--success); background: var(--success-soft); }
 .status-pill--risk { color: var(--danger); background: var(--danger-soft); }
-.expand-icon { color: var(--text-tertiary); font-size: var(--font-size-md); }
+.expand-icon { color: var(--text-tertiary); font-size: var(--font-size-md); line-height: var(--leading-md); }
 .bom-table-wrap { border-top: 1px solid var(--border-subtle); }
 .bom-table { overflow-x: auto; }
 .bom-row {
@@ -263,32 +279,45 @@ h1 { margin-top: 4px; color: var(--text-primary); font-size: var(--font-size-2xl
   gap: var(--space-3);
   align-items: center;
   min-width: 780px;
-  padding: 11px var(--space-4);
+  padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
 }
 .bom-row:last-child { border-bottom: 0; }
 .bom-row--head {
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
-  background: rgba(255, 255, 255, 0.02);
+  line-height: var(--leading-xs);
+  background: var(--bg-subtle);
+}
+.bom-row--num { text-align: right; }
+.bom-row--cell { text-align: right; font-family: var(--font-mono); }
+.bom-truncate {
+  padding: var(--space-2) var(--space-4);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
+  text-align: center;
+  border-top: 1px solid var(--border-subtle);
 }
 .strong { color: var(--text-primary); font-weight: 600; }
 .mono { font-family: var(--font-mono); font-size: var(--font-size-xs); }
 .loading-line,
-.empty-line { padding: var(--space-4); color: var(--text-tertiary); font-size: var(--font-size-sm); text-align: center; }
+.empty-line { padding: var(--space-4); color: var(--text-tertiary); font-size: var(--font-size-sm); line-height: var(--leading-sm); text-align: center; }
 .sev {
   display: inline-flex;
   justify-content: center;
   min-width: 34px;
-  padding: 2px 7px;
-  border-radius: 999px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   border: 1px solid var(--border-subtle);
 }
-.sev--high { color: var(--danger); background: var(--danger-soft); border-color: rgba(239, 68, 68, 0.35); }
-.sev--low { color: var(--success); background: var(--success-soft); border-color: rgba(34, 197, 94, 0.35); }
+.sev--high { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-border); }
+.sev--low { color: var(--success); background: var(--success-soft); border-color: var(--success-border); }
 @media (max-width: 700px) {
   .page { padding: var(--space-3); }
   .page-head { flex-direction: column; }

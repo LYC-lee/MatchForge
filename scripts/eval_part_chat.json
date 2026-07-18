@@ -1,0 +1,27 @@
+{
+  "summary": {
+    "total": 1,
+    "accuracy": 0,
+    "refusal_correctness": 0,
+    "hallucination_block": 0,
+    "overall_pass_rate": 1.0,
+    "by_category": {
+      "chat": {
+        "total": 1,
+        "passed": 1
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "eval-030",
+      "category": "chat",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "reply_len": 17
+      },
+      "query": "你好"
+    }
+  ]
+}

@@ -73,24 +73,24 @@ function scoreLabel(score: number): string {
 }
 
 .citations__chip {
-  padding: 1px 6px;
+  padding: var(--space-1) var(--space-2);
   font-size: var(--font-size-xs);
   font-family: var(--font-mono);
-  line-height: 1.6;
+  line-height: var(--leading-xs);
   color: var(--text-tertiary);
   background: transparent;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
 }
 .citations__chip:hover {
-  color: var(--accent-hover);
+  color: var(--accent-text);
   border-color: var(--accent-border);
   background: var(--accent-soft);
 }
 .citations__chip--active {
-  color: var(--accent-hover);
+  color: var(--accent-text);
   border-color: var(--accent-border);
   background: var(--accent-soft);
 }
@@ -98,7 +98,7 @@ function scoreLabel(score: number): string {
 .citations__detail {
   margin-top: var(--space-2);
   padding: var(--space-3);
-  background: var(--bg-1);
+  background: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   animation: citeFadeIn 0.15s ease;
@@ -115,11 +115,12 @@ function scoreLabel(score: number): string {
   gap: var(--space-2);
   margin-bottom: var(--space-2);
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
 }
 .citations__doc {
-  padding: 1px 6px;
+  padding: var(--space-1) var(--space-2);
   color: var(--text-secondary);
-  background: var(--bg-3);
+  background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
 }
@@ -135,7 +136,7 @@ function scoreLabel(score: number): string {
 
 .citations__excerpt {
   font-size: var(--font-size-sm);
-  line-height: 1.7;
+  line-height: var(--leading-sm);
   color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
@@ -144,6 +145,7 @@ function scoreLabel(score: number): string {
 
 .citations__uid {
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   color: var(--text-tertiary);
   opacity: 0.8;
   word-break: break-all;

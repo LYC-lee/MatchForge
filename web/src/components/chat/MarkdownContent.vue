@@ -143,21 +143,24 @@ onBeforeUnmount(() => clearTimeout(timer))
   margin: var(--space-4) 0 var(--space-2);
   color: var(--text-primary);
   font-weight: 700;
-  line-height: 1.4;
 }
 .markdown-body :deep(h1) {
   font-size: var(--font-size-lg);
+  line-height: var(--leading-lg);
   padding-bottom: var(--space-1);
   border-bottom: 1px solid var(--border-subtle);
 }
 .markdown-body :deep(h2) {
   font-size: var(--font-size-md);
+  line-height: var(--leading-md);
 }
 .markdown-body :deep(h3) {
   font-size: var(--font-size-base);
+  line-height: var(--leading-base);
 }
 .markdown-body :deep(h4) {
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
 }
 
 /* ===== 段落与列表 ===== */
@@ -197,12 +200,12 @@ onBeforeUnmount(() => clearTimeout(timer))
   white-space: nowrap;
 }
 .markdown-body :deep(th) {
-  background: var(--bg-3);
+  background: var(--bg-subtle);
   color: var(--text-primary);
   font-weight: 600;
 }
 .markdown-body :deep(tbody tr:nth-child(even)) {
-  background: var(--bg-1);
+  background: var(--bg-subtle);
 }
 .markdown-body :deep(tbody tr:last-child td) {
   border-bottom: none;
@@ -212,7 +215,7 @@ onBeforeUnmount(() => clearTimeout(timer))
 .markdown-body :deep(pre) {
   margin: 0 0 var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: var(--bg-0);
+  background: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   overflow-x: auto;
@@ -220,7 +223,7 @@ onBeforeUnmount(() => clearTimeout(timer))
 .markdown-body :deep(pre code) {
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
-  line-height: 1.6;
+  line-height: var(--leading-sm);
   color: var(--text-secondary);
   background: transparent;
   padding: 0;
@@ -228,9 +231,9 @@ onBeforeUnmount(() => clearTimeout(timer))
 .markdown-body :deep(code) {
   font-family: var(--font-mono);
   font-size: 0.9em;
-  background: var(--bg-3);
+  background: var(--bg-subtle);
   border-radius: var(--radius-sm);
-  padding: 2px 5px;
+  padding: var(--space-1) var(--space-1);
 }
 
 /* ===== 引用块 ===== */
@@ -246,7 +249,7 @@ onBeforeUnmount(() => clearTimeout(timer))
 
 /* ===== 链接 / 分隔线 / 强调 ===== */
 .markdown-body :deep(a) {
-  color: var(--accent-hover);
+  color: var(--accent-text);
   text-decoration: none;
 }
 .markdown-body :deep(a:hover) {
@@ -269,7 +272,7 @@ onBeforeUnmount(() => clearTimeout(timer))
 .markdown-body :deep(.hljs-keyword),
 .markdown-body :deep(.hljs-selector-tag),
 .markdown-body :deep(.hljs-built_in) {
-  color: var(--accent-hover);
+  color: var(--accent-text);
 }
 .markdown-body :deep(.hljs-string),
 .markdown-body :deep(.hljs-regexp) {

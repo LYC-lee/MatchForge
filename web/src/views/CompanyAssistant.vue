@@ -4,21 +4,22 @@ import { chatAsk } from '@/api/enterprise'
 import { mapRetrievedToCitations } from '@/api/kb'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 import { useProgressiveReveal } from '@/composables/useProgressiveReveal'
-import MarkdownContent from '@/components/chat/MarkdownContent.vue'
-import CitationList from '@/components/chat/CitationList.vue'
-import type { Citation } from '@/types/procure'
+import ChatMessage, { type ChatMessageData } from '@/components/chat/ChatMessage.vue'
+import ChatInput from '@/components/chat/ChatInput.vue'
 
 const { current, currentEnterpriseId } = useEnterpriseContext()
 const query = ref('')
 const sending = ref(false)
 const chatBody = ref<HTMLElement | null>(null)
-const messages = ref<{ role: 'user' | 'assistant'; content: string; source?: 'api' | 'error'; citations?: Citation[]; streaming?: boolean }[]>([])
+const messages = ref<ChatMessageData[]>([])
+let msgId = 0
+function uid() { return `ca-${++msgId}` }
 
 // kb 问答接口暂无流式后端,完整答案到达后客户端渐进式 reveal (过渡方案,见 useProgressiveReveal)
 const { revealing, start: startReveal, stop: stopReveal } = useProgressiveReveal()
 /** 渐进式 reveal 的文本目标,绑定到最后一条 assistant 消息 */
 const revealText = ref('')
-let revealMsg: { content: string; streaming?: boolean } | null = null
+let revealMsg: ChatMessageData | null = null
 const busy = computed(() => sending.value || revealing.value)
 
 const quickQuestions = computed(() => [
@@ -28,42 +29,64 @@ const quickQuestions = computed(() => [
   `${current.value.company.name} 的人事入职流程是什么？`,
 ])
 
+// 切换企业后清空旧会话：避免上一企业的问答残留串到下一企业
+watch(currentEnterpriseId, () => {
+  stopRevealing()
+  messages.value = []
+})
+
 async function send(q?: string) {
   const text = (q ?? query.value).trim()
+  // 快照发送时的企业：在途响应按快照归属
+  const enterpriseId = currentEnterpriseId.value
   if (!text || busy.value) return
   query.value = ''
-  messages.value.push({ role: 'user', content: text })
+  messages.value.push({ id: uid(), role: 'user', content: text, timestamp: Date.now() })
   sending.value = true
-  await scrollBottom()
+  await scrollBottom(true)
 
   try {
-    const res = await chatAsk(currentEnterpriseId.value, text)
+    const res = await chatAsk(enterpriseId, text)
+    // 响应返回时企业已切换：丢弃，避免串会话
+    if (currentEnterpriseId.value !== enterpriseId) return
     const answer = res.data?.answer || res.data?.response || res.data?.message
     // 引用回显: 答案附带的 retrieved 检索片段 → Citation[](契约 C2)
-    const citations = mapRetrievedToCitations(res.data?.retrieved, currentEnterpriseId.value)
-    const msg = {
-      role: 'assistant' as const,
+    const citations = mapRetrievedToCitations(res.data?.retrieved, enterpriseId)
+    const msg: ChatMessageData = {
+      id: uid(),
+      role: 'assistant',
       content: '',
-      source: (answer ? 'api' : 'error') as 'api' | 'error',
+      resultType: answer ? undefined : 'error',
       citations: citations.length ? citations : undefined,
       streaming: true,
+      timestamp: Date.now(),
     }
     messages.value.push(msg)
     revealMsg = msg
     // 渐进式 reveal: 逐帧写入 revealText → msg.content,期间显示光标
     await startReveal(revealText, answer || '企业知识库暂未返回答案，请换个问法再试。')
     msg.streaming = false
+    if (!answer) msg.content = '企业知识库暂未返回答案，请换个问法再试。'
     revealMsg = null
   } catch {
+    if (currentEnterpriseId.value !== enterpriseId) return
     messages.value.push({
+      id: uid(),
       role: 'assistant',
       content: '当前无法连接企业知识库，请确认后端 RAG 服务、向量库和认证状态是否正常。',
-      source: 'error',
+      resultType: 'error',
+      timestamp: Date.now(),
     })
   } finally {
     sending.value = false
     await scrollBottom()
   }
+}
+
+/** 重试 / 重新生成：重发最后一条用户消息 */
+function retryLast() {
+  const lastUser = [...messages.value].reverse().find((m) => m.role === 'user')
+  if (lastUser) send(lastUser.content)
 }
 
 /** 停止渐进式展示: 保留已 reveal 的部分文本,光标消失,输入框恢复 */
@@ -85,9 +108,17 @@ watch(revealText, async (text) => {
 
 onUnmounted(() => stopReveal())
 
-async function scrollBottom() {
+// ── 自动滚动：用户上翻时不强制拉回；自己发消息时强制到底 ──
+const stickToBottom = ref(true)
+function onChatScroll() {
+  const el = chatBody.value
+  if (!el) return
+  stickToBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+}
+async function scrollBottom(force = false) {
   await nextTick()
-  if (chatBody.value) chatBody.value.scrollTop = chatBody.value.scrollHeight
+  const el = chatBody.value
+  if (el && (force || stickToBottom.value)) el.scrollTop = el.scrollHeight
 }
 </script>
 
@@ -120,44 +151,43 @@ async function scrollBottom() {
         </div>
       </header>
 
-      <div class="chat-body" ref="chatBody">
+      <div class="chat-body" ref="chatBody" role="log" aria-live="polite" @scroll.passive="onChatScroll">
         <div v-if="!messages.length" class="chat-empty">
           <p>我是 {{ current.company.name }} 的内部 AI 助手，基于企业私域知识库回答问题。</p>
           <div class="quick-questions">
             <button v-for="item in quickQuestions" :key="item" class="chip" @click="send(item)">{{ item }}</button>
           </div>
         </div>
-        <div v-for="(message, index) in messages" :key="index" class="msg" :class="`msg--${message.role}`">
-          <div class="msg__avatar">{{ message.role === 'user' ? '我' : 'AI' }}</div>
-          <div class="msg__wrapper">
-            <div class="msg__content" :class="{ 'msg__content--md': message.role === 'assistant' }">
-              <MarkdownContent v-if="message.role === 'assistant'" :content="message.content" :streaming="message.streaming" />
-              <template v-else>{{ message.content }}</template>
-              <span v-if="message.streaming" class="msg__cursor">▌</span>
-              <template v-if="!message.streaming">
-                <span v-if="message.source === 'api' && !message.citations?.length" class="msg__source msg__source--api">RAG</span>
-                <span v-else-if="message.source === 'error'" class="msg__source">未生成</span>
-              </template>
-            </div>
-            <CitationList
-              v-if="message.role === 'assistant' && !message.streaming && message.citations?.length"
-              class="msg__citations"
-              :citations="message.citations"
-            />
-          </div>
-        </div>
-        <div v-if="sending" class="msg msg--assistant">
-          <div class="msg__avatar">AI</div>
-          <div class="msg__wrapper">
-            <div class="msg__content muted">正在检索企业私域知识...</div>
-          </div>
-        </div>
+        <ChatMessage
+          v-for="message in messages"
+          :key="message.id"
+          :message="message"
+          @retry="retryLast"
+          @regenerate="retryLast"
+        />
+        <ChatMessage
+          v-if="sending"
+          :message="{ id: '__pending', role: 'assistant', content: '正在检索企业私域知识…', resultType: 'progress' }"
+        />
       </div>
 
-      <div class="chat-input">
-        <input v-model="query" class="input" placeholder="向当前企业内部 AI 助手提问..." :disabled="busy" @keydown.enter="send()" />
-        <button v-if="revealing" class="btn-send btn-send--stop" @click="stopRevealing"><span class="stop-icon" />停止</button>
-        <button v-else class="btn-send" :disabled="busy || !query.trim()" @click="send()">{{ sending ? '发送中…' : '发送' }}</button>
+      <div class="chat-input-bar">
+        <ChatInput
+          v-model="query"
+          :busy="busy"
+          placeholder="向当前企业内部 AI 助手提问…"
+          menu-label="常用问题"
+          @send="send()"
+          @stop="stopRevealing"
+        >
+          <template #menu>
+            <p class="chat-menu-title">常用问题</p>
+            <button v-for="item in quickQuestions" :key="item" type="button" class="chat-menu-item" @click="send(item)">
+              {{ item }}
+            </button>
+          </template>
+        </ChatInput>
+        <p class="chat-hint">Enter 发送 · Shift+Enter 换行</p>
       </div>
     </section>
   </div>
@@ -165,163 +195,135 @@ async function scrollBottom() {
 
 <style scoped>
 .assistant-page {
+  --chat-col: 800px;
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
   gap: var(--space-4);
-  height: calc(100vh - 56px);
+  height: calc(100vh - var(--header-h));
   padding: var(--space-5);
 }
 .scope-panel,
 .chat-panel {
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: #10131b;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
 }
-.scope-panel { padding: var(--space-4); }
-.eyebrow { color: #aab3c4; font-size: var(--font-size-xs); font-weight: 700; }
-.scope-panel h2 { color: var(--text-primary); font-size: var(--font-size-xl); margin-top: 6px; }
-.scope-panel p { color: #c7cfdd; font-size: var(--font-size-sm); margin-top: 6px; line-height: 1.6; }
-.scope-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.scope-panel {
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+.eyebrow {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
+  font-weight: 700;
+}
+.scope-panel h2 {
+  color: var(--text-primary);
+  font-size: var(--font-size-xl);
+  line-height: var(--leading-xl);
+  margin-top: var(--space-2);
+}
+.scope-panel p {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
+  margin-top: var(--space-2);
+}
+.scope-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
 .scope-list span,
 .chip {
   border: 1px solid var(--border-default);
-  background: #171b26;
-  color: #d8deea;
-  border-radius: 999px;
-  padding: 5px 9px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
 }
 .boundary {
   margin-top: var(--space-4);
   padding: var(--space-3);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--accent-border);
   background: var(--accent-soft);
-  color: #d8deea;
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
-  line-height: 1.6;
+  line-height: var(--leading-xs);
 }
-.chat-panel { display: flex; flex-direction: column; overflow: hidden; }
-.chat-header { padding: var(--space-4); border-bottom: 1px solid var(--border-default); }
-.chat-header h1 { color: var(--text-primary); font-size: var(--font-size-xl); margin-top: 4px; }
-.chat-body { flex: 1; overflow-y: auto; padding: var(--space-4); }
-.chat-empty { color: #d2d8e4; font-size: var(--font-size-sm); }
-.quick-questions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
-.chip { cursor: pointer; }
-.chip:hover { border-color: var(--accent-border); color: var(--text-primary); }
-.msg { display: flex; gap: var(--space-3); margin-bottom: var(--space-3); }
-.msg--user { flex-direction: row-reverse; }
-.msg--user .msg__wrapper { align-items: flex-end; }
-.msg__avatar {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-3);
-  color: #d8deea;
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-}
-.msg--user .msg__avatar { color: #fff; background: var(--gradient-accent); }
-.msg__wrapper {
+.chat-panel {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  max-width: 640px;
+  overflow: hidden;
 }
-.msg__content {
-  padding: var(--space-3);
-  border-radius: 8px;
-  background: var(--bg-2);
-  border: 1px solid var(--border-default);
+.chat-header {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.chat-header h1 {
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  line-height: 1.7;
-  white-space: pre-wrap;
-}
-.msg--user .msg__content {
-  background: var(--accent-soft);
-  border-color: var(--accent-border);
-  border-radius: 8px 8px 0 8px;
-}
-.msg--assistant .msg__content {
-  border-radius: 8px 8px 8px 0;
-}
-/* Markdown 内容自行管理换行,不再保留 pre-wrap */
-.msg__content--md {
-  white-space: normal;
-}
-.muted { color: #aeb7c8; }
-.msg__citations {
+  font-size: var(--font-size-xl);
+  line-height: var(--leading-xl);
   margin-top: var(--space-1);
-  padding: 0 var(--space-1);
-  max-width: 640px;
 }
-.msg__source {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--warning);
-  background: var(--warning-soft);
-  border: 1px solid rgba(234, 179, 8, 0.3);
-  vertical-align: middle;
-}
-.msg__source--api { color: var(--success); background: var(--success-soft); border-color: rgba(34, 197, 94, 0.3); }
-.chat-input {
-  display: flex;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border-top: 1px solid var(--border-default);
-}
-.input {
+.chat-body {
   flex: 1;
-  min-width: 0;
-  background: var(--bg-2);
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  padding: 10px 12px;
-  color: var(--text-primary);
+  overflow-y: auto;
+  padding: var(--space-4) 0;
+}
+.chat-empty {
+  max-width: var(--chat-col);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
+  text-align: center;
 }
-.input::placeholder { color: #9fa8ba; }
-.input:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-send {
-  padding: 0 18px;
-  border-radius: 6px;
-  background: var(--gradient-accent);
-  color: #fff;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+.quick-questions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+  margin-top: var(--space-4);
 }
-.btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
-/* 流式光标 (与 ChatView / CompanyChat 一致) */
-.msg__cursor {
-  animation: blink 0.8s step-end infinite;
-  color: var(--accent);
+.chip {
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
 }
-@keyframes blink {
-  50% { opacity: 0; }
+.chip:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  background: var(--accent-soft);
 }
-/* 停止键 (与 ChatView 一致: 方形图标) */
-.btn-send--stop {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.chat-input-bar {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
 }
-.stop-icon {
-  display: block;
-  width: 10px;
-  height: 10px;
-  background: #fff;
-  border-radius: 2px;
+.chat-input-bar :deep(.chat-input) {
+  max-width: var(--chat-col);
+  margin: 0 auto;
+}
+.chat-hint {
+  max-width: var(--chat-col);
+  margin: var(--space-2) auto 0;
+  text-align: center;
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-tertiary);
 }
 @media (max-width: 920px) {
-  .assistant-page { grid-template-columns: 1fr; height: auto; }
+  .assistant-page {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .chat-panel {
+    min-height: 60vh;
+  }
 }
 </style>

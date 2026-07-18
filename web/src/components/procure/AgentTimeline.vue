@@ -4,11 +4,11 @@ import type { AgentName, AgentState } from '@/types/procure'
 
 const props = withDefaults(defineProps<{
   agents: AgentState[]
-  alternativesCount?: number
-  suppliersCount?: number
   /** false 时冻结展示(历史沉淀), 不启动实时计时器 */
   live?: boolean
-}>(), { live: true, alternativesCount: 0, suppliersCount: 0 })
+  /** 断流错误：设置后运行中的 Agent 降级为错误态节点（不再永久 spinner） */
+  streamError?: string | null
+}>(), { live: true, streamError: null })
 
 const LABELS: Record<AgentName, string> = {
   parse: '需求解析',
@@ -87,8 +87,18 @@ function statusIcon(status: AgentState['status']): string {
   }
 }
 
+// 断流降级：streamError 存在时，运行中的 Agent 视为错误节点（避免永久 spinner）
+const displayAgents = computed<AgentState[]>(() => {
+  if (!props.streamError) return props.agents
+  return props.agents.map((a) =>
+    a.status === 'running'
+      ? { ...a, status: 'error' as const, message: props.streamError!, endedAt: a.endedAt || Date.now() }
+      : a,
+  )
+})
+
 const items = computed(() =>
-  props.agents.map((a, i) => ({
+  displayAgents.value.map((a, i) => ({
     ...a,
     label: LABELS[a.name],
     desc: DESC[a.name],
@@ -96,15 +106,15 @@ const items = computed(() =>
     elapsed: elapsed(a),
     statusText: statusLabel(a.status),
     statusIcon: statusIcon(a.status),
-    isLast: i === props.agents.length - 1,
+    isLast: i === displayAgents.value.length - 1,
   })),
 )
 
 // 进度统计
-const completedCount = computed(() => props.agents.filter((a) => a.status === 'done').length)
-const totalCount = computed(() => props.agents.length)
+const completedCount = computed(() => displayAgents.value.filter((a) => a.status === 'done').length)
+const totalCount = computed(() => displayAgents.value.length)
 const isComplete = computed(() => completedCount.value === totalCount.value)
-const hasError = computed(() => props.agents.some((a) => a.status === 'error'))
+const hasError = computed(() => displayAgents.value.some((a) => a.status === 'error'))
 </script>
 
 <template>
@@ -179,20 +189,20 @@ const hasError = computed(() => props.agents.some((a) => a.status === 'error'))
   gap: var(--space-3);
   margin-bottom: var(--space-4);
   padding: var(--space-3);
-  background: var(--bg-2);
+  background: var(--bg-subtle);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
 }
 .tl__summary-bar {
   flex: 1;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--bg-3);
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--border-subtle);
   overflow: hidden;
 }
 .tl__summary-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--radius-full);
   background: var(--accent);
   transition: width 0.5s ease;
 }
@@ -200,6 +210,7 @@ const hasError = computed(() => props.agents.some((a) => a.status === 'error'))
 .tl__summary-fill.error { background: var(--warning); }
 .tl__summary-text {
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   color: var(--text-tertiary);
   white-space: nowrap;
 }
@@ -216,13 +227,14 @@ const hasError = computed(() => props.agents.some((a) => a.status === 'error'))
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 20px;
+  width: var(--space-5);
   flex-shrink: 0;
-  padding-top: 2px;
+  padding-top: var(--space-1);
 }
+/* Cursor 式：低饱和语义色圆点 */
 .tl__dot {
-  width: 20px;
-  height: 20px;
+  width: var(--space-5);
+  height: var(--space-5);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -232,7 +244,7 @@ const hasError = computed(() => props.agents.some((a) => a.status === 'error'))
 }
 .tl__dot--pending {
   border: 2px solid var(--border-strong);
-  background: var(--bg-1);
+  background: var(--bg-surface);
 }
 .tl__dot--running {
   border: 2px solid var(--accent);
@@ -247,17 +259,17 @@ const hasError = computed(() => props.agents.some((a) => a.status === 'error'))
   background: var(--danger);
 }
 .tl__dot-icon {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
-  color: #fff;
+  color: var(--on-accent);
 }
 .tl__dot--pending .tl__dot-icon {
   color: var(--text-tertiary);
-  font-size: 8px;
+  font-size: var(--font-size-xs);
 }
 .tl__spinner {
-  width: 10px;
-  height: 10px;
+  width: var(--space-2);
+  height: var(--space-2);
   border: 2px solid var(--accent-soft);
   border-top-color: var(--accent);
   border-radius: 50%;
@@ -269,8 +281,8 @@ const hasError = computed(() => props.agents.some((a) => a.status === 'error'))
   width: 2px;
   flex: 1;
   background: var(--border-subtle);
-  margin-top: 4px;
-  min-height: 20px;
+  margin-top: var(--space-1);
+  min-height: var(--space-5);
   transition: background var(--transition-fast);
 }
 .tl__line--done { background: var(--success-soft); }
@@ -283,34 +295,38 @@ const hasError = computed(() => props.agents.some((a) => a.status === 'error'))
   align-items: center;
   gap: var(--space-2);
 }
-.tl__icon { font-size: 14px; }
+.tl__icon { font-size: var(--font-size-sm); }
 .tl__label {
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
   font-weight: 600;
   color: var(--text-primary);
 }
 .tl__elapsed {
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   font-family: var(--font-mono);
   color: var(--text-tertiary);
 }
-.tl__elapsed.running { color: var(--accent-hover); }
+.tl__elapsed.running { color: var(--accent-text); }
 .tl__badge {
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
   font-weight: 600;
   margin-left: auto;
 }
-.tl__badge--pending { color: var(--text-tertiary); background: var(--bg-3); }
-.tl__badge--running { color: var(--accent-hover); background: var(--accent-soft); }
+.tl__badge--pending { color: var(--text-tertiary); background: var(--bg-subtle); }
+.tl__badge--running { color: var(--accent-text); background: var(--accent-soft); }
 .tl__badge--done { color: var(--success); background: var(--success-soft); }
 .tl__badge--error { color: var(--danger); background: var(--danger-soft); }
 
 .tl__desc {
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   color: var(--text-tertiary);
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 
 /* 运行中提示 */
@@ -318,13 +334,14 @@ const hasError = computed(() => props.agents.some((a) => a.status === 'error'))
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-top: 4px;
+  margin-top: var(--space-1);
   font-size: var(--font-size-xs);
-  color: var(--accent-hover);
+  line-height: var(--leading-xs);
+  color: var(--accent-text);
 }
 .tl__running-dot {
-  width: 6px;
-  height: 6px;
+  width: var(--space-1);
+  height: var(--space-1);
   border-radius: 50%;
   background: var(--accent);
   animation: pulse 1s ease-in-out infinite;
@@ -336,10 +353,12 @@ const hasError = computed(() => props.agents.some((a) => a.status === 'error'))
 
 .tl__msg {
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   color: var(--danger);
-  margin-top: 4px;
+  margin-top: var(--space-1);
   padding: var(--space-2);
   background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
   border-radius: var(--radius-sm);
 }
 </style>

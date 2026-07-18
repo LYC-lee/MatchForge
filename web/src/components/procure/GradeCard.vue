@@ -35,13 +35,15 @@ defineProps<{
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: var(--bg-2);
+  background: var(--bg-surface);
 }
 .grade-card__head {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
   font-weight: 600;
+  color: var(--text-secondary);
 }
 .grade-card__body { padding: var(--space-4); }
 .grade-card__main {
@@ -51,12 +53,13 @@ defineProps<{
   margin-bottom: var(--space-3);
 }
 .grade-letter {
-  width: 40px;
-  height: 40px;
+  width: var(--space-6);
+  height: var(--space-6);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
+  line-height: var(--leading-lg);
   font-weight: 700;
   border-radius: var(--radius-md);
   font-family: var(--font-mono);
@@ -66,12 +69,14 @@ defineProps<{
 .grade-D { color: var(--danger); background: var(--danger-soft); }
 .grade-score {
   font-size: var(--font-size-md);
+  line-height: var(--leading-md);
   color: var(--text-secondary);
   font-family: var(--font-mono);
 }
 .grade-card__reasons { display: flex; flex-direction: column; gap: var(--space-2); }
 .grade-card__reasons li {
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
   color: var(--text-secondary);
   padding-left: var(--space-4);
   position: relative;

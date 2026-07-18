@@ -1,0 +1,61 @@
+{
+  "summary": {
+    "total": 4,
+    "accuracy": 0,
+    "refusal_correctness": 1.0,
+    "hallucination_block": 0,
+    "overall_pass_rate": 1.0,
+    "by_category": {
+      "kb_refusal": {
+        "total": 4,
+        "passed": 4
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "eval-026",
+      "category": "kb_refusal",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "refused": true,
+        "no_fabrication": true
+      },
+      "query": "村田的GPU显存容量是多少GB"
+    },
+    {
+      "id": "eval-027",
+      "category": "kb_refusal",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "refused": true,
+        "no_fabrication": true
+      },
+      "query": "村田的SaaS平台怎么收费"
+    },
+    {
+      "id": "eval-028",
+      "category": "kb_refusal",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "refused": true,
+        "no_fabrication": true
+      },
+      "query": "村田的DRAM产品型号有哪些"
+    },
+    {
+      "id": "eval-029",
+      "category": "kb_refusal",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "refused": true,
+        "no_fabrication": true
+      },
+      "query": "村田的汽车发动机产能"
+    }
+  ]
+}

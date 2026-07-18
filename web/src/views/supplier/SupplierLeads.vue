@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { useEnterpriseContext } from '@/composables/useEnterpriseContext'
 import { onDemoRefresh } from '@/composables/useDemoRefresh'
 import {
@@ -11,6 +11,8 @@ import {
 } from '@/api/enterprise'
 import { useDemo } from '@/composables/useDemo'
 import AppButton from '@/components/ui/AppButton.vue'
+import Tag from '@/components/ui/Tag.vue'
+import { leadStatusLabel, leadTagType } from '@/data/leadStatus'
 
 const { current, currentEnterpriseId } = useEnterpriseContext()
 const demo = useDemo()
@@ -112,37 +114,61 @@ const stats = computed(() => {
 })
 
 function statusLabel(s: string) {
-  const map: Record<string, string> = {
-    pending: '待发送', sent: '新线索', viewed: '已查看', quoted: '已报价', declined: '已关闭',
-  }
-  return map[s] || s
+  return leadStatusLabel(s)
 }
 
-function statusClass(s: string) {
-  const map: Record<string, string> = {
-    pending: 'tag-gray', sent: 'tag-blue', viewed: 'tag-yellow', quoted: 'tag-green', declined: 'tag-gray',
-  }
-  return map[s] || 'tag-gray'
+function statusTagType(s: string) {
+  return leadTagType(s)
 }
+
+// 失败提示 toast（替代静默 catch）
+const toast = ref('')
+let toastTimer: ReturnType<typeof setTimeout> | undefined
+function showToast(msg: string) {
+  toast.value = msg
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value = '' }, 3000)
+}
+onUnmounted(() => clearTimeout(toastTimer))
 
 async function handleView(lead: SupplierLead) {
   if (isDemo.value) return // demo 模式只读, 无需标记查看
   try {
     await viewLead(lead.id)
     await fetchLeads(currentEnterpriseId.value)
-  } catch {
-    // 静默失败
+  } catch (e: any) {
+    showToast(e?.message || '标记查看失败，请稍后重试')
   }
 }
 
-async function handleDecline(lead: SupplierLead) {
-  if (isDemo.value) return // demo 模式只读
-  const note = prompt('拒绝理由（可选）:')
+// 拒绝：自定义弹层 + 内嵌理由输入（替代原生 prompt）
+const declineTarget = ref<SupplierLead | null>(null)
+const declineNote = ref('')
+const declineNoteInput = ref<HTMLTextAreaElement | null>(null)
+const declining = ref(false)
+function startDecline(lead: SupplierLead) {
+  if (isDemo.value) return
+  declineTarget.value = lead
+  declineNote.value = ''
+  nextTick(() => declineNoteInput.value?.focus())
+}
+function closeDecline() {
+  if (declining.value) return
+  declineTarget.value = null
+  declineNote.value = ''
+}
+async function confirmDecline() {
+  if (!declineTarget.value) return
+  declining.value = true
   try {
-    await declineLead(lead.id, note || undefined)
+    await declineLead(declineTarget.value.id, declineNote.value || undefined)
+    declineTarget.value = null
+    declineNote.value = ''
     await fetchLeads(currentEnterpriseId.value)
-  } catch {
-    // 静默失败
+  } catch (e: any) {
+    showToast(e?.message || '拒绝失败，请稍后重试')
+  } finally {
+    declining.value = false
   }
 }
 
@@ -157,6 +183,13 @@ function openQuote(lead: SupplierLead) {
     note: '',
   }
   submitError.value = null
+  nextTick(() => quoteFirstInput.value?.focus())
+}
+
+const quoteFirstInput = ref<HTMLInputElement | null>(null)
+
+function closeQuote() {
+  quoteLead.value = null
 }
 
 async function submitQuote() {
@@ -236,7 +269,7 @@ async function submitQuote() {
               <div class="lead-card__spec mono">{{ lead.rfq_number }} · {{ lead.part_name || lead.part_number || '未指定零件' }}</div>
             </div>
             <div class="lead-card__badges">
-              <span class="tag" :class="statusClass(lead.status)">{{ statusLabel(lead.status) }}</span>
+              <Tag :type="statusTagType(lead.status)" :value="statusLabel(lead.status)" />
             </div>
           </div>
 
@@ -253,8 +286,8 @@ async function submitQuote() {
 
           <div class="lead-card__actions">
             <AppButton v-if="!isDemo && (lead.status === 'sent' || lead.status === 'pending')" variant="ghost" size="sm" @click="handleView(lead)">标记已查看</AppButton>
-            <AppButton v-if="!isDemo && lead.status !== 'quoted' && lead.status !== 'declined'" variant="danger" size="sm" @click="handleDecline(lead)">拒绝</AppButton>
-            <AppButton v-if="!isDemo && lead.status !== 'declined' && lead.status !== 'quoted'" variant="primary" size="sm" @click="openQuote(lead)">提交报价</AppButton>
+            <AppButton v-if="!isDemo && lead.status !== 'quoted' && lead.status !== 'declined'" variant="danger" size="sm" @click="startDecline(lead)">拒绝</AppButton>
+            <AppButton v-if="!isDemo && lead.status !== 'declined' && lead.status !== 'quoted'" size="sm" @click="openQuote(lead)">提交报价</AppButton>
             <span v-if="lead.status === 'quoted'" class="quoted-tag">已报价</span>
           </div>
         </div>
@@ -262,11 +295,17 @@ async function submitQuote() {
     </template>
 
     <!-- 报价弹层 -->
-    <div v-if="quoteLead" class="modal-overlay" @click.self="quoteLead = null">
-      <div class="modal">
+    <div v-if="quoteLead" class="modal-overlay" @click.self="closeQuote">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quote-modal-title"
+        @keydown.esc="closeQuote"
+      >
         <div class="modal-head">
-          <h3>提交报价 - {{ quoteLead.rfq_number }}</h3>
-          <button class="btn-close" @click="quoteLead = null">✕</button>
+          <h3 id="quote-modal-title">提交报价 - {{ quoteLead.rfq_number }}</h3>
+          <button class="btn-close" aria-label="关闭" @click="closeQuote">✕</button>
         </div>
         <div class="modal-body">
           <div class="modal-info">
@@ -276,21 +315,52 @@ async function submitQuote() {
             <span v-if="quoteLead.target_price">目标价: ¥{{ quoteLead.target_price }}</span>
           </div>
           <div class="quote-form">
-            <label><span>单价 (¥) *</span><input v-model.number="quoteForm.unit_price" type="number" step="0.01" class="input" /></label>
+            <label><span>单价 (¥) *</span><input ref="quoteFirstInput" v-model.number="quoteForm.unit_price" type="number" step="0.01" class="input" /></label>
             <label><span>MOQ</span><input v-model.number="quoteForm.moq" type="number" class="input" /></label>
             <label><span>交期 (天)</span><input v-model.number="quoteForm.lead_time_days" type="number" class="input" /></label>
             <label><span>库存数量</span><input v-model.number="quoteForm.stock_qty" type="number" class="input" /></label>
             <label class="checkbox-label"><input v-model="quoteForm.is_in_stock" type="checkbox" /><span>有现货</span></label>
             <label class="full"><span>备注</span><textarea v-model="quoteForm.note" class="input" rows="2" /></label>
           </div>
-          <div v-if="submitError" class="form-error">{{ submitError }}</div>
+          <div v-if="submitError" class="form-error" role="alert">{{ submitError }}</div>
         </div>
         <div class="modal-footer">
-          <button class="btn-cancel" @click="quoteLead = null">取消</button>
-          <button class="btn-submit" :disabled="submitting || quoteForm.unit_price <= 0" @click="submitQuote">{{ submitting ? '提交中…' : '提交报价' }}</button>
+          <AppButton variant="secondary" @click="closeQuote">取消</AppButton>
+          <AppButton :loading="submitting" :disabled="quoteForm.unit_price <= 0" @click="submitQuote">提交报价</AppButton>
         </div>
       </div>
     </div>
+
+    <!-- 拒绝确认弹层（内嵌理由输入，替代原生 prompt；焦点圈禁） -->
+    <div v-if="declineTarget" class="modal-overlay" @click.self="closeDecline">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="decline-modal-title"
+        @keydown.esc="closeDecline"
+      >
+        <div class="modal-head">
+          <h3 id="decline-modal-title">拒绝该线索？</h3>
+          <button class="btn-close" aria-label="关闭" :disabled="declining" @click="closeDecline">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">拒绝后将不再展示该线索。可填写拒绝理由（可选）。</p>
+          <label class="decline-note">
+            <span>拒绝理由（可选）</span>
+            <textarea ref="declineNoteInput" v-model="declineNote" class="input" rows="2" placeholder="如：型号不符 / 无库存 / 价格过低…" />
+          </label>
+        </div>
+        <div class="modal-footer">
+          <AppButton variant="secondary" :disabled="declining" @click="closeDecline">取消</AppButton>
+          <AppButton variant="danger" :loading="declining" @click="confirmDecline">确认拒绝</AppButton>
+        </div>
+      </div>
+    </div>
+
+    <Transition name="toast">
+      <div v-if="toast" class="toast" role="alert">{{ toast }}</div>
+    </Transition>
   </div>
 </template>
 
@@ -307,63 +377,81 @@ async function submitQuote() {
   gap: var(--space-4);
   margin-bottom: var(--space-5);
 }
-.eyebrow { color: var(--text-tertiary); font-size: var(--font-size-xs); font-weight: 700; }
-.page-title { font-size: var(--font-size-xl); font-weight: 700; margin-top: 4px; }
-.page-desc { color: var(--text-secondary); margin-top: 4px; font-size: var(--font-size-sm); }
-.notice-bar { padding: var(--space-3) var(--space-4); border-radius: 6px; border: 1px solid rgba(234, 179, 8, 0.25); background: var(--warning-soft); color: var(--warning); font-size: var(--font-size-sm); }
-.notice-bar--demo { border: 1px solid rgba(99, 102, 241, 0.3); background: var(--accent-soft); color: var(--accent); }
-.meta-quote { color: var(--accent); font-weight: 600; }
+.eyebrow { color: var(--text-tertiary); font-size: var(--font-size-xs); line-height: var(--leading-xs); font-weight: 700; }
+.page-title { font-size: var(--font-size-xl); line-height: var(--leading-xl); font-weight: 700; margin-top: var(--space-1); }
+.page-desc { color: var(--text-secondary); margin-top: var(--space-1); font-size: var(--font-size-sm); line-height: var(--leading-sm); }
+.notice-bar { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); border: 1px solid var(--warning-border); background: var(--warning-soft); color: var(--warning); font-size: var(--font-size-sm); line-height: var(--leading-sm); margin-bottom: var(--space-4); }
+.notice-bar--demo { border: 1px solid var(--accent-border); background: var(--accent-soft); color: var(--accent-text); }
+.meta-quote { color: var(--accent-text); font-weight: 600; }
 .meta-win { color: var(--success); font-weight: 700; }
 .stats-row { display: flex; gap: var(--space-3); margin-bottom: var(--space-4); }
-.stat-chip { flex: 1; display: flex; flex-direction: column; gap: 4px; padding: var(--space-3) var(--space-4); background: var(--bg-2); border: 1px solid var(--border-default); border-radius: 8px; }
-.stat-chip__num { font-size: var(--font-size-2xl); font-weight: 700; color: var(--text-primary); }
-.stat-chip__label { font-size: var(--font-size-xs); color: var(--text-tertiary); }
+.stat-chip { flex: 1; display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-4); background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg); }
+.stat-chip__num { font-size: var(--font-size-2xl); line-height: var(--leading-2xl); font-weight: 700; color: var(--text-primary); font-family: var(--font-mono); }
+.stat-chip__label { font-size: var(--font-size-xs); line-height: var(--leading-xs); color: var(--text-tertiary); }
 .tabs { display: flex; gap: 0; margin-bottom: var(--space-4); border-bottom: 1px solid var(--border-default); }
-.tab { padding: 8px 20px; border: none; background: none; font-size: var(--font-size-sm); color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+.tab { padding: var(--space-2) var(--space-5); border: none; background: none; font-size: var(--font-size-sm); line-height: var(--leading-sm); color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; transition: color var(--transition-fast), border-color var(--transition-fast); }
 .tab:hover { color: var(--text-primary); }
-.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-.card { background: var(--bg-2); border: 1px solid var(--border-default); border-radius: 8px; margin-bottom: var(--space-3); }
+.tab.active { color: var(--accent-text); border-bottom-color: var(--accent); font-weight: 600; }
+.card { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg); margin-bottom: var(--space-3); }
 .card__body { padding: var(--space-4); }
 .leads-list { display: flex; flex-direction: column; gap: var(--space-3); }
 .lead-card { padding: var(--space-4); }
 .lead-card__head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3); }
-.lead-card__title { font-weight: 600; font-size: var(--font-size-md); color: var(--text-primary); }
-.lead-card__spec { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-top: 4px; }
+.lead-card__title { font-weight: 600; font-size: var(--font-size-md); line-height: var(--leading-md); color: var(--text-primary); }
+.lead-card__spec { font-size: var(--font-size-sm); line-height: var(--leading-sm); color: var(--text-tertiary); margin-top: var(--space-1); }
 .lead-card__badges { display: flex; gap: var(--space-2); align-items: center; flex-shrink: 0; }
-.lead-card__meta { display: flex; gap: var(--space-5); margin-bottom: var(--space-3); font-size: var(--font-size-sm); flex-wrap: wrap; }
-.lead-meta-item { display: flex; gap: 6px; }
+.lead-card__meta { display: flex; gap: var(--space-5); margin-bottom: var(--space-3); font-size: var(--font-size-sm); line-height: var(--leading-sm); flex-wrap: wrap; }
+.lead-meta-item { display: flex; gap: var(--space-1); }
 .meta-label { color: var(--text-tertiary); }
 .lead-card__actions { display: flex; justify-content: flex-end; gap: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
-.quoted-tag { color: var(--success); font-size: var(--font-size-sm); font-weight: 600; padding: 4px 8px; }
-.tag { font-size: var(--font-size-xs); padding: 2px 8px; border-radius: var(--radius-sm); }
-.tag-blue { color: var(--accent); background: var(--accent-soft); }
-.tag-yellow { color: var(--warning); background: var(--warning-soft); }
-.tag-green { color: var(--success); background: var(--success-soft); }
-.tag-gray { color: var(--text-tertiary); background: var(--bg-3); }
+.quoted-tag { color: var(--success); font-size: var(--font-size-sm); line-height: var(--leading-sm); font-weight: 600; padding: var(--space-1) var(--space-2); }
 .mono { font-family: var(--font-mono); font-size: var(--font-size-xs); }
 .empty-state { text-align: center; padding: var(--space-8); color: var(--text-tertiary); }
-.empty-icon { font-size: 40px; margin-bottom: var(--space-3); opacity: 0.4; }
-.skeleton { background: linear-gradient(90deg, var(--bg-3) 25%, var(--border-subtle) 50%, var(--bg-3) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--radius-sm); }
+.empty-icon { font-size: var(--font-size-3xl); margin-bottom: var(--space-3); opacity: 0.4; }
+.skeleton { background: linear-gradient(90deg, var(--bg-subtle) 25%, var(--border-subtle) 50%, var(--bg-subtle) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--radius-sm); }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 /* Modal */
-.modal-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
-.modal { width: 100%; max-width: 520px; background: var(--bg-1); border: 1px solid var(--border-default); border-radius: 12px; overflow: hidden; }
+.modal-overlay { position: fixed; inset: 0; z-index: var(--z-modal); background: color-mix(in srgb, var(--text-primary) 40%, transparent); display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+[data-theme='dark'] .modal-overlay { background: color-mix(in srgb, var(--bg-canvas) 70%, transparent); }
+.modal { width: 100%; max-width: 520px; background: var(--bg-elevated); border: 1px solid var(--border-default); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-lg); }
 .modal-head { display: flex; justify-content: space-between; align-items: center; padding: var(--space-4); border-bottom: 1px solid var(--border-subtle); }
-.modal-head h3 { color: var(--text-primary); font-size: var(--font-size-md); }
-.btn-close { color: var(--text-tertiary); font-size: var(--font-size-md); background: none; border: none; cursor: pointer; }
+.modal-head h3 { color: var(--text-primary); font-size: var(--font-size-md); line-height: var(--leading-md); }
+.btn-close { color: var(--text-tertiary); font-size: var(--font-size-md); line-height: var(--leading-md); background: none; border: none; cursor: pointer; }
 .modal-body { padding: var(--space-4); }
-.modal-info { display: grid; gap: 6px; margin-bottom: var(--space-4); padding: var(--space-3); background: var(--bg-2); border-radius: 6px; font-size: var(--font-size-sm); color: var(--text-secondary); }
+.modal-desc { color: var(--text-secondary); font-size: var(--font-size-sm); line-height: var(--leading-sm); margin-bottom: var(--space-3); }
+.modal-info { display: grid; gap: var(--space-1); margin-bottom: var(--space-4); padding: var(--space-3); background: var(--bg-subtle); border-radius: var(--radius-md); font-size: var(--font-size-sm); line-height: var(--leading-sm); color: var(--text-secondary); }
 .quote-form { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
-.quote-form label { display: grid; gap: 4px; }
+.quote-form label { display: grid; gap: var(--space-1); }
 .quote-form label.full { grid-column: 1 / -1; }
 .quote-form label.checkbox-label { flex-direction: row; align-items: center; gap: var(--space-2); display: flex; }
-.quote-form span { color: var(--text-tertiary); font-size: var(--font-size-xs); }
-.input { padding: 8px 10px; border: 1px solid var(--border-default); border-radius: 6px; background: var(--bg-2); color: var(--text-primary); font-size: var(--font-size-sm); width: 100%; box-sizing: border-box; }
-.form-error { margin-top: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: 4px; background: var(--danger-soft); color: var(--danger); font-size: var(--font-size-xs); }
+.quote-form span { color: var(--text-tertiary); font-size: var(--font-size-xs); line-height: var(--leading-xs); }
+.input { padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-surface); color: var(--text-primary); font-size: var(--font-size-sm); line-height: var(--leading-sm); width: 100%; box-sizing: border-box; outline: none; transition: border-color var(--transition-fast), box-shadow var(--transition-fast); }
+.input:focus { border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-soft); }
+.form-error { margin-top: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--danger-soft); border: 1px solid var(--danger-border); color: var(--danger); font-size: var(--font-size-xs); line-height: var(--leading-xs); }
 .modal-footer { display: flex; justify-content: flex-end; gap: var(--space-2); padding: var(--space-4); border-top: 1px solid var(--border-subtle); }
-.btn-cancel { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border-default); background: var(--bg-2); color: var(--text-secondary); font-size: var(--font-size-sm); cursor: pointer; }
-.btn-submit { padding: 8px 16px; border-radius: 6px; background: var(--gradient-accent); color: #fff; font-size: var(--font-size-sm); font-weight: 600; border: none; cursor: pointer; }
-.btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.decline-note { display: grid; gap: var(--space-1); }
+.decline-note span { color: var(--text-tertiary); font-size: var(--font-size-xs); line-height: var(--leading-xs); }
+.decline-note textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+
+/* toast */
+.toast {
+  position: fixed;
+  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-elevated);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  color: var(--danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
+}
+.toast-enter-active, .toast-leave-active { transition: opacity var(--transition-base), transform var(--transition-base); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(var(--space-2)); }
+
 @media (max-width: 768px) { .stats-row { flex-wrap: wrap; } .stat-chip { min-width: calc(50% - var(--space-3)); } .quote-form { grid-template-columns: 1fr; } }
 </style>

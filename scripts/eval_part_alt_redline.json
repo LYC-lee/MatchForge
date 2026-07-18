@@ -1,0 +1,69 @@
+{
+  "summary": {
+    "total": 4,
+    "accuracy": 0,
+    "refusal_correctness": 0,
+    "hallucination_block": 1.0,
+    "overall_pass_rate": 1.0,
+    "by_category": {
+      "alt_redline": {
+        "total": 4,
+        "passed": 4
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "eval-013",
+      "category": "alt_redline",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "50V 的电容找替代，不接受降压"
+    },
+    {
+      "id": "eval-014",
+      "category": "alt_redline",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "0805 封装的料找替代，不能换封装"
+    },
+    {
+      "id": "eval-015",
+      "category": "alt_redline",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "找替代料，已停产的不要推荐"
+    },
+    {
+      "id": "eval-016",
+      "category": "alt_redline",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "C0G 温度系数的电容找替代，不要降级到 Y5V"
+    }
+  ]
+}
