@@ -75,7 +75,7 @@ If a task is blocked after roughly 90 minutes:
 
 ### P0-01 - AI 寻源到真实 RFQ/线索闭环 (Issue #39)
 
-Status: wip (loop-008) - 代码 + 测试已写, 前端 build ✓; 后端 pytest 待跑
+Status: done (loop-008, commit a33b40f) — 代码/测试/前端 build 全通过, #39 closed
 
 打通 AI 寻源链路 (gen_rfq/grade/match) 产出的内存态 rfq_doc/matched_suppliers/lead_grade 到真实 kb_rfqs/kb_rfq_suppliers 闭环。前端"发送 RFQ"显式调 POST /rfqs + /rfqs/{id}/send; match_score/match_reason 落 RfqSupplierLink (原孤儿 NULL), lead_grade 落 RfqRecord.context_json; 落库后以 RfqRecord.id/rfq_number 为准替代内存 MF- ID; demo 模式保持本地 flag 不落库 (边界清晰)。详见 summary 2026-07-18-HHMM-p0-ai-rfq-loop。
 
@@ -364,11 +364,11 @@ Future entries should use:
 ### loop-008 - 2026-07-18 +08:00 - Development Loop (P0-01 AI 寻源 RFQ 闭环)
 
 - **goal:** 打通 AI 寻源到真实 RFQ/供应商线索闭环 (Issue #39, P0-01 C1/D1/D5)。AI 链路产出的 rfq_doc/matched_suppliers/lead_grade 不再只活在内存, 前端"发送"显式调 POST /rfqs + /rfqs/{id}/send 落 kb_rfqs。
-- **branch:** 待定 (从 main 切)
-- **commit:** 待补
+- **branch:** 从 main 直接提交 (git commit a33b40f)
+- **commit:** `a33b40f`
 - **base:** `origin/main`
-- **summary:** `docs/superpowers/summaries/2026-07-18-HHMM-p0-ai-rfq-loop.md`
-- **status:** wip (代码 + 测试已写, 前端 build ✓; 后端 pytest 待运行环境确认后跑)
+- **summary:** `docs/superpowers/summaries/2026-07-18-1015-p0-ai-rfq-loop.md`
+- **status:** merged (2026-07-18, commit a33b40f on main, 已 close #39)
 - **fix:**
   - 后端 `api/routers/rfqs.py`: 新增 `RfqCandidate` 模型 + `RfqCreate.candidate_details`/`lead_grade` 可选字段; `create_rfq` 建 `RfqSupplierLink` 时写 match_score/match_reason (原孤儿 NULL), lead_grade 存 context_json; 保留 `supplier_candidates:list[int]` 兼容 (去重, details 优先)
   - 前端 `web/src/stores/procure.ts`: 新增 `sendRfqToBackend()` action, 正式模式调 createRfq+sendRfq 回填 persistedRfqId/Number, demo 模式保留本地 flag; 失败写 rfqSendError 不静默
