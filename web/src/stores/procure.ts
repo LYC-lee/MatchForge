@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { streamProcure } from '@/api/procure'
+import { createRfq, sendRfq, type RfqCreatePayload, type RfqCandidateDetail } from '@/api/enterprise'
+import { useAuthStore } from '@/stores/auth'
 import { getUserId, useHistory } from '@/composables/useHistory'
 import type {
   AgentName,
@@ -64,6 +66,14 @@ export const useProcureStore = defineStore('procure', () => {
   const selectedSupplierIds = ref<Set<string>>(new Set())
   const rfqDoc = ref<string>('')
   const rfqSent = ref(false)
+  /** 落库后的真实 RFQ 主键 (来自 RfqRecord.id); 未发送/发送失败为 null */
+  const persistedRfqId = ref<number | null>(null)
+  /** 落库后的真实 RFQ 编号 (RFQ-YYYY-NNNN); 用于 UI 展示替代内存 MF- ID */
+  const persistedRfqNumber = ref<string | null>(null)
+  /** 发送 RFQ 到后端的进行中状态 */
+  const rfqSending = ref(false)
+  /** 发送 RFQ 到后端的错误 (显式出口, 不静默) */
+  const rfqSendError = ref<string | null>(null)
   const leadGrade = ref<LeadGrade | null>(null)
   const errors = ref<string[]>([])
 
@@ -197,6 +207,10 @@ export const useProcureStore = defineStore('procure', () => {
     selectedSupplierIds.value = new Set()
     rfqDoc.value = ''
     rfqSent.value = false
+    persistedRfqId.value = null
+    persistedRfqNumber.value = null
+    rfqSending.value = false
+    rfqSendError.value = null
     leadGrade.value = null
     errors.value = []
     isStreaming.value = false
@@ -405,8 +419,128 @@ export const useProcureStore = defineStore('procure', () => {
     rfqDoc.value = text
   }
 
+  /** 从 normalizedSpec (SpecField 格式) 取字段原始值 */
+  function specVal(key: string): string {
+    const spec = normalizedSpec.value || parsedSpec.value
+    if (!spec) return ''
+    const f = spec[key]
+    if (f == null) return ''
+    if (typeof f === 'object' && 'value' in (f as any)) return String((f as any).value ?? '')
+    return String(f)
+  }
+
+  /** 品类 -> 中文品名 (与后端 gen_rfq._CATEGORY_TO_NAME 对齐, 用于 RFQ title) */
+  function categoryToName(category: string): string {
+    const map: Record<string, string> = {
+      mlcc: '多层陶瓷贴片电容(MLCC)',
+      resistor: '贴片电阻',
+      capacitor: '电容器',
+      inductor: '电感器',
+      ic: '集成电路',
+      connector: '连接器',
+      diode: '二极管',
+      transistor: '三极管',
+    }
+    const k = (category || '').trim().toLowerCase()
+    return map[k] || category || '电子元器件'
+  }
+
+  /**
+   * 把 AI 寻源产物发送到真实后端, 创建 kb_rfqs 记录并发送给候选供应商。
+   *
+   * - 正式模式 (is_demo=false): 调 POST /rfqs + POST /rfqs/{id}/send,
+   *   回填 persistedRfqId/Number, rfqSent=true。
+   * - demo 模式 (is_demo=true): 仅翻本地 rfqSent flag, 不落库 (保持 demo 与 kb 表隔离)。
+   * - 失败: 写 rfqSendError, 不翻 rfqSent, 不静默。
+   */
+  async function sendRfqToBackend() {
+    rfqSendError.value = null
+    const auth = useAuthStore()
+    const isDemo = !!auth.user?.is_demo
+
+    // demo 模式: 保持旧本地 flag 行为, 不接通真实闭环
+    if (isDemo) {
+      rfqSent.value = true
+      return
+    }
+
+    // 取 buyer_company_id: 优先 auth.user.company_id, 后备从 localStorage 读当前企业
+    let buyerCompanyId = auth.user?.company_id
+    if (!buyerCompanyId) {
+      const saved = Number(window.localStorage.getItem('matchforge-current-enterprise-id'))
+      if (Number.isFinite(saved) && saved > 0) {
+        buyerCompanyId = saved
+      }
+    }
+    if (!buyerCompanyId) {
+      rfqSendError.value = '当前账号未绑定企业, 无法创建 RFQ'
+      return
+    }
+
+    rfqSending.value = true
+    try {
+      const partNumber = specVal('part_number')
+      const category = specVal('category')
+      const monthlyQty = parseInt(specVal('monthly_qty'), 10)
+      const leadWeeks = parseInt(specVal('lead_time_weeks'), 10)
+
+      // 候选供应商: 优先用户选中的, 否则用全部 matched; 携带 match_score/match_reason
+      const pool = selectedSuppliers.value.length > 0 ? selectedSuppliers.value : matchedSuppliers.value
+      const candidateDetails: RfqCandidateDetail[] = []
+      for (const s of pool) {
+        const sid = parseInt(s.id, 10)
+        if (!Number.isFinite(sid)) continue
+        const reason = [
+          (s as any).brand_coverage ? `品牌覆盖:${(s as any).brand_coverage}` : '',
+          (s as any).rag_insights ? `知识匹配:${String((s as any).rag_insights).slice(0, 80)}` : '',
+          s.region ? `地区:${s.region}` : '',
+        ].filter(Boolean).join(' | ')
+        const detail: RfqCandidateDetail = {
+          supplier_company_id: sid,
+          match_score: s.match_score,
+        }
+        if (reason) detail.match_reason = reason
+        candidateDetails.push(detail)
+      }
+
+      const payload: RfqCreatePayload = {
+        buyer_company_id: buyerCompanyId,
+        title: `${categoryToName(category)} 采购询价${partNumber ? ` - ${partNumber}` : ''}`,
+        part_number: partNumber || undefined,
+        part_name: categoryToName(category),
+        quantity: Number.isFinite(monthlyQty) && monthlyQty > 0 ? monthlyQty : 1,
+        unit: '个',
+        lead_time_days: Number.isFinite(leadWeeks) && leadWeeks > 0 ? leadWeeks * 7 : undefined,
+        accept_alternatives: alternatives.value.length > 0,
+        scenario: 'sourcing',
+        raw_query: rawQuery.value || undefined,
+        candidate_details: candidateDetails.length > 0 ? candidateDetails : undefined,
+        lead_grade: leadGrade.value ? { ...leadGrade.value } : undefined,
+      }
+
+      const createRes = await createRfq(payload)
+      const rfq = createRes?.data?.rfq
+      if (!rfq || !rfq.id) {
+        throw new Error('后端未返回 RFQ 记录')
+      }
+      persistedRfqId.value = rfq.id
+      persistedRfqNumber.value = rfq.rfq_number || null
+
+      // 发送给候选供应商 (生成 supplier leads + 审核项)
+      await sendRfq(rfq.id)
+      rfqSent.value = true
+    } catch (e: any) {
+      rfqSendError.value =
+        e?.response?.data?.detail || e?.message || 'RFQ 发送失败, 请稍后重试'
+      // 不翻 rfqSent, 允许用户重试
+    } finally {
+      rfqSending.value = false
+    }
+  }
+
+  /** 兼容旧调用: 标记已发送 (内部按模式分发) */
   function markRfqSent() {
-    rfqSent.value = true
+    sendRfqToBackend()
   }
 
   function regenerateRfq() {
@@ -605,6 +739,10 @@ export const useProcureStore = defineStore('procure', () => {
     selectedSupplierIds,
     rfqDoc,
     rfqSent,
+    persistedRfqId,
+    persistedRfqNumber,
+    rfqSending,
+    rfqSendError,
     leadGrade,
     errors,
     isStreaming,
@@ -628,6 +766,7 @@ export const useProcureStore = defineStore('procure', () => {
     deselectAllSuppliers,
     setRfqDoc,
     markRfqSent,
+    sendRfqToBackend,
     regenerateRfq,
     retryMatch,
     applyState,

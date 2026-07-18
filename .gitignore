@@ -39,6 +39,11 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 
+# Databases
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
 # Backups
 *.bak
 
@@ -50,3 +55,10 @@ redis_data/
 etcd_data/
 minio_data/
 postgres_data/
+
+# Claude AI workfiles (plans, memories, etc.)
+.claude/
+
+# Temporary/auto-generated project files
+r.json
+r_*.json
