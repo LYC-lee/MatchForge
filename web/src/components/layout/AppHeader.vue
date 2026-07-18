@@ -38,7 +38,11 @@ function logout() {
   <aside class="sidebar">
     <div class="sidebar__brand">
       <RouterLink to="/app" class="brand">
-        <span class="brand__mark" />
+        <span class="brand__mark">
+          <svg viewBox="0 0 48 46" class="brand__logo" aria-hidden="true">
+            <path d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" fill="currentColor"/>
+          </svg>
+        </span>
         <span>
           <span class="brand__name">MatchForge</span>
           <span class="brand__sub">产业链 AI 经营驾驶舱</span>
@@ -117,8 +121,17 @@ function logout() {
   width: 30px;
   height: 30px;
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-md);
   background: var(--gradient-accent);
+  color: #fff;
+}
+.brand__logo {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 .brand__name { display: block; font-weight: 700; font-size: var(--font-size-md); line-height: 1.1; }
 .brand__sub { display: block; margin-top: 2px; font-size: var(--font-size-xs); color: var(--text-tertiary); }
