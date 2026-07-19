@@ -67,10 +67,10 @@ const isProgress = computed(() => props.message.resultType === 'progress')
 const renderMarkdown = computed(
   () => !isUser.value && !isSystem.value && !isError.value && !isProgress.value,
 )
-// 引用回显: 助手消息带 citations 时,在正文下方渲染角标列表
-const showCitations = computed(
-  () => !isUser.value && !isSystem.value && !!props.message.citations?.length,
-)
+// Perplexity 式溯源: 助手消息带 citations 时,底部展示「N 条依据」汇总行,点击展开引用面板
+const citations = computed(() => props.message.citations ?? [])
+const showCitations = computed(() => !isUser.value && !isSystem.value && citations.value.length > 0)
+const sourcesOpen = ref(false)
 
 const displayContent = computed(() => {
   let text = props.message.content
@@ -153,19 +153,20 @@ const showActions = computed(() => showCopy.value || showRegenerate.value || isE
       'msg--progress': isProgress,
     }"
   >
-    <!-- 头像 -->
-    <div class="msg__avatar">
-      <span v-if="isUser" class="avatar--user">U</span>
+    <!-- 头像：渐变 = AI（全站统一语义），用户 = 中性 -->
+    <div class="msg__avatar" aria-hidden="true">
+      <span v-if="isUser" class="avatar--user">{{ 'U' }}</span>
       <span v-else-if="isSystem" class="avatar--system">●</span>
       <span v-else class="avatar--ai">M</span>
     </div>
 
-    <!-- 气泡 -->
     <div class="msg__bubble">
+      <!-- 错误气泡：role="alert" 即时播报 -->
       <div
         v-if="displayContent"
         class="msg__text"
         :class="{ 'msg__text--typing': isStreaming, 'msg__text--md': renderMarkdown }"
+        :role="isError ? 'alert' : undefined"
       >
         <template v-if="renderMarkdown">
           <MarkdownContent :content="displayContent" :streaming="isStreaming" />
@@ -176,12 +177,23 @@ const showActions = computed(() => showCopy.value || showRegenerate.value || isE
         </template>
       </div>
 
-      <!-- 引用回显: MarkdownContent 下方的引用角标列表 -->
-      <CitationList
-        v-if="showCitations"
-        class="msg__citations"
-        :citations="props.message.citations!"
-      />
+      <!-- 溯源汇总行：「N 条依据」点击展开引用面板 -->
+      <div v-if="showCitations" class="msg__sources">
+        <button
+          type="button"
+          class="msg__sources-toggle"
+          :aria-expanded="sourcesOpen"
+          @click="sourcesOpen = !sourcesOpen"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+          <span>{{ citations.length }} 条依据</span>
+          <span class="msg__sources-caret" :class="{ 'msg__sources-caret--open': sourcesOpen }">▸</span>
+        </button>
+        <CitationList v-if="sourcesOpen" class="msg__citations" :citations="citations" />
+      </div>
 
       <!-- 插槽: 嵌入结构化结果卡片 -->
       <div v-if="$slots.default" class="msg__slot">
@@ -247,7 +259,7 @@ const showActions = computed(() => showCopy.value || showRegenerate.value || isE
 .msg {
   display: flex;
   gap: var(--space-3);
-  max-width: 800px;
+  max-width: var(--chat-col, 800px);
   margin: 0 auto;
   padding: var(--space-2) var(--space-4);
   animation: fadeIn 0.25s ease;
@@ -276,63 +288,71 @@ const showActions = computed(() => showCopy.value || showRegenerate.value || isE
   font-size: var(--font-size-xs);
   font-weight: 700;
 }
+/* 渐变 = AI（AI 徽章，渐变三处许可之一） */
 .msg--assistant .msg__avatar {
   background: var(--gradient-accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .msg--user .msg__avatar {
-  background: var(--bg-3);
+  background: var(--bg-subtle);
   color: var(--text-secondary);
   border: 1px solid var(--border-default);
 }
 .avatar--system {
   color: var(--text-tertiary);
-  font-size: 12px;
+  font-size: var(--font-size-xs);
 }
 
 .msg__bubble {
   flex: 1;
   min-width: 0;
-  max-width: 640px;
+  max-width: 720px;
 }
 .msg--user .msg__bubble {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
 }
+
+/* 用户消息：轻气泡右对齐 */
 .msg--user .msg__text {
+  max-width: 640px;
   background: var(--accent-soft);
   color: var(--text-primary);
   border: 1px solid var(--accent-border);
   border-radius: var(--radius-lg) var(--radius-sm) var(--radius-lg) var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
 }
+/* AI 消息：去气泡，文档式排版（限宽 720px 由 .msg__bubble 承载） */
 .msg--assistant .msg__text {
-  background: var(--bg-2);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm) var(--radius-lg) var(--radius-lg) var(--radius-lg);
   color: var(--text-primary);
+  padding: var(--space-1) 0;
 }
 .msg--system .msg__text {
   background: transparent;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
   text-align: center;
 }
+/* 错误气泡 + 重试（重试按钮在 meta 行常驻） */
 .msg--error .msg__text {
   background: var(--danger-soft);
-  border-color: rgba(239, 68, 68, 0.3);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
   color: var(--danger);
 }
 .msg--progress .msg__text {
   background: transparent;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
 }
 
 .msg__text {
-  padding: var(--space-3) var(--space-4);
   font-size: var(--font-size-md);
-  line-height: 1.7;
+  line-height: var(--leading-md);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -350,14 +370,46 @@ const showActions = computed(() => showCopy.value || showRegenerate.value || isE
 @keyframes blink {
   50% { opacity: 0; }
 }
+/* 流式光标：reduced-motion 下静态 */
+@media (prefers-reduced-motion: reduce) {
+  .msg__cursor {
+    animation: none;
+  }
+}
 
 .msg__slot {
   margin-top: var(--space-3);
 }
 
-/* 引用角标列表挂在气泡内正文下方 */
+/* 溯源汇总行 */
+.msg__sources {
+  margin-top: var(--space-2);
+}
+.msg__sources-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
+  transition: color var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
+}
+.msg__sources-toggle:hover {
+  color: var(--accent-text);
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+.msg__sources-caret {
+  display: inline-block;
+  transition: transform var(--transition-fast);
+}
+.msg__sources-caret--open {
+  transform: rotate(90deg);
+}
 .msg__citations {
-  max-width: 640px;
   margin-top: var(--space-1);
   padding: 0 var(--space-1);
 }
@@ -376,6 +428,7 @@ const showActions = computed(() => showCopy.value || showRegenerate.value || isE
 }
 .msg__time {
   font-size: var(--font-size-xs);
+  line-height: var(--leading-xs);
   color: var(--text-tertiary);
   font-family: var(--font-mono);
 }
@@ -393,19 +446,19 @@ const showActions = computed(() => showCopy.value || showRegenerate.value || isE
 .msg__action {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 4px;
+  gap: var(--space-1);
+  padding: var(--space-1);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
 }
 .msg__action:hover {
   color: var(--text-primary);
-  background: var(--bg-3);
+  background: var(--bg-subtle);
   border-color: var(--border-default);
 }
 .msg__action--copied {
@@ -416,8 +469,9 @@ const showActions = computed(() => showCopy.value || showRegenerate.value || isE
 }
 .msg__action--retry {
   color: var(--danger);
-  border-color: rgba(239, 68, 68, 0.3);
+  border-color: var(--danger-border);
   background: var(--danger-soft);
+  padding: var(--space-1) var(--space-2);
 }
 .msg__action--retry:hover {
   color: var(--danger);
@@ -434,6 +488,7 @@ const showActions = computed(() => showCopy.value || showRegenerate.value || isE
   gap: var(--space-2);
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
+  line-height: var(--leading-sm);
 }
 .msg__spinner {
   width: 14px;

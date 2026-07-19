@@ -15,34 +15,35 @@ const showHeader = computed(() => route.meta.layout !== 'blank' && !blankPaths.h
     <main class="app-main" :class="{ 'app-main--blank': !showHeader }">
       <RouterView />
     </main>
-    <DemoConsole v-if="showHeader" />
+    <!-- 演示场景悬浮控制台（仅 demo 登录用户可见，可拖拽） -->
+    <DemoConsole />
   </div>
 </template>
 
 <style scoped>
 .app-shell {
+  /* 侧栏宽度为外壳级布局常量，AppHeader 通过继承该变量保持对齐 */
+  --sidebar-w: 256px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(99, 102, 241, 0.11), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)),
-    var(--bg-0);
+  background: var(--bg-canvas);
 }
 .app-main {
   flex: 1;
   min-height: 100vh;
-  padding-top: 56px;
-  padding-left: 256px;
+  padding-top: var(--header-h);
+  padding-left: var(--sidebar-w);
 }
 .app-main--blank {
   padding: 0;
 }
 
+/* ≤920px：侧栏折叠为顶部横条 + 顶栏，共两层 --header-h */
 @media (max-width: 920px) {
   .app-main {
     padding-left: 0;
-    padding-top: 104px;
+    padding-top: calc(var(--header-h) * 2);
   }
 }
 </style>

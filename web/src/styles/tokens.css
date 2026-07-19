@@ -1,43 +1,218 @@
+/* ==========================================================================
+   MatchForge 设计令牌 · 三层架构
+   --------------------------------------------------------------------------
+   Layer 1 · Seed      原始色板与尺度。组件【禁止】直接使用这一层。
+   Layer 2 · Semantic  语义角色，按 [data-theme] 切换取值。组件只用这一层。
+   Layer 3 · Component 布局/字号/层级/动效常量，主题无关。
+
+   硬性规范（阶段二全员遵守）：
+   1. 行高 = 字号 + 8：每个 --font-size-* 都有对应 --leading-*，必须成对使用。
+   2. 数字列 / 表格 / 计数器使用 .num 工具类（font-variant-numeric: var(--font-num)）。
+   3. 禁止硬编码色值（hex/rgb 字面量），一律使用 Semantic 层令牌。
+   4. 禁止新增渐变：渐变仅允许出现在 logo、AI 徽章、生成态三处。
+   5. 禁止纯黑 #000 / 纯白 #fff 作为底色（--on-accent 前景文字除外）。
+   6. 状态标签公式：色字 + 12% alpha 底（*-soft）+ 30% alpha 边（*-border）。
+   ========================================================================== */
+
+/* ==========================================================================
+   Layer 1 · Seed（主题无关，勿直接使用）
+   ========================================================================== */
 :root {
-  /* ===== 背景层 ===== */
-  --bg-0: #0a0b0f;
-  --bg-1: #0f1117;
-  --bg-2: #151823;
-  --bg-3: #1c2030;
-  --bg-elevated: #1e2230;
+  /* 中性灰阶 —— 浅色参考 Linear / Vercel */
+  --gray-0: #ffffff;
+  --gray-25: #fafafa;
+  --gray-50: #f5f5f6;
+  --gray-100: #eeeef1;
+  --gray-200: #e5e5e7;
+  --gray-300: #d4d4d8;
+  --gray-400: #a1a1aa;
+  --gray-500: #8e8e99;
+  --gray-600: #52525b;
+  --gray-700: #3f3f46;
+  --gray-800: #27272c;
+  --gray-900: #17171c;
 
-  /* ===== 边框 ===== */
-  --border-subtle: #2b3140;
-  --border-default: #384052;
-  --border-strong: #4b556b;
+  /* 深色底色系 —— 在既有 #0a0b0f 体系上优化（禁纯黑） */
+  --ink-950: #0b0c11;
+  --ink-900: #101218;
+  --ink-850: #151823;
+  --ink-800: #1c212e;
+  --ink-line-1: #262d3b;
+  --ink-line-2: #323a4b;
+  --ink-line-3: #465164;
+  --ink-text-1: #e8eaf0;
+  --ink-text-2: #a9b0c0;
+  --ink-text-3: #737b8d;
 
-  /* ===== 文本 ===== */
-  --text-primary: #e7e9ee;
-  --text-secondary: #c4cad6;
-  --text-tertiary: #a3adbf;
+  /* 靛蓝阶梯（500=品牌主色，600=浅色文字/链接级主色） */
+  --indigo-50: #eef2ff;
+  --indigo-100: #e0e7ff;
+  --indigo-200: #c7d2fe;
+  --indigo-300: #a5b4fc;
+  --indigo-400: #818cf8;
+  --indigo-500: #6366f1;
+  --indigo-600: #4f46e5;
+  --indigo-700: #4338ca;
+  --indigo-800: #3730a3;
+  --indigo-900: #312e81;
 
-  /* ===== 主色 靛蓝 ===== */
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --accent-active: #4f46e5;
-  --accent-soft: rgba(99, 102, 241, 0.12);
+  /* 语义色种子 —— 参考 SAP Fiori 五态（本项目四态 + neutral），双主题适配 */
+  --green-400: #4ade80;
+  --green-600: #16a34a;
+  --green-700: #15803d;
+  --amber-300: #fcd34d;
+  --amber-500: #f59e0b;
+  --amber-700: #b45309;
+  --orange-400: #fb923c;
+  --orange-500: #f97316;
+  --orange-700: #c2410c;
+  --red-400: #f87171;
+  --red-500: #ef4444;
+  --red-600: #dc2626;
+}
+
+/* ==========================================================================
+   Layer 2 · Semantic —— 浅色（默认主题）
+   ========================================================================== */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* 背景层级：canvas 页面底 / subtle 斑马纹与 hover / surface 卡片 / elevated 浮层 */
+  --bg-canvas: var(--gray-0);
+  --bg-subtle: var(--gray-25);
+  --bg-surface: var(--gray-0);
+  --bg-elevated: var(--gray-0);
+
+  /* 边框：发丝级 1px，三档递进 */
+  --border-subtle: var(--gray-200);
+  --border-default: var(--gray-200);
+  --border-strong: var(--gray-300);
+
+  /* 文本三级 */
+  --text-primary: var(--gray-900);
+  --text-secondary: var(--gray-600);
+  --text-tertiary: var(--gray-500);
+
+  /* 主色（严格配给制）：文字/链接场景必须用 --accent-text（AA 达标） */
+  --accent: var(--indigo-500);
+  --accent-hover: var(--indigo-600);
+  --accent-active: var(--indigo-700);
+  --accent-soft: rgba(99, 102, 241, 0.1);
+  --accent-border: rgba(99, 102, 241, 0.3);
+  --accent-text: var(--indigo-600);
+  --on-accent: var(--gray-0);
+
+  /* 状态色：浅色主题取 600/700 深阶保证对比度 */
+  --success: var(--green-700);
+  --success-soft: rgba(21, 128, 61, 0.1);
+  --success-border: rgba(21, 128, 61, 0.3);
+  --warning: var(--amber-700);
+  --warning-soft: rgba(180, 83, 9, 0.1);
+  --warning-border: rgba(180, 83, 9, 0.3);
+  --notice: var(--orange-700);
+  --notice-soft: rgba(194, 65, 12, 0.1);
+  --notice-border: rgba(194, 65, 12, 0.3);
+  --danger: var(--red-600);
+  --danger-soft: rgba(220, 38, 38, 0.08);
+  --danger-border: rgba(220, 38, 38, 0.3);
+
+  /* 阴影：浅色更轻 */
+  --shadow-sm: 0 1px 2px rgba(23, 23, 28, 0.05);
+  --shadow-md: 0 2px 8px rgba(23, 23, 28, 0.06), 0 1px 2px rgba(23, 23, 28, 0.04);
+  --shadow-lg: 0 8px 24px rgba(23, 23, 28, 0.1), 0 2px 6px rgba(23, 23, 28, 0.05);
+
+  /* 渐变：仅 logo / AI 徽章 / 生成态可使用 */
+  --gradient-accent: linear-gradient(135deg, var(--indigo-500) 0%, #8b5cf6 100%);
+  --gradient-surface: linear-gradient(180deg, rgba(23, 23, 28, 0.02) 0%, rgba(23, 23, 28, 0) 100%);
+
+  /* ------ DEPRECATED 兼容别名：仅为阶段一过渡保留，新代码禁用，阶段二逐页替换 ------ */
+  --bg-0: var(--bg-canvas);
+  --bg-1: var(--bg-subtle);
+  --bg-2: var(--bg-surface);
+  --bg-3: var(--bg-elevated);
+  --shadow-glow: 0 0 0 1px var(--accent-border), 0 8px 24px rgba(99, 102, 241, 0.12);
+}
+
+/* ==========================================================================
+   Layer 2 · Semantic —— 深色覆盖（仅覆盖语义层，组件层不变）
+   ========================================================================== */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-canvas: var(--ink-950);
+  --bg-subtle: var(--ink-900);
+  --bg-surface: var(--ink-850);
+  --bg-elevated: var(--ink-800);
+
+  --border-subtle: var(--ink-line-1);
+  --border-default: var(--ink-line-2);
+  --border-strong: var(--ink-line-3);
+
+  --text-primary: var(--ink-text-1);
+  --text-secondary: var(--ink-text-2);
+  --text-tertiary: var(--ink-text-3);
+
+  --accent: var(--indigo-500);
+  --accent-hover: var(--indigo-400);
+  --accent-active: var(--indigo-600);
+  --accent-soft: rgba(99, 102, 241, 0.14);
   --accent-border: rgba(99, 102, 241, 0.35);
+  --accent-text: var(--indigo-400);
+  --on-accent: var(--gray-0);
 
-  /* ===== 风险分级 ===== */
-  --success: #22c55e;
-  --success-soft: rgba(34, 197, 94, 0.12);
-  --warning: #eab308;
-  --warning-soft: rgba(234, 179, 8, 0.12);
-  --notice: #f97316;
-  --notice-soft: rgba(249, 115, 22, 0.12);
-  --danger: #ef4444;
-  --danger-soft: rgba(239, 68, 68, 0.12);
+  /* 状态色：深色主题取 300/400 浅阶保证对比度 */
+  --success: var(--green-400);
+  --success-soft: rgba(74, 222, 128, 0.12);
+  --success-border: rgba(74, 222, 128, 0.3);
+  --warning: var(--amber-300);
+  --warning-soft: rgba(252, 211, 77, 0.12);
+  --warning-border: rgba(252, 211, 77, 0.3);
+  --notice: var(--orange-400);
+  --notice-soft: rgba(251, 146, 60, 0.12);
+  --notice-border: rgba(251, 146, 60, 0.3);
+  --danger: var(--red-400);
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --danger-border: rgba(248, 113, 113, 0.3);
 
-  /* ===== 渐变 ===== */
-  --gradient-accent: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  --gradient-accent: linear-gradient(135deg, var(--indigo-500) 0%, #8b5cf6 100%);
   --gradient-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0) 100%);
 
-  /* ===== 间距 ===== */
+  /* ------ DEPRECATED 兼容别名 ------ */
+  --bg-0: var(--bg-canvas);
+  --bg-1: var(--bg-subtle);
+  --bg-2: var(--bg-surface);
+  --bg-3: var(--bg-elevated);
+  --shadow-glow: 0 0 0 1px var(--accent-border), 0 8px 24px rgba(99, 102, 241, 0.15);
+}
+
+/* ==========================================================================
+   Layer 3 · Component / 布局（主题无关）
+   ========================================================================== */
+:root {
+  /* 布局 */
+  --header-h: 56px;
+  --container-sm: 760px;
+  --container-md: 1200px;
+  --container-lg: 1360px;
+
+  /* 圆角：中小 */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-full: 999px;
+
+  /* 层级 */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+
+  /* 间距（4 基数） */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -46,30 +221,40 @@
   --space-6: 32px;
   --space-8: 48px;
 
-  /* ===== 圆角 ===== */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
-  --radius-full: 999px;
+  /* 字号八档（11–32），行高 = 字号 + 8，必须成对使用 */
+  --font-size-xs: 11px;
+  --leading-xs: 19px;
+  --font-size-sm: 13px;
+  --leading-sm: 21px;
+  --font-size-base: 14px;
+  --leading-base: 22px;
+  --font-size-md: 15px;
+  --leading-md: 23px;
+  --font-size-lg: 17px;
+  --leading-lg: 25px;
+  --font-size-xl: 20px;
+  --leading-xl: 28px;
+  --font-size-2xl: 26px;
+  --leading-2xl: 34px;
+  --font-size-3xl: 32px;
+  --leading-3xl: 40px;
 
-  /* ===== 阴影 ===== */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45);
-  --shadow-glow: 0 0 0 1px var(--accent-border), 0 8px 24px rgba(99, 102, 241, 0.15);
-
-  /* ===== 字体 ===== */
+  /* 字体族与数字工具（.num 类使用：font-variant-numeric: var(--font-num)） */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace;
-  --font-size-xs: 11px;
-  --font-size-sm: 13px;
-  --font-size-base: 14px;
-  --font-size-md: 15px;
-  --font-size-lg: 17px;
-  --font-size-xl: 20px;
-  --font-size-2xl: 26px;
-  --font-size-3xl: 32px;
+  --font-num: tabular-nums;
 
+  /* 动效：交互 120ms / 布局与状态 200ms */
   --transition-fast: 120ms ease;
   --transition-base: 200ms ease;
+
+  /* 焦点环：双层（2px 底色隔离 + 4px accent），配合 :focus-visible 使用 */
+  --focus-ring: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--accent);
+}
+
+/* 移动端顶栏收紧 */
+@media (max-width: 640px) {
+  :root {
+    --header-h: 52px;
+  }
 }

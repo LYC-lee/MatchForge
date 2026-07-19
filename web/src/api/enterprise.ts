@@ -460,6 +460,8 @@ export interface AuditQueueItem {
   entity_id: number
   company_id: number | null
   title: string
+  /** 判定依据/详情（demo 沙盘与部分后端版本提供） */
+  detail?: string
   payload: Record<string, any>
   status: string // pending | approved | rejected
   review_note: string | null

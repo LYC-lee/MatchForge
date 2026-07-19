@@ -1,0 +1,69 @@
+{
+  "summary": {
+    "total": 4,
+    "accuracy": 0,
+    "refusal_correctness": 0,
+    "hallucination_block": 0,
+    "overall_pass_rate": 0.0,
+    "by_category": {
+      "alt_recommend": {
+        "total": 4,
+        "passed": 0
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "eval-009",
+      "category": "alt_recommend",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "TMK212BJ105KG-T 找替代料"
+    },
+    {
+      "id": "eval-010",
+      "category": "alt_recommend",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "GRM188R61A106KE69D 缺货找替代"
+    },
+    {
+      "id": "eval-011",
+      "category": "alt_recommend",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "0805 1uF X5R 10V 找替代"
+    },
+    {
+      "id": "eval-012",
+      "category": "alt_recommend",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "alt_count": 0,
+        "no_vdrop": true,
+        "no_pkg_change": true,
+        "no_eol": true
+      },
+      "query": "CL10A105KP8NNNC 找替代料"
+    }
+  ]
+}

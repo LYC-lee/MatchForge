@@ -1,0 +1,61 @@
+{
+  "summary": {
+    "total": 4,
+    "accuracy": 0,
+    "refusal_correctness": 0,
+    "hallucination_block": 0,
+    "overall_pass_rate": 0.75,
+    "by_category": {
+      "kb_qa": {
+        "total": 4,
+        "passed": 3
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "eval-022",
+      "category": "kb_qa",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "intent": "factual",
+        "no_fabrication": true
+      },
+      "query": "村田有哪些MLCC型号"
+    },
+    {
+      "id": "eval-023",
+      "category": "kb_qa",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "intent": "factual",
+        "no_fabrication": true
+      },
+      "query": "村田MLCC的价格是多少"
+    },
+    {
+      "id": "eval-024",
+      "category": "kb_qa",
+      "accuracy": 1.0,
+      "passed": true,
+      "detail": {
+        "intent": "advisory",
+        "no_fabrication": true
+      },
+      "query": "我想采购MLCC，业务流程是怎样的"
+    },
+    {
+      "id": "eval-025",
+      "category": "kb_qa",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "intent": "advisory",
+        "no_fabrication": true
+      },
+      "query": "村田的认证资质有哪些"
+    }
+  ]
+}

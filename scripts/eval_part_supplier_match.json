@@ -1,0 +1,72 @@
+{
+  "summary": {
+    "total": 5,
+    "accuracy": 0,
+    "refusal_correctness": 0,
+    "hallucination_block": 0,
+    "overall_pass_rate": 0.0,
+    "by_category": {
+      "supplier_match": {
+        "total": 5,
+        "passed": 0
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "eval-017",
+      "category": "supplier_match",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "supplier_count": 0,
+        "confirmed_false": true
+      },
+      "query": "找 MLCC 供应商，要 YAGEO 品牌"
+    },
+    {
+      "id": "eval-018",
+      "category": "supplier_match",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "supplier_count": 0,
+        "confirmed_false": true
+      },
+      "query": "0805 10uF X7R 50V 匹配供应商"
+    },
+    {
+      "id": "eval-019",
+      "category": "supplier_match",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "supplier_count": 0,
+        "confirmed_false": true
+      },
+      "query": "深圳的 MLCC 供应商有哪些"
+    },
+    {
+      "id": "eval-020",
+      "category": "supplier_match",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "supplier_count": 0,
+        "confirmed_false": true
+      },
+      "query": "贴片电阻 0603 10k 供应商"
+    },
+    {
+      "id": "eval-021",
+      "category": "supplier_match",
+      "accuracy": 0.0,
+      "passed": false,
+      "detail": {
+        "supplier_count": 0,
+        "confirmed_false": true
+      },
+      "query": "Murata 授权代理供应商"
+    }
+  ]
+}

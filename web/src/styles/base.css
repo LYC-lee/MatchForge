@@ -1,3 +1,9 @@
+/* ==========================================================================
+   MatchForge 全局地基（reset + 可访问性 + 通用工具类）
+   依赖 tokens.css，禁止在此声明任何硬编码色值。
+   ========================================================================== */
+
+/* ---------- Reset ---------- */
 *,
 *::before,
 *::after {
@@ -10,33 +16,39 @@ html,
 body,
 #app {
   height: 100%;
-  color-scheme: dark;
 }
 
 body {
   font-family: var(--font-sans);
   font-size: var(--font-size-base);
-  line-height: 1.55;
+  line-height: var(--leading-base);
   color: var(--text-primary);
-  background: var(--bg-0);
+  background: var(--bg-canvas);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition-base), color var(--transition-base);
 }
 
 a {
-  color: var(--accent-hover);
+  color: var(--accent-text);
   text-decoration: none;
   transition: color var(--transition-fast);
 }
 a:hover {
-  color: var(--accent);
+  color: var(--accent-hover);
 }
 
 button {
   font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
   cursor: pointer;
   border: none;
   background: none;
+}
+button:disabled {
+  cursor: not-allowed;
 }
 
 input,
@@ -44,8 +56,9 @@ textarea,
 select {
   font-family: inherit;
   font-size: inherit;
+  line-height: inherit;
   color: var(--text-primary);
-  background-color: var(--bg-2);
+  background-color: var(--bg-surface);
 }
 
 ul,
@@ -58,17 +71,82 @@ code,
   font-family: var(--font-mono);
 }
 
+img,
+svg,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+/* ---------- 可访问性 ---------- */
+/* 全局双层焦点环：仅键盘聚焦时可见 */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* 减少动态偏好：全局动画降级 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- 工具类 ---------- */
+/* 数字对齐：表格数字列、计数器、价格等场景 */
+.num {
+  font-variant-numeric: var(--font-num);
+}
+
+/* 骨架屏（自旧全局样式重写，令牌驱动；复杂场景优先用 ui/Skeleton.vue） */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-subtle) 25%,
+    var(--border-subtle) 50%,
+    var(--bg-subtle) 75%
+  );
+  background-size: 200% 100%;
+  animation: mf-shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+@keyframes mf-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* 空状态（自旧全局样式重写；新代码优先用 ui/EmptyState.vue） */
+.empty-state {
+  text-align: center;
+  padding: var(--space-8) var(--space-5);
+  color: var(--text-tertiary);
+}
+.empty-state .icon {
+  font-size: 48px;
+  margin-bottom: var(--space-4);
+  opacity: 0.35;
+}
+
+/* ---------- 滚动条细化 ---------- */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-1);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4a5168;
+  background: var(--text-tertiary);
 }
