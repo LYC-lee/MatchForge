@@ -94,7 +94,7 @@ reset 后: demo_orders_active_count=0, demo_shortages_total=3  ✓ 恢复基线
 ## 7. 下一步建议
 
 1. **提交**: `git add -A && git commit -m "feat(demo): merge demo state into dashboard (orders/shortages/actions)"`, 建议分支 `codex/demo-state-merge-dashboard` -> PR to main。
-2. **浏览器联调**: 启动后端 `uvicorn api.main:app --port 8000` + 前端 `npm run dev`, 演示账号登录鼎云整机, 逐项验证验收标准 1-8。
+2. **浏览器联调**: 启动后端 `uvicorn api.main:main --port 8000` + 前端 `npm run dev`, 演示账号登录鼎云整机, 逐项验证验收标准 1-8。
 3. **可选增强**: demo 订单点击跳转订单详情; demo 缺件"发起 RFQ"直接触发 `/demo/actions/generate-rfq` 而非跳采购页。
 4. **datetime.utcnow 迁移**: 仍存在大量 DeprecationWarning, 建议后续批量替换 `datetime.now(timezone.utc)`。
 5. **统一 demo token 常量**: 前端 'demo-token' 与后端 KB_DEMO_TOKEN 'kb-demo-user' 仍双字面量。

@@ -21,7 +21,42 @@
 - `docs/` 产品需求 / 系统架构 / 项目开发文档
 
 ## 快速开始
-见 [环境要求.txt](环境要求.txt)
+
+### 前置条件
+- Python 3.11+ (推荐 Conda)
+- Node.js 18+ / pnpm
+- Docker Desktop (用于 MySQL/Milvus/Neo4j/Redis 等基础设施)
+
+### 1. 启动基础设施 (Docker)
+```bash
+cd deploy
+docker compose up -d mysql milvus etcd minio neo4j redis postgres
+# 等待 MySQL healthy (约 10s)
+docker compose ps   # 确认 mysql 状态为 healthy
+```
+
+### 2. 配置环境变量
+```bash
+cp .env.example .env
+# 编辑 .env 填入 API Key 和数据库密码
+```
+
+### 3. 安装后端依赖并启动
+```bash
+pip install -r requirements.txt
+# 在项目根目录执行（不是 api/ 目录）
+uvicorn api.main:main --host 0.0.0.0 --port 8000 --reload
+```
+验证: 访问 `http://localhost:8000/api/v1/health` 返回 `{"status":"ok"}`
+
+### 4. 启动前端
+```bash
+cd web
+npm install
+npm run dev   # http://localhost:5173
+```
+
+详见 [环境要求.txt](环境要求.txt)
 
 ## 6 个子智能体
 需求解析 → 标准化 → 替代料推荐(Neo4j) → 供应商匹配(Milvus) → 询价生成 → 线索分级

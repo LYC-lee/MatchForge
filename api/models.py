@@ -1,17 +1,15 @@
 """
 SQLAlchemy ORM 模型
-与 database/01_schema 对齐，默认 SQLite 兼容
+与 database/01_schema DDL 对齐 -- 所有主键使用 BIGINT AUTO_INCREMENT。
+
+历史问题: 旧 ORM 使用 String(12) UUID 作为主键，但真实 DDL 全部是 BIGINT。
+已于 P0-04 修复中统一为 BigInteger autoincrement。
 """
 
-import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, Boolean, Integer, Float, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, String, Text, Boolean, Integer, BigInteger, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from api.base import Base
-
-
-def _uuid():
-    return uuid.uuid4().hex[:12]
 
 
 def _now():
@@ -23,7 +21,7 @@ def _now():
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(String(12), primary_key=True, default=_uuid)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(128), nullable=False)
@@ -39,22 +37,23 @@ class User(Base):
 # ── 供应商 ───────────────────────────────────────────────────
 
 class Supplier(Base):
+    """供应商主体表 -- 与 deploy/docker/mysql/init/01_matchforge_schema.sql DDL 对齐。
+
+    注意: 品类/品牌/MOQ/交期等信息不在本表，在 supplier_capabilities 表中。
+    旧 ORM 中的 categories/brands/moq/lead_time_weeks/data_source 等字段
+    在真实数据库中不存在，已移除。查询品类等信息请 JOIN supplier_capabilities。
+    """
     __tablename__ = "suppliers"
 
-    id = Column(String(12), primary_key=True, default=_uuid)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    enterprise_id = Column(BigInteger, nullable=True, index=True)
     name = Column(String(200), nullable=False)
-    location = Column(String(100), default="")
-    region = Column(String(50), default="")
-    categories = Column(JSON, default=list)
-    brands = Column(JSON, default=list)
-    qualifications = Column(JSON, default=list)
-    moq = Column(Integer, default=0)
-    lead_time_weeks = Column(Integer, default=0)
-    response_speed = Column(String(50), default="")
-    data_source = Column(String(50), default="")
-    match_score = Column(Float, default=0.0)
+    location = Column(String(100), nullable=True)
     rating = Column(Float, default=0.0)
-    status = Column(String(20), default="approved")  # pending / approved / rejected
+    status = Column(String(20), default="pending")  # pending / approved / rejected / needs_review
+    contact_phone = Column(String(50), nullable=True)
+    contact_email = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
 
 
@@ -63,8 +62,8 @@ class Supplier(Base):
 class RFQ(Base):
     __tablename__ = "rfqs"
 
-    id = Column(String(12), primary_key=True, default=_uuid)
-    buyer_id = Column(String(12), ForeignKey("users.id"), nullable=True)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    buyer_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)
     thread_id = Column(String(64), default="")
     raw_query = Column(Text, default="")
     parsed_spec = Column(JSON, nullable=True)
@@ -84,9 +83,9 @@ class RFQ(Base):
 class Lead(Base):
     __tablename__ = "leads"
 
-    id = Column(String(12), primary_key=True, default=_uuid)
-    rfq_id = Column(String(12), ForeignKey("rfqs.id"), nullable=True)
-    supplier_id = Column(String(12), ForeignKey("suppliers.id"), nullable=True)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    rfq_id = Column(BigInteger, ForeignKey("rfqs.id"), nullable=True)
+    supplier_id = Column(BigInteger, ForeignKey("suppliers.id"), nullable=True)
     grade = Column(String(2), default="C")  # A/B/C/D
     score = Column(Integer, default=0)
     reasons = Column(JSON, default=list)
@@ -99,10 +98,10 @@ class Lead(Base):
 class AuditRecord(Base):
     __tablename__ = "audit_records"
 
-    id = Column(String(12), primary_key=True, default=_uuid)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     target_type = Column(String(20), nullable=False)  # supplier / alternative
-    target_id = Column(String(12), nullable=False)
+    target_id = Column(BigInteger, nullable=False)
     action = Column(String(20), nullable=False)  # approve / reject / mark_risk
-    operator_id = Column(String(12), nullable=True)
+    operator_id = Column(BigInteger, nullable=True)
     note = Column(Text, default="")
     created_at = Column(DateTime, default=_now)

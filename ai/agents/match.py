@@ -121,12 +121,18 @@ async def match_agent(state: ProcureState) -> ProcureState:
         matched = []
         for sup in enriched_suppliers:
             # 品牌覆盖度计算
-            sup_brands_raw = sup.get("brands") or sup.get("brand_coverage") or ""
+            # 真实 schema: supplier_capabilities.brand_names (逗号分隔字符串)
+            # 兼容旧格式: brands / brand_coverage (JSON 数组或字符串)
+            sup_brands_raw = sup.get("brand_names") or sup.get("brands") or sup.get("brand_coverage") or ""
             if isinstance(sup_brands_raw, str):
-                try:
-                    sup_brands = json.loads(sup_brands_raw) if sup_brands_raw.startswith("[") else [sup_brands_raw]
-                except (json.JSONDecodeError, TypeError):
-                    sup_brands = [sup_brands_raw] if sup_brands_raw else []
+                # brand_names 在 supplier_capabilities 表中是逗号分隔字符串
+                if sup_brands_raw.startswith("["):
+                    try:
+                        sup_brands = json.loads(sup_brands_raw)
+                    except (json.JSONDecodeError, TypeError):
+                        sup_brands = [b.strip() for b in sup_brands_raw.split(",") if b.strip()]
+                else:
+                    sup_brands = [b.strip() for b in sup_brands_raw.split(",") if b.strip()]
             elif isinstance(sup_brands_raw, (list, tuple)):
                 sup_brands = list(sup_brands_raw)
             else:
@@ -150,24 +156,36 @@ async def match_agent(state: ProcureState) -> ProcureState:
 
             sup_brand_str = json.dumps(sup_brands, ensure_ascii=False) if sup_brands else ""
 
-            categories_list = [c.strip() for c in str(sup.get("category", "")).split(",") if c.strip()] or ["MLCC"]
+            # 真实 schema: category_name (supplier_capabilities 表)
+            category_val = sup.get("category_name") or sup.get("category") or ""
+            categories_list = [c.strip() for c in str(category_val).split(",") if c.strip()] or ["MLCC"]
+
+            # 真实 schema: lead_time_days (supplier_capabilities 表), 转换为周
+            lead_time_days = sup.get("lead_time_days") or sup.get("lead_time_weeks")
+            lead_time_weeks = None
+            if lead_time_days is not None:
+                try:
+                    ltd = int(lead_time_days)
+                    lead_time_weeks = round(ltd / 7, 1) if ltd > 7 else 1
+                except (ValueError, TypeError):
+                    lead_time_weeks = lead_time_days
 
             matched.append({
                 "id": str(sup.get("id", "")),
                 "name": sup.get("name", ""),
                 "match_score": round(match_score, 2),
-                "category": sup.get("category", ""),
+                "category": category_val,
                 "categories": categories_list,
-                "region": sup.get("location", ""),
+                "region": sup.get("region") or sup.get("location", ""),
                 "location": sup.get("location", ""),
                 "brands": sup_brands,
                 "brand_coverage": sup_brand_str,
                 "qualifications": [],
                 "moq": sup.get("moq"),
-                "lead_time_weeks": sup.get("lead_time_weeks"),
+                "lead_time_weeks": lead_time_weeks,
                 "in_stock": False,
                 "response_speed": "暂无数据",
-                "data_source": sup.get("data_source", "平台数据"),
+                "data_source": sup.get("source_name") or sup.get("data_source") or "平台数据",
                 "updated_at": sup.get("updated_at", ""),
                 "confirmed_stock": False,
                 "confirmed_lead": False,

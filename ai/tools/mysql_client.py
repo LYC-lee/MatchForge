@@ -1,23 +1,38 @@
 """
-MySQL 查询工具
-字典查询 / 供应商查询 / 产品查询
+MySQL 查询工具 -- 按真实 schema 查询。
+
+事实源:
+  - suppliers 表: 供应商主体 (id, name, location, rating, status, ...)
+  - supplier_capabilities 表: 品类/品牌/MOQ/交期 (supplier_id, category_name, brand_names, moq, lead_time_days)
+  - material_dictionary 表: 标准物料字典 (std_code, category, params, standard)
+
+旧代码的错误:
+  - 查询 suppliers.category / suppliers.brand_coverage / suppliers.moq / suppliers.lead_time_weeks / suppliers.data_source
+    这些列在真实 suppliers 表中不存在, 实际存储在 supplier_capabilities 表中。
+  - 本修复通过 JOIN supplier_capabilities 获取品类/品牌/MOQ 等信息。
 
 工具函数使用 @tool 装饰器，兼容 LLM tool-calling 和直接调用两种方式。
 """
 
 from __future__ import annotations
 
+import logging
 from sqlalchemy import create_engine, text
 from langchain_core.tools import tool
 
 from ai.config import MYSQL_URL
 
+logger = logging.getLogger(__name__)
+
 
 def get_engine():
     """获取 SQLAlchemy 引擎。"""
-    return create_engine(MYSQL_URL, pool_pre_ping=True)
+    return create_engine(MYSQL_URL, pool_pre_ping=True, future=True)
 
 
+# ============================================================
+# 标准字典查询
+# ============================================================
 @tool
 def lookup_std_code(
     category: str = "",
@@ -26,7 +41,7 @@ def lookup_std_code(
     temp_coeff: str = "",
     rated_voltage: str = "",
 ) -> str:
-    """查询标准字典 — 匹配 material_dictionary 中的 std_code。
+    """查询标准字典 - 匹配 material_dictionary 中的 std_code。
 
     根据元器件的品类、封装、容值、温度系数、额定电压，
     在标准字典中查找匹配的标准编码。
@@ -63,7 +78,6 @@ def lookup_std_code(
         return "未找到匹配的标准编码"
 
 
-# 保留原始函数（兼容直接 dict 参数调用）
 def lookup_std_code_raw(spec: dict) -> dict | None:
     """查询标准字典（dict 参数版本，兼容旧代码）。"""
     query = text("""
@@ -85,9 +99,12 @@ def lookup_std_code_raw(spec: dict) -> dict | None:
             "rated_voltage": str(spec.get("rated_voltage", "")),
         })
         row = result.fetchone()
-        return row._mapping if row else None
+        return dict(row._mapping) if row else None
 
 
+# ============================================================
+# 供应商查询 -- 按 JOIN supplier_capabilities 真实 schema
+# ============================================================
 @tool
 def filter_suppliers(
     category: str = "",
@@ -97,79 +114,94 @@ def filter_suppliers(
     """查询符合条件的供应商列表。
 
     根据经营品类、品牌覆盖、地区过滤已审核通过的供应商。
+    品类/品牌/MOQ 等信息存储在 supplier_capabilities 表中，通过 JOIN 查询。
 
     Args:
         category: 经营品类，如 MLCC、电阻
         brands: 品牌名称，多个以逗号分隔，如 "Murata,YAGEO"
-        location: 地区过滤，如 "深圳"、"华东"
+        location: 地区过滤，如 "深圳"、("华东")
     """
-    brand_list = [b.strip() for b in brands.split(",") if b.strip()] if brands else []
-
-    conditions = ["s.status = 'approved'"]
-    params: dict = {"category": category}
-
-    if brand_list:
-        brand_conditions = " OR ".join(
-            [f"JSON_CONTAINS(s.brand_coverage, JSON_QUOTE(:brand_{i}))" for i in range(len(brand_list))]
-        )
-        for i, b in enumerate(brand_list):
-            params[f"brand_{i}"] = b
-        conditions.append(f"({brand_conditions})")
-    if location:
-        conditions.append("s.location = :location")
-        params["location"] = location
-
-    where = " AND ".join(conditions)
-    query = text(f"""
-        SELECT s.id, s.name, s.category, s.brand_coverage AS brands,
-               s.location, s.moq, s.lead_time_weeks,
-               s.data_source, s.updated_at
-        FROM suppliers s
-        WHERE s.category = :category AND {where}
-        ORDER BY s.rating DESC
-        LIMIT 20
-    """)
-
-    with get_engine().connect() as conn:
-        result = conn.execute(query, params)
-        rows = [dict(row._mapping) for row in result]
-        if not rows:
-            return "未查询到符合条件的供应商"
-        return str(rows)
+    results = filter_suppliers_raw(category, brands.split(",") if brands else None, location)
+    if not results:
+        return "未查询到符合条件的供应商"
+    return str(results)
 
 
-# 保留原始函数（兼容旧代码）
 def filter_suppliers_raw(
     category: str,
     brands: list[str] | None = None,
     location: str | None = None,
 ) -> list[dict]:
-    """查询符合条件的供应商（list 参数版本，兼容旧代码）。"""
-    conditions = ["s.status = 'approved'"]
-    params: dict = {"category": category}
+    """查询符合条件的供应商（list 参数版本，兼容旧代码）。
 
+    真实 schema:
+      - suppliers 表: id, name, location, rating, status, contact_phone, contact_email
+      - supplier_capabilities 表: supplier_id, category_name, brand_names, moq, lead_time_days, region
+
+    通过 LEFT JOIN supplier_capabilities 获取品类/品牌/MOQ 等信息。
+    一个供应商可能有多个能力记录 (多个品类)，按 category 过滤时取匹配行。
+    """
+    conditions = ["s.status = 'approved'"]
+    params: dict = {"category": f"%{category}%" if category else ""}
+
+    # 品类过滤: supplier_capabilities.category_name LIKE %category%
+    if category:
+        conditions.append("(sc.category_name LIKE :category OR sc.category_name IS NULL)")
+
+    # 品牌过滤: supplier_capabilities.brand_names 中包含指定品牌
     if brands:
-        brand_conditions = " OR ".join(
-            [f"JSON_CONTAINS(s.brand_coverage, JSON_QUOTE(:brand_{i}))" for i in range(len(brands))]
-        )
+        brand_conditions = []
         for i, b in enumerate(brands):
-            params[f"brand_{i}"] = b
-        conditions.append(f"({brand_conditions})")
+            b = b.strip()
+            if not b:
+                continue
+            param_key = f"brand_{i}"
+            params[param_key] = f"%{b}%"
+            brand_conditions.append(f"sc.brand_names LIKE :{param_key}")
+        if brand_conditions:
+            conditions.append(f"({' OR '.join(brand_conditions)})")
+
+    # 地区过滤: suppliers.location LIKE %location%
     if location:
-        conditions.append("s.location = :location")
-        params["location"] = location
+        params["location"] = f"%{location}%"
+        conditions.append("s.location LIKE :location")
 
     where = " AND ".join(conditions)
+
     query = text(f"""
-        SELECT s.id, s.name, s.category, s.brand_coverage AS brands,
-               s.location, s.moq, s.lead_time_weeks,
-               s.data_source, s.updated_at
+        SELECT s.id, s.name, s.location, s.rating, s.status,
+               sc.category_name, sc.brand_names, sc.moq, sc.lead_time_days,
+               sc.region, sc.audit_status,
+               s.contact_phone, s.contact_email
         FROM suppliers s
-        WHERE s.category = :category AND {where}
+        LEFT JOIN supplier_capabilities sc ON sc.supplier_id = s.id
+        WHERE {where}
         ORDER BY s.rating DESC
         LIMIT 20
     """)
 
-    with get_engine().connect() as conn:
-        result = conn.execute(query, params)
-        return [row._mapping for row in result]
+    try:
+        with get_engine().connect() as conn:
+            result = conn.execute(query, params)
+            return [dict(row._mapping) for row in result]
+    except Exception as e:
+        logger.error("filter_suppliers_raw 查询失败: %s", e)
+        # 降级: 不 JOIN, 只查 suppliers 主体表
+        logger.warning("降级查询: 仅查 suppliers 主体表")
+        fallback_conditions = ["s.status = 'approved'"]
+        if location:
+            fallback_conditions.append("s.location LIKE :location")
+        fallback_where = " AND ".join(fallback_conditions)
+        fallback_query = text(f"""
+            SELECT s.id, s.name, s.location, s.rating, s.status,
+                   NULL AS category_name, NULL AS brand_names,
+                   NULL AS moq, NULL AS lead_time_days, NULL AS region,
+                   NULL AS audit_status, s.contact_phone, s.contact_email
+            FROM suppliers s
+            WHERE {fallback_where}
+            ORDER BY s.rating DESC
+            LIMIT 20
+        """)
+        with get_engine().connect() as conn:
+            result = conn.execute(fallback_query, params)
+            return [dict(row._mapping) for row in result]

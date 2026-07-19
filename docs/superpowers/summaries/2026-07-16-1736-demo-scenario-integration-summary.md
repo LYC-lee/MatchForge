@@ -137,7 +137,7 @@ TypeScript 类型检查 + Vite 打包均通过, 产物输出到 `web/dist/`。
 ## 13. 下一步建议
 
 1. **PR**: 从 `codex/demo-scenario-integration` 向 `main` 发起 PR, 标题 "feat: 演示场景沙盘 MVP 集成 (后端+前端+悬浮控制台)"。
-2. **端到端联调**: 启动后端 (`uvicorn api.main:app`) + 前端 dev server, 用演示账号 demo@matchforge.ai/demo12345 登录, 逐项验证 11 条核心能力。
+2. **端到端联调**: 启动后端 (`uvicorn api.main:main`) + 前端 dev server, 用演示账号 demo@matchforge.ai/demo12345 登录, 逐项验证 11 条核心能力。
 3. **补建 test_auth_mysql.py**: 独立覆盖 register/login/me/refresh 的 MySQL 路径。
 4. **统一 demo token 常量**: 前后端共享一个 demo token 字面量, 消除硬编码分歧。
 5. **非主视角企业事件入口**: 可选, 在控制台或独立页查看联动企业的演示事件。
