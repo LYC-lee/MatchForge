@@ -89,7 +89,7 @@
 
 - 50 条物料中 49 条料号取自 `data/suppliers/suppliers.json`（立创商城挂牌真实料号），1 条 `TMK212BJ105KG-T` 取自冲刺计划 Demo 输入（Taiyo Yuden 真实料号，confidence_level=manual）
 - 30 条替代关系中，6 条来自 `data/alternatives/alternatives.json` 的 Datasheet 交叉引用（G1 组），其余基于规格匹配生成并标注 source（行业交叉表）与 review_status（approved/needs_review）
-- 公司财务/份额数据来自 [../../docs/电脑制作全链路产业链分析.md](../../docs/电脑制作全链路产业链分析.md)，confidence_level=official/cross_checked
+- 公司财务/份额数据原引用的行业分析文档已从当前工作树移除；在重新核验原始来源前，不能仅凭历史 `confidence_level=official/cross_checked` 当作已验证事实。
 - `CC0805KKX7R9BB103` 料号尾码 103 对应 10nF（EIA 规范），与部分挂牌描述存在出入，已按 EIA 规范录入容值
 
 ## 6. 验收
